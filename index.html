@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXCART — Online Store</title>
+<meta name="theme-color" content="#FF3F6C">
+<meta name="description" content="NEXCART storefront — opening the current app.">
+
+<!-- This file used to be an older multi-file version of the app, which caused
+     real confusion: opening index.html showed an older design, and its admin
+     trigger needed five rapid taps (1.2s window), so tapping the logo slowly
+     appeared to do nothing.
+     index.html is now a single-purpose launcher for the maintained app so both
+     entry points always open the same, current build.
+     The old multi-file entry is preserved as index-old-multifile.html
+     (it still uses css/style.css and js/*.js). -->
+
+<meta http-equiv="refresh" content="0; url=./tokri-standalone.html">
+<style>
+  html,body{ margin:0; height:100%; }
+  body{
+    display:flex; align-items:center; justify-content:center; text-align:center;
+    background:#FFFFFF; color:#282C3F; padding:24px;
+    font:400 15px/1.6 Assistant, -apple-system, "Segoe UI", Roboto, Inter, sans-serif;
+  }
+  .mark{
+    width:56px; height:56px; border-radius:16px; margin:0 auto 16px;
+    background:linear-gradient(135deg,#FF3F6C 0%,#FF905A 100%);
+    display:flex; align-items:center; justify-content:center;
+    color:#fff; font:800 26px/1 Assistant, Inter, sans-serif;
+    box-shadow:0 4px 16px rgba(255,63,108,0.28);
+  }
+  h1{ font-size:19px; font-weight:800; letter-spacing:-.3px; margin:0 0 6px; }
+  p{ margin:0 0 18px; color:#535766; font-size:13.5px; }
+  a{
+    display:inline-block; background:#FF3F6C; color:#fff; text-decoration:none;
+    font-weight:800; font-size:14px; padding:12px 26px; border-radius:8px;
+    box-shadow:0 4px 14px rgba(255,63,108,0.32);
+  }
+</style>
+</head>
+<body>
+  <div>
+    <div class="mark">T</div>
+    <h1>Opening NEXCART…</h1>
+    <p>If nothing happens, tap the button below.</p>
+    <a href="./tokri-standalone.html">Open the store</a>
+  </div>
+  <script>location.replace('./tokri-standalone.html' + (location.hash || ''));</script>
+</body>
+</html>
