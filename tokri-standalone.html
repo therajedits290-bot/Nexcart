@@ -5149,6 +5149,13 @@ function renderAdminSettings(shell){
         D.categories = Array.isArray(d.categories) && d.categories.length ? d.categories : D.categories;
         if (typeof persist === 'function') persist();
         refreshVisibleCatalog();
+        // The server is now the source of truth — remember its state so we do
+        // not immediately push the same catalogue straight back at it.
+        lastCatalogHash = catalogHash();
+      } else {
+        // Server is empty: the owner has never uploaded. Leave the baseline
+        // unset so the very first poll uploads what they have made in the app.
+        lastCatalogHash = '';
       }
     }).catch(function () { /* offline — keep local data */ });
   }
@@ -5224,12 +5231,11 @@ function renderAdminSettings(shell){
         toast(fresh.length === 1 ? 'New order received!' : fresh.length + ' new orders!', 'package');
       }
       if (d.serverTime) lastOrderSeen = d.serverTime;
-      // Keep the local catalogue in step with stock the server has reduced.
-      if (!(d.orders || []).length) { /* no catalogue touch needed */ }
-      // Auto-push the catalogue when the owner edits products in the app.
+      // Auto-push the catalogue whenever the local one differs from what the
+      // server last received. lastCatalogHash is only advanced after a
+      // successful push (inside pushCatalog), so a failed push retries.
       var h = catalogHash();
-      if (h !== lastCatalogHash && lastCatalogHash) pushCatalog(true);
-      lastCatalogHash = h;
+      if (h !== lastCatalogHash) pushCatalog(true);
     }).catch(function (e) {
       if (e && e.status === 401) askForKey(true);
     }).then(function () { busy = false; });
@@ -5240,7 +5246,14 @@ function renderAdminSettings(shell){
     var msg = (isRetry ? 'Saved sync key was rejected.\n\n' : '') +
               'Enter your ADMIN_KEY to sync orders with the server:';
     var k = window.prompt(msg, getKey());
-    if (k) { setKey(k.trim()); lastOrderSeen = 0; toast('Sync key saved'); }
+    if (k) {
+      setKey(k.trim());
+      lastOrderSeen = 0;
+      toast('Sync key saved');
+      // Upload the catalogue straight away so the owner sees it working
+      // instead of waiting for the next poll tick.
+      pushCatalog();
+    }
   }
 
   /* ---------- 5. install hooks ---------- */
