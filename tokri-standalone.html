@@ -5234,8 +5234,9 @@ function renderAdminSettings(shell){
       // Auto-push the catalogue whenever the local one differs from what the
       // server last received. lastCatalogHash is only advanced after a
       // successful push (inside pushCatalog), so a failed push retries.
+      // Not silent: the owner should see confirmation, not wonder.
       var h = catalogHash();
-      if (h !== lastCatalogHash) pushCatalog(true);
+      if (h !== lastCatalogHash) pushCatalog();
     }).catch(function (e) {
       if (e && e.status === 401) askForKey(true);
     }).then(function () { busy = false; });
@@ -5282,21 +5283,70 @@ function renderAdminSettings(shell){
      in other words, only inside the admin panel. Asking for it on a normal
      page load would throw a popup in front of every shopper, so we never
      do that. It is requested the moment the owner opens the admin panel. */
+  /* A visible button, shown only inside the admin panel. Without it the
+     upload is completely invisible — the owner cannot tell whether their
+     catalogue actually reached the server. */
+  function makeSyncButton() {
+    if (document.getElementById('ncSyncBtn')) return;
+    var b = document.createElement('button');
+    b.id = 'ncSyncBtn';
+    b.type = 'button';
+    b.textContent = '\u21bb Sync shop online';
+    b.style.cssText = 'position:fixed;right:14px;bottom:78px;z-index:650;padding:11px 16px;' +
+      'border:0;border-radius:999px;font-size:12.5px;font-weight:700;color:#fff;' +
+      'background:#FF3F6C;box-shadow:0 6px 18px rgba(0,0,0,.28);cursor:pointer;';
+    b.addEventListener('click', function () {
+      if (!getKey()) { askForKey(false); return; }
+      var label = b.textContent;
+      b.disabled = true;
+      b.textContent = 'Syncing\u2026';
+      // Call the internals directly rather than going through window.NC —
+      // one less thing that has to exist for the button to work.
+      Promise.resolve()
+        .then(function () { return pullCatalog(); })
+        .then(function () { return pushCatalog(); })
+        .then(function () { b.disabled = false; b.textContent = label; })
+        .catch(function (e) {
+          b.disabled = false;
+          b.textContent = label;
+          toast('Sync failed: ' + ((e && e.message) || 'unknown'));
+        });
+    });
+    document.body.appendChild(b);
+  }
+  function removeSyncButton() {
+    var b = document.getElementById('ncSyncBtn');
+    if (b && b.parentNode) b.parentNode.removeChild(b);
+  }
+
   function wrapAdminOpen() {
-    if (typeof window.openAdminPanel !== 'function' || window.openAdminPanel.__ncWrapped) return;
-    var orig = window.openAdminPanel;
-    var wrapped = function () {
-      var result = orig.apply(this, arguments);
-      try {
-        if (!getKey() && !keyAsked) {
-          keyAsked = true;
-          window.setTimeout(function () { askForKey(false); }, 600);
-        }
-      } catch (e) {}
-      return result;
-    };
-    wrapped.__ncWrapped = true;
-    window.openAdminPanel = wrapped;
+    if (typeof window.openAdminPanel === 'function' && !window.openAdminPanel.__ncWrapped) {
+      var origOpen = window.openAdminPanel;
+      var wrappedOpen = function () {
+        var result = origOpen.apply(this, arguments);
+        // Separate try/catch: a problem with the cosmetic button must never
+        // stop the admin-key prompt, which is what actually makes sync work.
+        try { makeSyncButton(); } catch (e) {}
+        try {
+          if (!getKey() && !keyAsked) {
+            keyAsked = true;
+            window.setTimeout(function () { askForKey(false); }, 600);
+          }
+        } catch (e) {}
+        return result;
+      };
+      wrappedOpen.__ncWrapped = true;
+      window.openAdminPanel = wrappedOpen;
+    }
+    if (typeof window.closeAdminPanel === 'function' && !window.closeAdminPanel.__ncWrapped) {
+      var origClose = window.closeAdminPanel;
+      var wrappedClose = function () {
+        try { removeSyncButton(); } catch (e) {}
+        return origClose.apply(this, arguments);
+      };
+      wrappedClose.__ncWrapped = true;
+      window.closeAdminPanel = wrappedClose;
+    }
   }
 
   function startPolling() {
