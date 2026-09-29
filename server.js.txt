@@ -1,0 +1,270 @@
+// NEXCART backend — one file, no packages needed.
+// Render runs it with:  node server.js
+// Env: ADMIN_KEY (owner secret), DATA_DIR (where data.json lives),
+//      GOOGLE_CLIENT_ID (optional — needed only for "Continue with Google")
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+
+const PORT = process.env.PORT || 3000;
+const KEY = process.env.ADMIN_KEY || 'changeme';
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+const FILE = path.join(process.env.DATA_DIR || __dirname, 'data.json');
+const SESSION_DAYS = 30;
+const MAX_FAILS = 5;
+const LOCK_MS = 15 * 60 * 1000;
+
+let db = { products: [], categories: [], orders: [], users: [], sessions: [], fails: {}, updatedAt: 0 };
+try { db = Object.assign(db, JSON.parse(fs.readFileSync(FILE, 'utf8'))); } catch (e) {}
+db.users = db.users || []; db.sessions = db.sessions || []; db.fails = db.fails || {};
+const save = () => { try { fs.writeFileSync(FILE, JSON.stringify(db)); } catch (e) {} };
+const rnd = (n) => crypto.randomBytes(n).toString('hex');
+const newId = (p) => p + Date.now().toString(36) + crypto.randomBytes(2).toString('hex');
+/* Normalise a mobile number to its last 10 digits, so "+91 98765 43210",
+   "098765 43210" and "9876543210" are all treated as the same account.
+   Without this, a customer who types +91 gets "wrong password". */
+const digits = (s) => {
+  const d = String(s || '').replace(/\D/g, '');
+  return d.length > 10 ? d.slice(-10) : d;
+};
+
+function hashPass(password, salt) {
+  return crypto.scryptSync(String(password), salt, 64).toString('hex');
+}
+function sameSecret(a, b) {
+  const A = Buffer.from(String(a)), B = Buffer.from(String(b));
+  return A.length === B.length && crypto.timingSafeEqual(A, B);
+}
+function publicUser(u) {
+  return { id: u.id, name: u.name, phone: u.phone, email: u.email || '', provider: u.provider };
+}
+function issueToken(user) {
+  const token = rnd(32);
+  db.sessions.push({ token, userId: user.id, expiresAt: Date.now() + SESSION_DAYS * 864e5 });
+  db.sessions = db.sessions.filter((s) => s.expiresAt > Date.now()).slice(-500);
+  save();
+  return token;
+}
+function userFromReq(req) {
+  const h = String(req.headers['authorization'] || '');
+  const token = h.startsWith('Bearer ') ? h.slice(7).trim() : '';
+  if (!token) return null;
+  const s = db.sessions.find((x) => x.token === token && x.expiresAt > Date.now());
+  return s ? db.users.find((u) => u.id === s.userId) || null : null;
+}
+function send(res, code, body) {
+  res.writeHead(code, {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type, x-admin-key, Authorization',
+    'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS'
+  });
+  res.end(JSON.stringify(body));
+}
+function readBody(req) {
+  return new Promise((done) => {
+    let s = '';
+    req.on('data', (c) => { s += c; if (s.length > 200000) req.destroy(); });
+    req.on('end', () => { try { done(JSON.parse(s || '{}')); } catch (e) { done({}); } });
+  });
+}
+const isAdmin = (req) => req.headers['x-admin-key'] === KEY;
+
+/* Verify a Google ID token without any library: check the RS256 signature
+   against Google's published keys, then the audience and issuer. */
+async function verifyGoogleToken(idToken) {
+  const parts = String(idToken || '').split('.');
+  if (parts.length !== 3) throw new Error('Malformed Google token');
+  const [h, p, sig] = parts;
+  const header = JSON.parse(Buffer.from(h, 'base64url').toString('utf8'));
+  const payload = JSON.parse(Buffer.from(p, 'base64url').toString('utf8'));
+  const certs = await fetch('https://www.googleapis.com/oauth2/v3/certs').then((r) => r.json());
+  const jwk = (certs.keys || []).find((k) => k.kid === header.kid);
+  if (!jwk) throw new Error('Unknown Google signing key');
+  const pub = crypto.createPublicKey({ key: jwk, format: 'jwk' });
+  const ok = crypto.verify('RSA-SHA256', Buffer.from(h + '.' + p), pub, Buffer.from(sig, 'base64url'));
+  if (!ok) throw new Error('Bad Google signature');
+  if (!GOOGLE_CLIENT_ID || payload.aud !== GOOGLE_CLIENT_ID) throw new Error('Wrong audience');
+  if (!/^(https:\/\/)?accounts\.google\.com$/.test(payload.iss)) throw new Error('Wrong issuer');
+  if (Number(payload.exp) * 1000 < Date.now()) throw new Error('Google token expired');
+  if (!payload.email) throw new Error('No email in Google token');
+  return payload;
+}
+
+http.createServer(async (req, res) => {
+  const url = new URL(req.url, 'http://x');
+  const p = url.pathname;
+  if (req.method === 'OPTIONS') return send(res, 204, {});
+
+  if (p === '/api/health')
+    return send(res, 200, { ok: true, products: db.products.length, orders: db.orders.length, users: db.users.length });
+
+  if (p === '/api/bootstrap')
+    return send(res, 200, { products: db.products, categories: db.categories, updatedAt: db.updatedAt });
+
+  /* Lets the app switch the Google button on by itself once the owner adds
+     GOOGLE_CLIENT_ID in Render — no need to edit the app file again. */
+  if (p === '/api/config')
+    return send(res, 200, { googleClientId: GOOGLE_CLIENT_ID, accounts: true });
+
+  /* ---------------- accounts ---------------- */
+
+  if (p === '/api/auth/signup' && req.method === 'POST') {
+    const b = await readBody(req);
+    const name = String(b.name || '').trim();
+    const phone = digits(b.phone);
+    const password = String(b.password || '');
+    if (name.length < 2) return send(res, 400, { error: 'Please enter your name' });
+    if (phone.length !== 10) return send(res, 400, { error: 'Enter a 10-digit mobile number' });
+    if (password.length < 6) return send(res, 400, { error: 'Password must be at least 6 characters' });
+    if (db.users.find((u) => u.phone === phone))
+      return send(res, 409, { error: 'This number already has an account. Please log in.' });
+    const salt = rnd(16);
+    const user = {
+      id: newId('USR'), name, phone, email: '', provider: 'password',
+      salt, passHash: hashPass(password, salt), createdAt: Date.now()
+    };
+    db.users.push(user);
+    save();
+    return send(res, 201, { ok: true, token: issueToken(user), user: publicUser(user) });
+  }
+
+  if (p === '/api/auth/login' && req.method === 'POST') {
+    const b = await readBody(req);
+    const phone = digits(b.phone);
+    const password = String(b.password || '');
+    const f = db.fails[phone] || { n: 0, until: 0 };
+    if (f.until > Date.now())
+      return send(res, 429, { error: 'Too many attempts. Try again in a few minutes.' });
+    const user = db.users.find((u) => u.phone === phone);
+    if (!user || user.provider !== 'password' || !sameSecret(hashPass(password, user.salt), user.passHash)) {
+      f.n = (f.n || 0) + 1;
+      if (f.n >= MAX_FAILS) { f.until = Date.now() + LOCK_MS; f.n = 0; }
+      db.fails[phone] = f;
+      save();
+      return send(res, 401, { error: 'Wrong mobile number or password' });
+    }
+    db.fails[phone] = { n: 0, until: 0 };
+    save();
+    return send(res, 200, { ok: true, token: issueToken(user), user: publicUser(user) });
+  }
+
+  if (p === '/api/auth/google' && req.method === 'POST') {
+    if (!GOOGLE_CLIENT_ID) return send(res, 503, { error: 'Google sign-in is not configured yet' });
+    const b = await readBody(req);
+    let payload;
+    try { payload = await verifyGoogleToken(b.credential); }
+    catch (e) { return send(res, 401, { error: 'Google sign-in failed: ' + e.message }); }
+    const email = String(payload.email).toLowerCase();
+    let user = db.users.find((u) => (u.email || '').toLowerCase() === email);
+    if (!user) {
+      user = { id: newId('USR'), name: payload.name || email.split('@')[0], phone: '',
+               email, provider: 'google', googleSub: payload.sub, createdAt: Date.now() };
+      db.users.push(user);
+    }
+    save();
+    return send(res, 200, { ok: true, token: issueToken(user), user: publicUser(user),
+                            needsPhone: !user.phone });
+  }
+
+  if (p === '/api/auth/me' && req.method === 'GET') {
+    const u = userFromReq(req);
+    if (!u) return send(res, 401, { error: 'Not signed in' });
+    return send(res, 200, { ok: true, user: publicUser(u) });
+  }
+
+  if (p === '/api/auth/phone' && req.method === 'POST') {
+    const u = userFromReq(req);
+    if (!u) return send(res, 401, { error: 'Not signed in' });
+    const b = await readBody(req);
+    const phone = digits(b.phone);
+    if (phone.length !== 10) return send(res, 400, { error: 'Enter a 10-digit mobile number' });
+    const clash = db.users.find((x) => x.phone === phone && x.id !== u.id);
+    if (clash) return send(res, 409, { error: 'That number is already used by another account' });
+    u.phone = phone;
+    save();
+    return send(res, 200, { ok: true, user: publicUser(u) });
+  }
+
+  if (p === '/api/auth/logout' && req.method === 'POST') {
+    const h = String(req.headers['authorization'] || '');
+    const token = h.startsWith('Bearer ') ? h.slice(7).trim() : '';
+    db.sessions = db.sessions.filter((s) => s.token !== token);
+    save();
+    return send(res, 200, { ok: true });
+  }
+
+  /* ---------------- catalogue ---------------- */
+
+  if (p === '/api/admin/push' && req.method === 'POST') {
+    if (!isAdmin(req)) return send(res, 401, { error: 'unauthorised' });
+    const b = await readBody(req);
+    if (Array.isArray(b.products)) db.products = b.products;
+    if (Array.isArray(b.categories)) db.categories = b.categories;
+    db.updatedAt = Date.now();
+    save();
+    return send(res, 200, { ok: true, products: db.products.length });
+  }
+
+  /* ---------------- orders ---------------- */
+
+  if (p === '/api/orders' && req.method === 'POST') {
+    const b = await readBody(req);
+    const user = userFromReq(req);
+    const name = String(b.customerName || (user && user.name) || '').trim();
+    const phone = digits(b.customerPhone || (user && user.phone) || '');
+    if (name.length < 2) return send(res, 400, { error: 'Name is required' });
+    if (phone.length < 10) return send(res, 400, { error: 'Valid phone is required' });
+    const items = [];
+    let subtotal = 0;
+    for (const line of (Array.isArray(b.items) ? b.items : [])) {
+      const prod = db.products.find((x) => x.id === line.productId);
+      if (!prod) return send(res, 400, { error: 'Unknown product' });
+      const qty = Math.max(1, parseInt(line.qty, 10) || 1);
+      if (Number(prod.stock) < qty) return send(res, 409, { error: 'Out of stock: ' + prod.name });
+      subtotal += Number(prod.price) * qty;
+      items.push({ productId: prod.id, name: prod.name, price: Number(prod.price), qty });
+      prod.stock = Number(prod.stock) - qty;
+    }
+    if (!items.length) return send(res, 400, { error: 'Cart is empty' });
+    const delivery = Number(b.delivery) || 0;
+    const claimed = b.claimedTotal === undefined ? null : Number(b.claimedTotal);
+    const serverTotal = subtotal + delivery;
+    const order = {
+      id: newId('ORD'), placedAt: Date.now(), status: 'Placed',
+      userId: user ? user.id : '', customerName: name, customerPhone: phone,
+      address: String(b.address || '').trim(), items, subtotal, delivery,
+      total: serverTotal, payment: 'Cash on Delivery',
+      claimedTotal: claimed, priceMismatch: claimed !== null && claimed !== serverTotal
+    };
+    db.orders.unshift(order);
+    save();
+    return send(res, 201, { ok: true, order });
+  }
+
+  if (p === '/api/myorders' && req.method === 'GET') {
+    const u = userFromReq(req);
+    if (!u) return send(res, 401, { error: 'Not signed in' });
+    return send(res, 200, { orders: db.orders.filter((o) => o.userId === u.id) });
+  }
+
+  if (p === '/api/orders' && req.method === 'GET') {
+    if (!isAdmin(req)) return send(res, 401, { error: 'unauthorised' });
+    const since = Number(url.searchParams.get('since')) || 0;
+    return send(res, 200, { orders: db.orders.filter((o) => o.placedAt > since), serverTime: Date.now() });
+  }
+
+  const m = p.match(/^\/api\/orders\/([A-Za-z0-9]+)$/);
+  if (m && req.method === 'PATCH') {
+    if (!isAdmin(req)) return send(res, 401, { error: 'unauthorised' });
+    const b = await readBody(req);
+    const order = db.orders.find((o) => o.id === m[1]);
+    if (!order) return send(res, 404, { error: 'Order not found' });
+    if (b.status) order.status = String(b.status);
+    save();
+    return send(res, 200, { ok: true, order });
+  }
+
+  send(res, 404, { error: 'Not found' });
+}).listen(PORT, () => console.log('NEXCART backend on port ' + PORT));
