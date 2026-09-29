@@ -5047,14 +5047,280 @@ function renderAdminSettings(shell){
 </script>
 
 <!-- ============================================================
-     SERVER SYNC
-     Paste your backend URL into NC_API_BASE to put the shop online.
-     While it is empty, the app runs exactly as before — offline only,
-     nothing breaks.
-
-     Example:  window.NC_API_BASE = 'https://nexcart-api.onrender.com';
+     SERVER SYNC  —  THIS APP IS CONNECTED TO YOUR BACKEND
+     Backend: https://nexcart-p9ms.onrender.com
+     Products and orders are shared through it, so every phone sees the
+     same shop. To point somewhere else, edit the URL on the next line.
      ============================================================ -->
-<script>window.NC_API_BASE = '';</script>
-<script src="api-sync.js"></script>
+<script>window.NC_API_BASE = 'https://nexcart-p9ms.onrender.com';</script>
+<script>
+/* ============================================================
+   NEXCART — server sync adapter
+
+   HOW TO TURN IT ON  —  edit ONE line, no other file needed
+   Scroll down slightly to API_BASE_DEFAULT and paste your backend
+   link inside the quotes. Save it (Commit changes on GitHub) and
+   the shop goes online. You can do this straight from your phone.
+
+   While that line is empty the shop still works exactly as it does
+   today — nothing breaks.
+
+   Every network call is wrapped in try/catch: a dead server or a
+   patchy connection must never break the shop.
+   ============================================================ */
+(function () {
+  'use strict';
+
+  /* ============================================================
+     ✏️  EDIT THIS ONE LINE  —  paste your backend link here
+     ============================================================
+     Example:  var API_BASE_DEFAULT = 'https://nexcart-api.onrender.com';
+     Leave it empty ('') and the app stays offline-only.        */
+
+  var API_BASE_DEFAULT = '';
+
+  /* ============================================================ */
+
+  var BASE = '';
+  try {
+    BASE = (API_BASE_DEFAULT || window.NC_API_BASE || localStorage.getItem('nc_api_base') || '').replace(/\/+$/, '');
+  } catch (e) { BASE = API_BASE_DEFAULT || window.NC_API_BASE || ''; }
+
+  var KEY_STORE = 'nc_admin_key';
+  var POLL_MS   = 15000;
+  var lastOrderSeen = 0;
+  var lastCatalogHash = '';
+  var busy = false;
+
+  function getKey()   { try { return localStorage.getItem(KEY_STORE) || ''; } catch (e) { return ''; } }
+  function setKey(k)  { try { localStorage.setItem(KEY_STORE, k); } catch (e) {} }
+
+  function api(path, opts) {
+    opts = opts || {};
+    var headers = { 'Content-Type': 'application/json' };
+    if (opts.admin) headers['x-admin-key'] = getKey();
+    return fetch(BASE + path, {
+      method: opts.method || 'GET',
+      headers: headers,
+      body: opts.body ? JSON.stringify(opts.body) : undefined
+    }).then(function (r) {
+      return r.text().then(function (t) {
+        var data;
+        try { data = t ? JSON.parse(t) : {}; } catch (e) { data = {}; }
+        if (!r.ok) { var err = new Error(data.error || ('HTTP ' + r.status)); err.status = r.status; throw err; }
+        return data;
+      });
+    });
+  }
+
+  /* ---------- local helpers ---------- */
+
+  function db() { return (typeof DB !== 'undefined') ? DB : null; }
+
+  function toast(msg, iconName) {
+    try { if (typeof showToast === 'function') showToast(msg, iconName || 'checkCircle'); } catch (e) {}
+  }
+
+  function refreshVisibleCatalog() {
+    try {
+      var grid = document.getElementById('homeProductGrid');
+      if (grid && typeof renderProductGrid === 'function') renderProductGrid(grid, DB.products);
+      var chips = document.getElementById('catChipRow');
+      if (chips && typeof renderCategoryChips === 'function') renderCategoryChips(chips);
+    } catch (e) {}
+  }
+
+  function catalogHash() {
+    try { return JSON.stringify([DB.products, DB.categories]).length + ':' +
+                 (DB.products || []).map(function (p) { return p.id + p.price + p.stock; }).join(','); }
+    catch (e) { return ''; }
+  }
+
+  /* ---------- 1. pull the catalogue down ---------- */
+
+  function pullCatalog() {
+    return api('/api/bootstrap').then(function (d) {
+      var D = db(); if (!D) return;
+      // Only adopt the server's catalogue once it actually holds something.
+      // Before the owner's first push it is empty, and overwriting would wipe
+      // the products they already created in the app.
+      if (Array.isArray(d.products) && d.products.length) {
+        D.products   = d.products;
+        D.categories = Array.isArray(d.categories) && d.categories.length ? d.categories : D.categories;
+        if (typeof persist === 'function') persist();
+        refreshVisibleCatalog();
+      }
+    }).catch(function () { /* offline — keep local data */ });
+  }
+
+  /* ---------- 2. push the catalogue up (admin) ---------- */
+
+  function pushCatalog(silent) {
+    var D = db(); if (!D || !getKey()) return Promise.resolve();
+    return api('/api/admin/push', {
+      method: 'POST', admin: true,
+      body: { products: D.products || [], categories: D.categories || [] }
+    }).then(function (r) {
+      lastCatalogHash = catalogHash();
+      if (!silent) toast('Catalogue uploaded (' + r.products + ' products)');
+    }).catch(function (e) {
+      if (!silent) toast('Upload failed: ' + e.message);
+    });
+  }
+
+  /* ---------- 3. send an order to the server ---------- */
+
+  function submitOrder(order) {
+    var D = db(); if (!D || !order) return;
+    var items = (order.items || []).filter(function (i) { return i && i.productId; })
+      .map(function (i) { return { productId: i.productId, qty: i.qty }; });
+    if (!items.length) return;
+
+    api('/api/orders', {
+      method: 'POST',
+      body: {
+        customerName:  order.customerName || (D.user && D.user.name) || '',
+        customerPhone: order.customerPhone || (D.user && D.user.phone) || '',
+        address:       String(order.address || '').replace(/\n/g, ', '),
+        items:         items,
+        delivery:      Number(order.deliveryFee) || 0,
+        claimedTotal:  Number(order.total) || 0,
+        couponCode:    order.couponCode || null
+      }
+    }).catch(function (e) {
+      // Queue for retry instead of losing the order.
+      try {
+        var q = JSON.parse(localStorage.getItem('nc_order_queue') || '[]');
+        q.push({ order: order, at: Date.now() });
+        localStorage.setItem('nc_order_queue', JSON.stringify(q.slice(-50)));
+      } catch (e2) {}
+      toast('Order saved on this phone. It will upload when online.', 'warn');
+    });
+  }
+
+  function flushQueue() {
+    var q;
+    try { q = JSON.parse(localStorage.getItem('nc_order_queue') || '[]'); } catch (e) { return; }
+    if (!q.length) return;
+    // Empty the queue first; submitOrder re-queues anything that fails, so a
+    // dropped connection can never silently lose a customer's order.
+    try { localStorage.setItem('nc_order_queue', '[]'); } catch (e) {}
+    q.forEach(function (entry) { submitOrder(entry.order); });
+  }
+
+  /* ---------- 4. admin: poll for new orders ---------- */
+
+  function pollOrders() {
+    if (!getKey() || busy) return;
+    busy = true;
+    api('/api/orders?since=' + lastOrderSeen, { admin: true }).then(function (d) {
+      var D = db(); if (!D) return;
+      var existing = {};
+      (D.orders || []).forEach(function (o) { existing[o.id] = true; });
+      var fresh = (d.orders || []).filter(function (o) { return !existing[o.id]; });
+      if (fresh.length) {
+        D.orders = fresh.concat(D.orders || []);
+        if (typeof persist === 'function') persist();
+        toast(fresh.length === 1 ? 'New order received!' : fresh.length + ' new orders!', 'package');
+      }
+      if (d.serverTime) lastOrderSeen = d.serverTime;
+      // Keep the local catalogue in step with stock the server has reduced.
+      if (!(d.orders || []).length) { /* no catalogue touch needed */ }
+      // Auto-push the catalogue when the owner edits products in the app.
+      var h = catalogHash();
+      if (h !== lastCatalogHash && lastCatalogHash) pushCatalog(true);
+      lastCatalogHash = h;
+    }).catch(function (e) {
+      if (e && e.status === 401) askForKey(true);
+    }).then(function () { busy = false; });
+  }
+
+  function askForKey(isRetry) {
+    if (!BASE) return;
+    var msg = (isRetry ? 'Saved sync key was rejected.\n\n' : '') +
+              'Enter your ADMIN_KEY to sync orders with the server:';
+    var k = window.prompt(msg, getKey());
+    if (k) { setKey(k.trim()); lastOrderSeen = 0; toast('Sync key saved'); }
+  }
+
+  /* ---------- 5. install hooks ---------- */
+
+  function wrapPlaceOrder() {
+    if (typeof window.placeOrder !== 'function' || window.placeOrder.__ncWrapped) return;
+    var original = window.placeOrder;
+    var wrapped = function () {
+      var before = {};
+      try { (db() && db().orders || []).forEach(function (o) { before[o.id] = true; }); } catch (e) {}
+      var result = original.apply(this, arguments);
+      try {
+        ((db() && db().orders) || []).forEach(function (o) {
+          if (!before[o.id]) submitOrder(o);
+        });
+      } catch (e) {}
+      return result;
+    };
+    wrapped.__ncWrapped = true;
+    window.placeOrder = wrapped;
+  }
+
+  var keyAsked = false;
+
+  /* The backend key is only needed to READ orders and PUSH the catalogue —
+     in other words, only inside the admin panel. Asking for it on a normal
+     page load would throw a popup in front of every shopper, so we never
+     do that. It is requested the moment the owner opens the admin panel. */
+  function wrapAdminOpen() {
+    if (typeof window.openAdminPanel !== 'function' || window.openAdminPanel.__ncWrapped) return;
+    var orig = window.openAdminPanel;
+    var wrapped = function () {
+      var result = orig.apply(this, arguments);
+      try {
+        if (!getKey() && !keyAsked) {
+          keyAsked = true;
+          window.setTimeout(function () { askForKey(false); }, 600);
+        }
+      } catch (e) {}
+      return result;
+    };
+    wrapped.__ncWrapped = true;
+    window.openAdminPanel = wrapped;
+  }
+
+  function startPolling() {
+    window.setInterval(function () {
+      if (typeof adminUnlocked === 'undefined' || !adminUnlocked) return;
+      // Backup path, in case the admin panel was opened some other way.
+      if (!getKey() && !keyAsked) { keyAsked = true; askForKey(false); return; }
+      pollOrders();
+    }, POLL_MS);
+  }
+
+  function boot() {
+    if (!BASE) return;               // switched off — do nothing at all
+    wrapPlaceOrder();
+    wrapAdminOpen();
+    pullCatalog();
+    flushQueue();
+    startPolling();
+  }
+
+  // Public surface, handy for debugging or a custom admin button.
+  window.NC = {
+    base: BASE,
+    sync: function () { return pullCatalog().then(function () { return pushCatalog(); }); },
+    pushCatalog: pushCatalog,
+    pollOrders: pollOrders,
+    setKey: setKey,
+    getKey: getKey
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { window.setTimeout(boot, 800); });
+  } else {
+    window.setTimeout(boot, 800);
+  }
+})();
+
+</script>
 </body>
 </html>
