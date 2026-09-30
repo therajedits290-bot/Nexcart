@@ -1,0 +1,50 @@
+{
+  "name": "NEXCART — Online Store",
+  "short_name": "NEXCART",
+  "description": "Sasta shopping, full paisa vasool. Cash on Delivery available across India.",
+  "start_url": "./tokri-standalone.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FF3F6C",
+  "theme_color": "#FF3F6C",
+  "lang": "en-IN",
+  "categories": ["shopping", "lifestyle"],
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "My Orders",
+      "short_name": "Orders",
+      "url": "./tokri-standalone.html#orders"
+    },
+    {
+      "name": "My Cart",
+      "short_name": "Cart",
+      "url": "./tokri-standalone.html#cart"
+    },
+    {
+      "name": "Admin Panel",
+      "short_name": "Admin",
+      "url": "./tokri-standalone.html#admin"
+    }
+  ]
+}
