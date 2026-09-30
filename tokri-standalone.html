@@ -521,7 +521,7 @@ img{ max-width:100%; display:block; }
 .profile-menu-text{ flex:1; font-size:14px; font-weight:600; }
 .profile-menu-text span{ display:block; font-size:11.5px; color: var(--ink-faint); font-weight:500; margin-top:1px; }
 .profile-menu-item .chev{ width:16px; height:16px; color: var(--ink-faint); }
-.admin-trigger-hint{ text-align:center; font-size:11px; color: var(--ink-faint); padding:20px; opacity:0.6; }
+
 
 /* ============= Policy pages ============= */
 .policy-page{ padding:18px 18px 40px; }
@@ -587,6 +587,12 @@ img{ max-width:100%; display:block; }
 .file-preview img{ width:100%; height:100%; object-fit:cover; }
 .file-preview .fp-remove{ position:absolute; top:2px; right:2px; width:18px; height:18px; border-radius:50%; background:rgba(0,0,0,0.6); color:#fff; display:flex; align-items:center; justify-content:center; }
 .file-preview .fp-remove .icon{ width:10px; height:10px; }
+
+/* ============= Storefront footer (also the hidden admin entry point) ============= */
+.store-footer{ text-align:center; padding:26px 18px calc(24px + env(safe-area-inset-bottom)); margin-top:10px; border-top:1px solid var(--line); user-select:none; -webkit-user-select:none; }
+.store-footer .sf-brand{ font-family: var(--font-display); font-size:15px; font-weight:800; letter-spacing:3px; color: var(--ink-soft); }
+.store-footer .sf-line{ font-size:11px; color: var(--ink-soft); opacity:.75; margin-top:5px; }
+.store-footer .sf-ver{ font-size:10.5px; color: var(--ink-soft); opacity:.55; margin-top:3px; }
 
 /* ============= Admin ============= */
 .admin-shell{ position:fixed; inset:0; z-index:400; background: var(--bg); overflow-y:auto; display:none; }
@@ -1024,7 +1030,7 @@ img{ max-width:100%; display:block; }
 
   <!-- Top bar (storefront) -->
   <header class="topbar" id="topbar">
-    <div class="topbar-brand" id="brandTapZone">
+    <div class="topbar-brand">
       <img id="topLogo" class="brand-logo-img" src="" alt="" style="display:none">
       <div id="topLogoFallback" class="brand-logo-fallback"></div>
       <span class="brand-name" id="topAppName">NEXCART</span>
@@ -1593,8 +1599,8 @@ function returnDaysLeft(order){
 // ---------- Global nav state ----------
 let currentTab = 'home';
 let viewStack = []; // stack of {render, title} for sub-pages (back button)
-let logoTapCount = 0;
-let logoTapTimer = null;
+let adminTapCount = 0;   // hidden admin entry: taps on the footer line
+let adminTapTimer = null;
 
 const $ = (sel, root=document) => root.querySelector(sel);
 const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
@@ -1615,6 +1621,8 @@ function applyBranding(){
   $('#splashAppName').textContent = b.appName;
   $('#splashTagline').textContent = b.tagline;
   $('#topAppName').textContent = b.appName;
+  const footName = $('#footAppName');
+  if(footName) footName.textContent = b.appName;
   document.documentElement.style.setProperty('--brand', b.primaryColor);
   document.documentElement.style.setProperty('--brand-dark', shadeColor(b.primaryColor, -18));
   document.documentElement.style.setProperty('--brand-light', shadeColor(b.primaryColor, 88));
@@ -1856,6 +1864,12 @@ function buildHome(main){
     <div class="product-grid" id="homeProductGrid"></div>
 
     ${buildRails()}
+
+    <div class="store-footer" id="adminTapZone">
+      <div class="sf-brand" id="footAppName">${(DB.branding && DB.branding.appName) || 'NEXCART'}</div>
+      <div class="sf-line">&copy; 2026 NEXCART &middot; All rights reserved</div>
+      <div class="sf-ver">v4.0</div>
+    </div>
   `;
   renderCategoryChips($('#catChipRow'));
   renderProductGrid($('#homeProductGrid'), DB.products);
@@ -3196,7 +3210,11 @@ function renderProfilePage(main){
         ${icon('chevronRight','chev')}
       </div>
     </div>
-    <div class="admin-trigger-hint">Tap the logo above 5× quickly for Admin Panel</div>
+    <div class="store-footer" id="adminTapZone">
+      <div class="sf-brand" id="footAppName">${(DB.branding && DB.branding.appName) || 'NEXCART'}</div>
+      <div class="sf-line">&copy; 2026 NEXCART &middot; All rights reserved</div>
+      <div class="sf-ver">v4.0</div>
+    </div>
   `;
   updateInstallRow();
   $$('[data-act]', main).forEach(el=>{
@@ -3460,29 +3478,33 @@ function policyContent(type){
 
 // ============================================================
 // ADMIN TRIGGER
+// The entry point sits far away from anything a customer would press: it is the
+// small copyright line at the very bottom of the storefront page. Nobody taps a
+// "v4.0" label 25 times by accident, and the window resets 3s after the last tap.
 // Three ways in, because a hidden gesture that silently fails is worse
 // than no gesture at all:
-//   1. tap the logo 12x (window resets 3s after the last tap)
-//   2. press and hold the logo for 1.2s
+//   1. tap the footer version line 25x (window resets 3s after the last tap)
+//   2. press and hold the same footer line for 2.5s
 //   3. open the file with #admin on the end of the URL
 // ============================================================
-const ADMIN_TAPS_NEEDED  = 12;
+const ADMIN_TAPS_NEEDED   = 25;
 const ADMIN_TAP_WINDOW_MS = 3000;
-const ADMIN_HOLD_MS      = 1200;
-const ADMIN_PIN_DEFAULT  = '1234';
+const ADMIN_HOLD_MS       = 2500;
+const ADMIN_TAP_SELECTOR  = '#adminTapZone';
+const ADMIN_PIN_DEFAULT   = '1234';
 
 function initAdminTrigger(){
-  // Delegated on document so the trigger keeps working even if the topbar
-  // is re-rendered and the original element is replaced.
+  // Delegated on document so the trigger keeps working even if the storefront
+  // page is re-rendered and the original footer element is replaced.
   document.addEventListener('click', (e)=>{
-    if(!(e.target instanceof Element) || !e.target.closest('#brandTapZone')) return;
+    if(!(e.target instanceof Element) || !e.target.closest(ADMIN_TAP_SELECTOR)) return;
     registerAdminTap();
   });
 
   let holdTimer = null;
   const cancelHold = ()=>{ if(holdTimer){ clearTimeout(holdTimer); holdTimer = null; } };
   document.addEventListener('pointerdown', (e)=>{
-    if(!(e.target instanceof Element) || !e.target.closest('#brandTapZone')) return;
+    if(!(e.target instanceof Element) || !e.target.closest(ADMIN_TAP_SELECTOR)) return;
     cancelHold();
     holdTimer = window.setTimeout(()=>{ holdTimer = null; openAdminPin(); }, ADMIN_HOLD_MS);
   }, true);
@@ -3495,11 +3517,11 @@ function initAdminTrigger(){
   }
 }
 function registerAdminTap(){
-  logoTapCount++;
-  clearTimeout(logoTapTimer);
-  logoTapTimer = setTimeout(()=>{ logoTapCount = 0; }, ADMIN_TAP_WINDOW_MS);
-  if(logoTapCount >= ADMIN_TAPS_NEEDED){
-    logoTapCount = 0;
+  adminTapCount++;
+  clearTimeout(adminTapTimer);
+  adminTapTimer = setTimeout(()=>{ adminTapCount = 0; }, ADMIN_TAP_WINDOW_MS);
+  if(adminTapCount >= ADMIN_TAPS_NEEDED){
+    adminTapCount = 0;
     openAdminPin();
   }
   // Deliberately silent: a hidden entry point must not advertise itself.
