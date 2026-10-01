@@ -2131,6 +2131,11 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 .eta-card .eta-n{ font-size:12px; color:var(--ink-faint); margin-top:4px; line-height:1.45; }
 .summary-row.summary-eta{ align-items:flex-start; }
 .summary-row.summary-eta > span:last-child{ text-align:right; font-weight:700; color:var(--success); }
+/* storage meter in admin > Settings */
+.storage-bar{ height:10px; border-radius:6px; background:var(--surface-2); overflow:hidden; }
+.storage-fill{ height:100%; border-radius:6px; background:var(--success); transition:width .3s ease; }
+.storage-fill.is-mid{ background:#E0A82E; }
+.storage-fill.is-high{ background:var(--danger); }
 </style>
 </head>
 <body>
@@ -2511,7 +2516,7 @@ function loadDB(){
     if(!raw) { const d = defaultDB(); saveDB(d); return d; }
     return migrateDB(JSON.parse(raw));
   }catch(e){
-    const d = defaultDB(); saveDB(d); return d;
+    const d = defaultDB(); try{ saveDB(d); }catch(e2){} return d;
   }
 }
 /* Backfill keys added in later versions so existing saved data keeps working.
@@ -2537,10 +2542,150 @@ function migrateDB(db){
   saveDB(db);
   return db;
 }
-function saveDB(db){ localStorage.setItem(DB_KEY, JSON.stringify(db)); }
+/* ---------- How we stop a stale copy on the server wiping this phone ----------
+   Every device downloads the shop from the server when it opens. That is right
+   for customers, but it used to be fatal for the owner: if an upload had
+   failed, the server still held an old copy, and simply opening the app
+   replaced the owner's work with it. Images vanished, products vanished, and
+   shrinking the image never helped because the file size was never the cause.
+   So we now stamp the moment the CATALOGUE last changed here, and only accept
+   the server's copy when the server is genuinely newer. */
+let lastCatalogSig = null;
+function catalogSignature(db){
+  try{
+    const p = (db.products || []).map(x=>
+      [x.id, x.name, x.price, x.stock, String(x.img || '').length, x.category].join('|')).join(';');
+    const c = (db.categories || []).map(x=>
+      [x.id, x.name, String(x.img || '').length, (x.subs||[]).length,
+       (x.subs||[]).map(y=>String(y.img||'').length).join(',')].join('|')).join(';');
+    const b = db.branding ? [
+      db.branding.appName, db.branding.tagline, db.branding.primaryColor,
+      String(db.branding.logoDataUrl || '').length,
+      db.branding.splash ? [db.branding.splash.type, db.branding.splash.url,
+        String(db.branding.splash.dataUrl || '').length, db.branding.splash.seconds].join('|') : ''
+    ].join('~') : '';
+    return p + '#' + c + '#' + b;
+  }catch(e){ return ''; }
+}
+/* Names the biggest picture we hold, so a storage warning can say WHAT to remove. */
+/* How full is the app's storage box? Pictures are what fill it, so the
+   owner needs to see the number BEFORE a save silently fails. */
+function storageReport(){
+  let used = 0;
+  try{ used = (localStorage.getItem(DB_KEY) || '').length; }catch(e){}
+  const LIMIT = 4.9 * 1024 * 1024;              // measured ceiling of this box
+  const pct = Math.min(100, Math.round(used / LIMIT * 100));
+  const big = biggestStoredImage(DB);
+  return { mb: (used / 1024 / 1024).toFixed(2), limitMB: '4.9', pct: pct,
+           biggestKB: Math.round(big.bytes / 1024), biggestWho: big.who };
+}
+function biggestStoredImage(db){
+  let big = 0, who = '';
+  const look = (v, label)=>{ const n = String(v || '').length; if(n > big){ big = n; who = label; } };
+  try{
+    (db.products || []).forEach(p=> look(p.img, 'product "' + (p.name || p.id) + '"'));
+    (db.categories || []).forEach(c=>{
+      look(c.img, 'category "' + (c.name || c.id) + '"');
+      (c.subs || []).forEach(sb=> look(sb.img, 'sub-category "' + (sb.name || '') + '"'));
+    });
+    (db.banners || []).forEach((b,i)=> look(b.img, 'banner ' + (i+1)));
+    const br = db.branding || {};
+    look(br.logoDataUrl, 'your logo');
+    if(br.splash) look(br.splash.dataUrl, 'the splash screen');
+  }catch(e){}
+  return { bytes: big, who: who };
+}
+function saveDB(db){
+  try{
+    const sig = catalogSignature(db);
+    if(lastCatalogSig === null)                  lastCatalogSig = sig;
+    else if(sig !== lastCatalogSig){ lastCatalogSig = sig; db.catalogUpdatedAt = Date.now(); }
+    localStorage.setItem(DB_KEY, JSON.stringify(db));
+    return true;
+  }catch(e){
+    /* This used to throw into the void: the Save button did nothing, said
+       nothing, and the change was gone on the next reload. */
+    const b = biggestStoredImage(db);
+    let msg = 'Not enough storage — that change was NOT saved.';
+    if(b.who) msg += ' Biggest picture: ' + b.who + ', ' + Math.round(b.bytes/1024) + ' KB.';
+    msg += ' Delete or replace a picture and try again.';
+    try{ showToast(msg, 'xCircle', 8000); }catch(e2){}
+    try{ console.error('[Nexcart] save failed:', e && e.name, e && e.message, b); }catch(e3){}
+    return false;
+  }
+}
 
 let DB = loadDB();
 function persist(){ saveDB(DB); }
+/* Guard for every Save button that writes a picture. saveDB has already
+   explained the failure to the owner with a toast, so a caller that gets
+   false must NOT close the dialog or say "saved" - that was the exact bug
+   where tapping Save appeared to work and silently changed nothing. */
+function persistOrStop(){ return saveDB(DB) === true; }
+
+/* ============================================================
+   PICTURE SHRINKING
+   A photo from a phone camera is 3-5 MB. The app's storage holds
+   about 5 MB in TOTAL and the server accepts far less than that
+   per upload, so a raw photo can neither be saved nor sent. Every
+   picture the owner picks is therefore resized and re-encoded to
+   a sensible web size first: 5 MB in, roughly 100 KB out.
+   ============================================================ */
+function ncShrinkImage(file, maxPx, targetKB, asPng){
+  maxPx = maxPx || 1000;
+  targetKB = targetKB || 120;
+  return new Promise(function(resolve, reject){
+    if(!file) return reject(new Error('no file chosen'));
+    let url;
+    try{ url = URL.createObjectURL(file); }catch(e){ return reject(e); }
+    const img = new Image();
+    const done = (fn, arg)=>{ try{ URL.revokeObjectURL(url); }catch(e){} fn(arg); };
+    img.onerror = ()=> done(reject, new Error('That file could not be read as a picture.'));
+    img.onload = function(){
+      try{
+        const iw = img.naturalWidth || img.width;
+        const ih = img.naturalHeight || img.height;
+        if(!iw || !ih) return done(reject, new Error('That picture appears to be empty.'));
+        const fit = Math.min(1, maxPx / Math.max(iw, ih));
+        let cw = Math.max(1, Math.round(iw * fit));
+        let ch = Math.max(1, Math.round(ih * fit));
+        const draw = (w, h)=>{
+          const cv = document.createElement('canvas');
+          cv.width = w; cv.height = h;
+          const cx = cv.getContext('2d');
+          if(!asPng){ cx.fillStyle = '#FFFFFF'; cx.fillRect(0, 0, w, h); }
+          cx.drawImage(img, 0, 0, w, h);
+          return cv;
+        };
+        const encode = (cv, q)=> asPng ? cv.toDataURL('image/png') : cv.toDataURL('image/jpeg', q);
+        let out = encode(draw(cw, ch), 0.86);
+        /* JPEG: drop quality first, it costs the least visible detail. */
+        if(!asPng){
+          let q = 0.86;
+          while(out.length / 1024 > targetKB && q > 0.42){ q -= 0.08; out = encode(draw(cw, ch), q); }
+        }
+        /* Still too big: step the pixels down. PNG has no quality dial, so
+           this is the only lever — which is why the logo is capped small. */
+        let guard = 0;
+        while(out.length / 1024 > targetKB && Math.max(cw, ch) > 150 && guard < 8){
+          cw = Math.max(1, Math.round(cw * 0.82));
+          ch = Math.max(1, Math.round(ch * 0.82));
+          out = encode(draw(cw, ch), 0.8);
+          guard++;
+        }
+        return done(resolve, { dataUrl: out, kb: Math.max(1, Math.round(out.length / 1024)), w: cw, h: ch });
+      }catch(e){ return done(reject, e); }
+    };
+    img.src = url;
+  });
+}
+/* One consistent, honest sentence about what happened to the picture. */
+function ncPictureReady(what, res){
+  showToast(what + ' ready — ' + res.kb + ' KB (' + res.w + '\u00d7' + res.h + '). Now tap Save.', 'checkCircle', 4000);
+}
+function ncPictureFailed(e){
+  showToast('That picture could not be used: ' + ((e && e.message) || 'unknown reason'), 'xCircle', 5000);
+}
 
 function resetDB(){
   DB = defaultDB();
@@ -2836,12 +2981,12 @@ const $ = (sel, root=document) => root.querySelector(sel);
 const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 
 // ---------- Toast ----------
-function showToast(msg, iconName){
+function showToast(msg, iconName, ms){
   const t = $('#toast');
   t.innerHTML = (iconName ? icon(iconName) : '') + `<span>${msg}</span>`;
   t.classList.add('show');
   clearTimeout(t._timer);
-  t._timer = setTimeout(()=> t.classList.remove('show'), 2200);
+  t._timer = setTimeout(()=> t.classList.remove('show'), ms || 2200);
 }
 
 // ---------- Branding ----------
@@ -5671,7 +5816,7 @@ function openProductForm(pid){
       <div class="form-group">
         <label class="form-label">Product Photo</label>
         <div class="file-drop ${p.img?'has-file':''}" id="pfFileDrop">
-          ${p.img ? `<div class="file-preview-grid"><div class="file-preview"><img src="${p.img}"></div></div>` : `${icon('upload')}<p>Choose file</p><span>PNG, JPG up to 5MB</span>`}
+          ${p.img ? `<div class="file-preview-grid"><div class="file-preview"><img src="${p.img}"></div></div>` : `${icon('upload')}<p>Choose file</p><span>Any photo size &mdash; it is shrunk automatically</span>`}
         </div>
         <input type="file" id="pfFileInput" accept="image/*" style="display:none;">
       </div>
@@ -5732,13 +5877,15 @@ function openProductForm(pid){
   fileInput.addEventListener('change', (e)=>{
     const file = e.target.files[0];
     if(!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev)=>{
-      chosenImg = ev.target.result;
+    if(!/^image\//.test(file.type)){ showToast('Please choose a picture file', 'xCircle'); return; }
+    /* Shrink before storing: a 5 MB camera photo becomes roughly 120 KB. */
+    ncShrinkImage(file, 1000, 130).then((res)=>{
+      chosenImg = res.dataUrl;
       overlay.querySelector('#pfFileDrop').classList.add('has-file');
       overlay.querySelector('#pfFileDrop').innerHTML = `<div class="file-preview-grid"><div class="file-preview"><img src="${chosenImg}"></div></div>`;
-    };
-    reader.readAsDataURL(file);
+      ncPictureReady('Product picture', res);
+    }).catch(ncPictureFailed);
+    e.target.value = '';
   });
 
   // Add new category
@@ -5802,7 +5949,7 @@ function openProductForm(pid){
     } else {
       DB.products.push({ id:'p'+Date.now(), name, price, mrp, category, stock, desc, img: finalImg, hasSizes, sizes, rating:0, ratingCount:0 });
     }
-    persist();
+    if(!persistOrStop()) return;      // storage full: the toast already said so
     overlay.remove();
     showToast(editing?'Product updated':'Product added', 'checkCircle');
     renderAdminProducts($('#adminShell'));
@@ -5896,7 +6043,7 @@ function categoryForm(cid, onSaved){
       <div class="form-group">
         <label class="form-label">Category Image (optional)</label>
         <div class="file-drop ${chosenImg?'has-file':''}" id="catFileDrop">
-          ${chosenImg ? `<div class="file-preview-grid"><div class="file-preview"><img src="${chosenImg}"></div></div>` : `${icon('upload')}<p>Choose file</p><span>PNG, JPG up to 5MB</span>`}
+          ${chosenImg ? `<div class="file-preview-grid"><div class="file-preview"><img src="${chosenImg}"></div></div>` : `${icon('upload')}<p>Choose file</p><span>Any photo size &mdash; it is shrunk automatically</span>`}
         </div>
         <input type="file" id="catFileInput" accept="image/*" style="display:none;">
         ${chosenImg ? `<button class="text-btn" id="catRemoveImg" style="color:var(--danger);margin-top:8px;">Remove image</button>` : ''}
@@ -5936,21 +6083,22 @@ function categoryForm(cid, onSaved){
   overlay.querySelector('#catFileDrop').addEventListener('click', ()=> overlay.querySelector('#catFileInput').click());
   overlay.querySelector('#catFileInput').addEventListener('change', (e)=>{
     const file = e.target.files[0]; if(!file) return;
-    if(file.size > 5*1024*1024){ showToast('Image must be under 5MB', 'xCircle'); return; }
-    const reader = new FileReader();
-    reader.onload = (ev)=>{
-      chosenImg = ev.target.result;
+    if(!/^image\//.test(file.type)){ showToast('Please choose a picture file', 'xCircle'); return; }
+    /* Any size is fine now - it is resized before it is stored. */
+    ncShrinkImage(file, 1000, 130).then((res)=>{
+      chosenImg = res.dataUrl;
       overlay.querySelector('#catFileDrop').classList.add('has-file');
       overlay.querySelector('#catFileDrop').innerHTML = `<div class="file-preview-grid"><div class="file-preview"><img src="${chosenImg}"></div></div>`;
-    };
-    reader.readAsDataURL(file);
+      ncPictureReady('Category picture', res);
+    }).catch(ncPictureFailed);
+    e.target.value = '';
   });
   const rmImg = overlay.querySelector('#catRemoveImg');
   if(rmImg) rmImg.addEventListener('click', ()=>{
     chosenImg = '';
     const drop = overlay.querySelector('#catFileDrop');
     drop.classList.remove('has-file');
-    drop.innerHTML = `${icon('upload')}<p>Choose file</p><span>PNG, JPG up to 5MB</span>`;
+    drop.innerHTML = `${icon('upload')}<p>Choose file</p><span>Any photo size &mdash; it is shrunk automatically</span>`;
     rmImg.remove();
   });
 
@@ -6015,10 +6163,13 @@ function categoryForm(cid, onSaved){
   subImgInput.addEventListener('change', (e)=>{
     const f = e.target.files[0];
     if(!f || subImgRow < 0) return;
-    if(f.size > 5*1024*1024){ showToast('Image must be under 5MB', 'xCircle'); return; }
-    const rd = new FileReader();
-    rd.onload = (ev)=>{ subsState[subImgRow].img = ev.target.result; paintSubs(); };
-    rd.readAsDataURL(f);
+    if(!/^image\//.test(f.type)){ showToast('Please choose a picture file', 'xCircle'); return; }
+    const row = subImgRow;
+    ncShrinkImage(f, 800, 110).then((res)=>{
+      if(subsState[row]) subsState[row].img = res.dataUrl;
+      paintSubs();
+      ncPictureReady('Sub-category picture', res);
+    }).catch(ncPictureFailed);
     e.target.value = '';
   });
 
@@ -6032,7 +6183,7 @@ function categoryForm(cid, onSaved){
                      .map(s=>({ name: String(s.name).trim(), img: s.img || '' })) };
     if(editing) Object.assign(c, data);
     else DB.categories.push(Object.assign({ id:'c'+Date.now() }, data));
-    persist();
+    if(!persistOrStop()) return;      // storage full: the toast already said so
     overlay.remove();
     onSaved && onSaved();
     showToast(editing?'Category updated':'Category added', 'checkCircle');
@@ -6384,13 +6535,15 @@ function bannerForm(bid, onSaved){
   drop.addEventListener('click', ()=> file.click());
   file.addEventListener('change', (e)=>{
     const f = e.target.files[0]; if(!f) return;
-    const r = new FileReader();
-    r.onload = (ev)=>{
-      chosenImg = ev.target.result;
+    if(!/^image\//.test(f.type)){ showToast('Please choose a picture file', 'xCircle'); return; }
+    /* Banners are wide, so they keep more pixels than a product photo. */
+    ncShrinkImage(f, 1400, 170).then((res)=>{
+      chosenImg = res.dataUrl;
       drop.innerHTML = `<img src="${chosenImg}" style="max-height:110px;border-radius:9px;margin:0 auto;">`;
       clearBtn.style.display='block';
-    };
-    r.readAsDataURL(f);
+      ncPictureReady('Banner picture', res);
+    }).catch(ncPictureFailed);
+    e.target.value = '';
   });
   clearBtn.addEventListener('click', ()=>{
     chosenImg = '';
@@ -6422,7 +6575,7 @@ function bannerForm(bid, onSaved){
     };
     if(b) Object.assign(b, data);
     else DB.banners.push(Object.assign({ id:'b'+Date.now(), active:true }, data));
-    persist();
+    if(!persistOrStop()) return;      // storage full: the toast already said so
     close();
     onSaved && onSaved();
     showToast(b?'Banner updated':'Banner added', 'checkCircle');
@@ -6564,6 +6717,7 @@ function renderAdminBranding(shell){
         <div class="form-group">
           <label class="form-label">Photo or video link</label>
           <input class="form-input" id="spUrl" placeholder="https://... (mp4 for video)" value="${sp.url||''}">
+          <p class="form-hint">For a video this is the way to do it &mdash; a video file from the phone is too large to store inside the app.</p>
         </div>
         <div class="form-group">
           <label class="form-label">...or choose a file from this phone</label>
@@ -6592,14 +6746,18 @@ function renderAdminBranding(shell){
   fileInput.addEventListener('change', (e)=>{
     const file = e.target.files[0];
     if(!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev)=>{
-      newLogo = ev.target.result;
+    if(!/^image\//.test(file.type)){ showToast('Please choose a picture file', 'xCircle'); return; }
+    /* A logo is small on screen and often transparent, so it stays PNG and
+       is capped tight - see ncShrinkImage's PNG branch. */
+    const asPng = /png|svg|webp|gif/i.test(file.type);
+    ncShrinkImage(file, 512, 70, asPng).then((res)=>{
+      newLogo = res.dataUrl;
       $('#brLogoPreview').src = newLogo;
       $('#brLogoPreview').style.display = 'block';
       $('#brLogoFallback').style.display = 'none';
-    };
-    reader.readAsDataURL(file);
+      ncPictureReady('Logo', res);
+    }).catch(ncPictureFailed);
+    e.target.value = '';
   });
   $$('.color-swatch', $('#brColorRow')).forEach(sw=>{
     sw.addEventListener('click', ()=>{
@@ -6613,15 +6771,29 @@ function renderAdminBranding(shell){
   if(spFile) spFile.addEventListener('change', (e)=>{
     const f = e.target.files[0];
     if(!f) return;
-    if(f.size > 4 * 1024 * 1024){
-      showToast('That file is large - a link is better for video', 'info');
+    if(/^video\//.test(f.type)){
+      /* A video cannot be shrunk in the browser, and a single clip would eat
+         the whole storage budget - so a link is the only workable route for
+         video. Anything small enough to store is still accepted. */
+      if(f.size > 1.5 * 1024 * 1024){
+        showToast('A video file this big (' + (Math.round(f.size / 1024 / 1024 * 10) / 10) +
+                  ' MB) is too large to store in the app. Paste a link to the video in the box above instead.', 'xCircle', 8000);
+        e.target.value = '';
+        return;
+      }
+      const rv = new FileReader();
+      rv.onload = (ev)=>{ newSplashData = ev.target.result;
+        showToast('Splash video ready - now tap Save', 'checkCircle'); };
+      rv.readAsDataURL(f);
+      e.target.value = '';
+      return;
     }
-    const r = new FileReader();
-    r.onload = (ev)=>{
-      newSplashData = ev.target.result;
-      showToast('Splash file ready - now tap Save', 'checkCircle');
-    };
-    r.readAsDataURL(f);
+    if(!/^image\//.test(f.type)){ showToast('Please choose a picture or video file', 'xCircle'); return; }
+    ncShrinkImage(f, 1400, 220).then((res)=>{
+      newSplashData = res.dataUrl;
+      ncPictureReady('Opening screen picture', res);
+    }).catch(ncPictureFailed);
+    e.target.value = '';
   });
   const spSecs = $('#spSecs');
   if(spSecs) spSecs.addEventListener('input', ()=>{
@@ -6640,7 +6812,7 @@ function renderAdminBranding(shell){
       dataUrl: newSplashData,
       seconds: Number($('#spSecs') && $('#spSecs').value) || 4
     };
-    persist();
+    if(!persistOrStop()) return;      // storage full: the toast already said so
     applyBranding();
     showToast('Branding updated', 'checkCircle');
   });
@@ -6685,6 +6857,13 @@ function renderAdminSettings(shell){
         <div class="form-group"><label class="form-label">Maximum days after the order</label><input class="form-input" id="delMaxInput" type="number" value="${s.deliveryMaxDays != null ? s.deliveryMaxDays : 8}" min="1" max="60"></div>
         <p class="form-hint">Customers see a real date, not a day count — e.g. an order placed today reads <b>${cartEta().label}</b>. Existing orders keep the date they were promised.</p>
         <button class="btn btn-secondary btn-block" id="saveDeliveryBtn">Save Delivery Estimate</button>
+      </div>
+      <div class="od-section">
+        <h4>Storage</h4>
+        ${(()=>{ const r = storageReport(); return `
+          <div class="storage-bar"><div class="storage-fill ${r.pct>85?'is-high':(r.pct>60?'is-mid':'')}" style="width:${r.pct}%"></div></div>
+          <p class="form-hint" style="margin-top:8px;"><b>${r.mb} MB</b> of about ${r.limitMB} MB used (${r.pct}%). Pictures fill this up.${r.biggestWho && r.biggestKB ? ' Largest single picture: ' + r.biggestWho + ', ' + r.biggestKB + ' KB.' : ''}</p>
+          <p class="form-hint">Photos you add are shrunk automatically, so they stay small. A video cannot be shrunk &mdash; use a link for video.</p>`; })()}
       </div>
       <div class="od-section">
         <h4>Data</h4>
@@ -6896,13 +7075,27 @@ function renderAdminSettings(shell){
         if (typeof persist === 'function') persist();
       }
       if (Array.isArray(d.products) && d.products.length) {
-        D.products   = d.products;
-        D.categories = Array.isArray(d.categories) && d.categories.length ? d.categories : D.categories;
-        if (typeof persist === 'function') persist();
-        refreshVisibleCatalog();
-        // The server is now the source of truth — remember its state so we do
-        // not immediately push the same catalogue straight back at it.
-        lastCatalogHash = catalogHash();
+        /* Never let an older copy on the server wipe what this phone has.
+           The owner's own edits win unless the server is genuinely newer.
+           Both stamps at 0 means neither side is versioned yet (an older
+           server), and then the server still wins — the previous behaviour. */
+        var localStamp  = Number(D.catalogUpdatedAt) || 0;
+        var serverStamp = Number(d.catalogUpdatedAt) || 0;
+        var hasLocal    = Array.isArray(D.products) && D.products.length > 0;
+        if (!hasLocal || serverStamp >= localStamp) {
+          D.products   = d.products;
+          D.categories = Array.isArray(d.categories) && d.categories.length ? d.categories : D.categories;
+          if (serverStamp) D.catalogUpdatedAt = serverStamp;
+          if (typeof persist === 'function') persist();
+          refreshVisibleCatalog();
+          // The server is now the source of truth — remember its state so we do
+          // not immediately push the same catalogue straight back at it.
+          lastCatalogHash = catalogHash();
+        } else {
+          // This phone is ahead of the server. Keep it, and let the next poll
+          // upload it (an empty baseline forces the comparison to differ).
+          lastCatalogHash = '';
+        }
       } else {
         // Server is empty: the owner has never uploaded. Leave the baseline
         // unset so the very first poll uploads what they have made in the app.
@@ -6920,6 +7113,10 @@ function renderAdminSettings(shell){
       body: {
         products: D.products || [],
         categories: D.categories || [],
+        /* When this catalogue last changed here. The server hands it back to
+           every other device so an out-of-date copy can never overwrite a
+           newer one — which is how the owner's pictures used to disappear. */
+        catalogUpdatedAt: Number(D.catalogUpdatedAt) || 0,
         /* The admin PIN and the shop rules travel with the catalogue so one
            change applies to every device, not only the phone that made it.
            That includes the delivery estimate, so a customer always sees the

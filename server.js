@@ -25,10 +25,16 @@ function send(res, code, body) {
   });
   res.end(JSON.stringify(body));
 }
-function readBody(req) {
+// The cap is per-route. Public routes keep the old tight limit so nobody can
+// flood them; the admin catalogue push needs room for the shop's pictures,
+// which are the bulk of the payload.
+const BODY_PUBLIC = 200000;        // ~200 KB - customer ordering and status updates
+const BODY_ADMIN  = 12000000;      // ~12 MB - the shop catalogue with its photos
+function readBody(req, limit) {
+  const cap = limit || BODY_PUBLIC;
   return new Promise((done) => {
     let s = '';
-    req.on('data', (c) => { s += c; if (s.length > 200000) req.destroy(); });
+    req.on('data', (c) => { s += c; if (s.length > cap) req.destroy(); });
     req.on('end', () => { try { done(JSON.parse(s || '{}')); } catch (e) { done({}); } });
   });
 }
@@ -48,9 +54,12 @@ http.createServer(async (req, res) => {
 
   if (p === '/api/admin/push' && req.method === 'POST') {
     if (!admin) return send(res, 401, { error: 'unauthorised' });
-    const b = await readBody(req);
+    const b = await readBody(req, BODY_ADMIN);
     if (Array.isArray(b.products)) db.products = b.products;
     if (Array.isArray(b.categories)) db.categories = b.categories;
+    // When the owner's catalogue last changed. Sent back to every device so
+    // an out-of-date copy here can never overwrite a newer one on a phone.
+    if (b.catalogUpdatedAt) db.catalogUpdatedAt = Number(b.catalogUpdatedAt) || 0;
     if (b.settings && typeof b.settings === 'object') {
       const pin = String(b.settings.adminPin || '');
       if (/^\d{4,10}$/.test(pin)) db.settings.adminPin = pin;
