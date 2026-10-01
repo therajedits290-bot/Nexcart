@@ -1991,6 +1991,113 @@ img{ max-width:100%; display:block; }
 input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 
 </style>
+
+<!-- NEXCART v8: picture sub-category row + admin sub-category editor. -->
+<style id="nexcart-v8">
+/* ============================================================
+   NEXCART v8 — owner requests
+   1. Sub-category row is now PICTURE tiles (name underneath), like
+      Myntra: tapping one opens that sub-category's products.
+   2. With "All" selected, the row shows every main category.
+   3. Admin: per-category sub-category editor rows.
+   Presentation only.
+   ============================================================ */
+
+/* ---------- 1 + 2. sub-category row: picture tiles ---------- */
+.subcat-wrap{
+  max-height:0;
+  overflow:hidden;
+  background:var(--surface, #fff);
+  border-bottom:1px solid var(--hairline, #E7E7EA);
+  transition:max-height 280ms cubic-bezier(.22,.61,.36,1);
+}
+.subcat-wrap.open{ max-height:118px; }
+
+.subcat-rail{
+  display:flex;
+  gap:12px;
+  overflow-x:auto;
+  padding:11px 14px 12px;
+  scrollbar-width:none;
+  -webkit-overflow-scrolling:touch;
+}
+.subcat-rail::-webkit-scrollbar{ display:none; }
+
+.subcat{
+  flex:0 0 auto;
+  width:66px;
+  border:0;
+  background:none;
+  padding:0;
+  margin:0;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:6px;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+.subcat-img{
+  width:66px;
+  height:66px;
+  border-radius:14px;
+  overflow:hidden;
+  background:var(--surface-2, #F5F5F6);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  box-shadow:0 0 0 1px var(--hairline, #E7E7EA);
+  transition:transform 140ms cubic-bezier(.22,.61,.36,1);
+}
+.subcat:active .subcat-img{ transform:scale(.93); }
+.subcat-img img{ width:100%; height:100%; object-fit:cover; display:block; }
+.subcat-ph svg{ width:26px; height:26px; opacity:.38; }
+
+.subcat-name{
+  width:66px;
+  text-align:center;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font:600 11.5px/1.25 Assistant, Inter, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color:var(--ink, #282C3F);
+}
+
+/* ---------- 3. admin: sub-category editor ---------- */
+.sub-edit-row{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin-bottom:9px;
+}
+.sub-edit-thumb{
+  flex:0 0 46px;
+  width:46px;
+  height:46px;
+  border-radius:10px;
+  overflow:hidden;
+  background:var(--surface-2, #F5F5F6);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  box-shadow:0 0 0 1px var(--hairline, #E7E7EA);
+  cursor:pointer;
+}
+.sub-edit-thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+.sub-edit-thumb span{ font-size:18px; opacity:.5; line-height:1; }
+.sub-edit-row .form-input{ flex:1 1 auto; min-width:0; margin:0; }
+.sub-edit-del{
+  flex:0 0 auto;
+  border:0;
+  background:none;
+  color:var(--danger, #E23744);
+  font-size:20px;
+  line-height:1;
+  padding:8px 6px;
+  cursor:pointer;
+}
+
+</style>
 </head>
 <body>
 
@@ -3294,6 +3401,27 @@ function openCategoryProducts(catId){
 // ============================================================
 // PRODUCT DETAIL
 // ============================================================
+/* Sub-category listing. Same page as a category, but only the products in
+   that category whose name matches the sub-category (e.g. "T-Shirts"). */
+function openSubCategoryProducts(catId, subName){
+  const title = String(subName || 'Products').slice(0, 20);
+  pushView(title, (main)=>{
+    main.innerHTML = `<div class="skel-grid">${Array(6).fill(0).map(()=>`<div class="skel-card"><div class="skel-img skeleton"></div><div class="skel-line skeleton"></div><div class="skel-line skeleton w60"></div></div>`).join('')}</div>`;
+    const tok = renderToken;
+    setTimeout(()=>{
+      if(tok !== renderToken) return;
+      const s = String(subName || '').toLowerCase().replace(/s$/, '');
+      const products = DB.products.filter(p=>{
+        if(p.category !== catId) return false;
+        const hay = ((p.name || '') + ' ' + (p.cat || '')).toLowerCase();
+        return hay.indexOf(s) !== -1;
+      });
+      main.innerHTML = `<div class="product-grid" id="subProductGrid"></div>`;
+      renderProductGrid($('#subProductGrid'), products);
+    }, 350);
+  });
+}
+
 function openProductDetail(pid){
   const p = getProduct(pid);
   if(!p) return;
@@ -5612,6 +5740,8 @@ function categoryForm(cid, onSaved){
   const c = editing ? DB.categories.find(x=>x.id===cid) : { name:'', emoji:'', img:'' };
   let chosenEmoji = c.emoji || '';
   let chosenImg = c.img || '';
+  // sub-categories the owner can add / rename / picture for this category
+  let subsState = (c.subs || []).map(s=>({ name: String(s.name || ''), img: s.img || '' }));
   let chosenIcon = editing ? categoryIcon(c) : CATEGORY_ICON_OPTIONS[0];
 
   const overlay = document.createElement('div');
@@ -5648,6 +5778,13 @@ function categoryForm(cid, onSaved){
         <div class="cat-emoji-grid" id="catIconGrid">
           ${CATEGORY_ICON_OPTIONS.map(n=>`<button class="cat-emoji-btn ${chosenIcon===n?'selected':''}" data-icon="${n}">${icon(n)}</button>`).join('')}
         </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Sub-categories (shown as pictures under the tabs)</label>
+        <div id="subEditList"></div>
+        <input type="file" id="subImgInput" accept="image/*" style="display:none;">
+        <button class="text-btn" id="subAddBtn" style="color:var(--brand);font-weight:700;">+ Add sub-category</button>
       </div>
 
       <button class="btn btn-primary btn-block" id="catSave">${editing?'Save Changes':'Add Category'}</button>
@@ -5696,12 +5833,61 @@ function categoryForm(cid, onSaved){
   overlay.querySelector('#catClose').addEventListener('click', ()=> overlay.remove());
   overlay.addEventListener('click', (e)=>{ if(e.target===overlay) overlay.remove(); });
 
+  /* --- sub-category editor --- */
+  const subList = overlay.querySelector('#subEditList');
+  const subImgInput = overlay.querySelector('#subImgInput');
+  let subImgRow = -1;
+
+  function paintSubs(){
+    if(!subsState.length){
+      subList.innerHTML = '<p class="admin-hint" style="margin:0 0 8px;">None yet. Tap "Add sub-category" to make your own, e.g. Shirts or Trousers.</p>';
+      return;
+    }
+    subList.innerHTML = subsState.map((s,i)=>`
+      <div class="sub-edit-row">
+        <div class="sub-edit-thumb" data-pick="${i}">${s.img ? `<img src="${s.img}" alt="">` : '<span>+</span>'}</div>
+        <input class="form-input" data-name="${i}" value="${String(s.name).replace(/"/g,'&quot;')}" placeholder="e.g. T-Shirts">
+        <button class="sub-edit-del" data-del="${i}" title="Remove">&times;</button>
+      </div>`).join('');
+    subList.querySelectorAll('.sub-edit-thumb').forEach(el=> el.addEventListener('click', ()=>{
+      subImgRow = Number(el.dataset.pick);
+      subImgInput.click();
+    }));
+    subList.querySelectorAll('input[data-name]').forEach(el=> el.addEventListener('input', ()=>{
+      subsState[Number(el.dataset.name)].name = el.value;
+    }));
+    subList.querySelectorAll('.sub-edit-del').forEach(el=> el.addEventListener('click', ()=>{
+      subsState.splice(Number(el.dataset.del), 1);
+      paintSubs();
+    }));
+  }
+  paintSubs();
+
+  overlay.querySelector('#subAddBtn').addEventListener('click', ()=>{
+    subsState.push({ name:'', img:'' });
+    paintSubs();
+    const rows = subList.querySelectorAll('input[data-name]');
+    if(rows.length) rows[rows.length-1].focus();
+  });
+
+  subImgInput.addEventListener('change', (e)=>{
+    const f = e.target.files[0];
+    if(!f || subImgRow < 0) return;
+    if(f.size > 5*1024*1024){ showToast('Image must be under 5MB', 'xCircle'); return; }
+    const rd = new FileReader();
+    rd.onload = (ev)=>{ subsState[subImgRow].img = ev.target.result; paintSubs(); };
+    rd.readAsDataURL(f);
+    e.target.value = '';
+  });
+
   overlay.querySelector('#catSave').addEventListener('click', ()=>{
     const name = overlay.querySelector('#catName').value.trim();
     if(!name){ showToast('Enter a category name'); return; }
     const dup = DB.categories.find(x=> x.name.toLowerCase()===name.toLowerCase() && (!editing || x.id!==cid));
     if(dup){ showToast('That category already exists', 'xCircle'); return; }
-    const data = { name, emoji: chosenEmoji, icon: chosenIcon, img: chosenImg };
+    const data = { name, emoji: chosenEmoji, icon: chosenIcon, img: chosenImg,
+      subs: subsState.filter(s=> String(s.name || '').trim())
+                     .map(s=>({ name: String(s.name).trim(), img: s.img || '' })) };
     if(editing) Object.assign(c, data);
     else DB.categories.push(Object.assign({ id:'c'+Date.now() }, data));
     persist();
@@ -6515,6 +6701,13 @@ function renderAdminSettings(shell){
       // Only adopt the server's catalogue once it actually holds something.
       // Before the owner's first push it is empty, and overwriting would wipe
       // the products they already created in the app.
+      // Adopt the shop-wide admin PIN whenever the server has one, so a PIN
+      // change reaches every device (this runs even when the catalogue is empty).
+      if (d.settings && /^[0-9]{4,10}$/.test(String(d.settings.adminPin || ''))) {
+        D.settings = D.settings || {};
+        D.settings.adminPin = String(d.settings.adminPin);
+        if (typeof persist === 'function') persist();
+      }
       if (Array.isArray(d.products) && d.products.length) {
         D.products   = d.products;
         D.categories = Array.isArray(d.categories) && d.categories.length ? d.categories : D.categories;
@@ -6537,7 +6730,13 @@ function renderAdminSettings(shell){
     var D = db(); if (!D || !getKey()) return Promise.resolve();
     return api('/api/admin/push', {
       method: 'POST', admin: true,
-      body: { products: D.products || [], categories: D.categories || [] }
+      body: {
+        products: D.products || [],
+        categories: D.categories || [],
+        /* the admin PIN travels with the catalogue so one change applies
+           to every device, not only the phone that made it */
+        settings: { adminPin: (D.settings && D.settings.adminPin) || '' }
+      }
     }).then(function (r) {
       lastCatalogHash = catalogHash();
       if (!silent) toast('Catalogue uploaded (' + r.products + ' products)');
@@ -6909,25 +7108,72 @@ function renderAdminSettings(shell){
 
   window.ncActiveSub = '';
 
+  /* Picture for a category: its own image, else the first product photo
+     in it. Used by both the sub-category row and the categories page. */
+  window.ncCatImage = function(c){
+    if(!c) return '';
+    if(c.img) return c.img;
+    var p = (DB.products || []).filter(function(x){ return x.category === c.id && x.img; })[0];
+    return p ? p.img : '';
+  };
+
+  /* Sub-categories of a category, each WITH an image.
+     If the owner has set their own in Admin > Categories (cat.subs) those
+     win; otherwise a sensible list is used and each picture comes from the
+     first product in that category whose name matches. */
   window.ncSubsFor = function(catId){
     var cat = (DB.categories || []).filter(function(c){ return c.id === catId; })[0];
     if(!cat) return [];
-    var key = String(cat.name || '').toLowerCase();
-    for(var k in NC_SUBS){
-      if(key.indexOf(k) !== -1) return NC_SUBS[k].slice();
+    var prods = (DB.products || []).filter(function(p){ return p.category === catId; });
+
+    function imgFor(name){
+      var s = String(name).toLowerCase().replace(/s$/, '');
+      var hit = prods.filter(function(p){
+        return p.img && String(p.name || '').toLowerCase().indexOf(s) !== -1;
+      })[0];
+      if(hit) return hit.img;
+      var any = prods.filter(function(p){ return p.img; })[0];
+      return any ? any.img : (cat.img || '');
     }
-    var seen = {}, out = [];
-    (DB.products || []).filter(function(p){ return p.category === catId; }).forEach(function(p){
-      String(p.name || '').split(/\s+/).forEach(function(w){
-        w = w.replace(/[^A-Za-z]/g, '');
-        var low = w.toLowerCase();
-        if(w.length >= 4 && NC_STOP.indexOf(low) === -1 && !seen[low]){
-          seen[low] = 1;
-          out.push(w.charAt(0).toUpperCase() + low.slice(1));
-        }
+
+    if(Object.prototype.toString.call(cat.subs) === '[object Array]' && cat.subs.length){
+      return cat.subs
+        .filter(function(s){ return s && String(s.name || '').trim(); })
+        .map(function(s){
+          var nm = String(s.name).trim();
+          return { name: nm, img: s.img || imgFor(nm) };
+        });
+    }
+
+    var names = null, key = String(cat.name || '').toLowerCase();
+    for(var k in NC_SUBS){ if(key.indexOf(k) !== -1){ names = NC_SUBS[k].slice(); break; } }
+    if(!names){
+      var seen = {};
+      names = [];
+      prods.forEach(function(p){
+        String(p.name || '').split(/\s+/).forEach(function(w){
+          w = w.replace(/[^A-Za-z]/g, '');
+          var low = w.toLowerCase();
+          if(w.length >= 4 && NC_STOP.indexOf(low) === -1 && !seen[low]){
+            seen[low] = 1;
+            names.push(w.charAt(0).toUpperCase() + low.slice(1));
+          }
+        });
       });
-    });
-    return out.slice(0, 12);
+    }
+    // Put the sub-categories that actually have products first, so the first
+    // tiles the owner taps are never empty. The rest still appear after them.
+    function hasProducts(n){
+      var s = String(n).toLowerCase().replace(/s$/, '');
+      return prods.some(function(p){
+        return String(p.name || '').toLowerCase().indexOf(s) !== -1;
+      });
+    }
+    var matching = names.filter(hasProducts);
+    var rest     = names.filter(function(n){ return !hasProducts(n); });
+    names = matching.concat(rest);
+
+    return names.slice(0, 14).map(function(n){ return { name: n, img: imgFor(n) }; });
   };
 
   window.ncMatchSub = function(p, sub){
@@ -6937,28 +7183,46 @@ function renderAdminSettings(shell){
     return hay.indexOf(s) !== -1;
   };
 
+  /* The row under the tabs. Every item is a PICTURE tile with its name
+     underneath. With "All" selected it lists the main categories; with a
+     category selected it lists that category's sub-categories. Tapping
+     either one navigates to that listing. */
   window.ncRenderSubs = function(){
     var wrap = document.getElementById('subcatWrap');
     var rail = document.getElementById('subcatRail');
     if(!wrap || !rail) return;
-    var subs = (ncActiveCat && ncActiveCat !== 'all') ? window.ncSubsFor(ncActiveCat) : [];
-    ncActiveSub = '';
-    if(!subs.length){
-      wrap.classList.remove('open');
-      rail.innerHTML = '';
-      return;
+
+    var items = [];
+    if(!ncActiveCat || ncActiveCat === 'all'){
+      items = (DB.categories || []).map(function(c){
+        return { name: c.name, img: window.ncCatImage(c), catId: c.id, isCat: true };
+      });
+    } else {
+      items = window.ncSubsFor(ncActiveCat).map(function(s){
+        return { name: s.name, img: s.img, catId: ncActiveCat, isCat: false };
+      });
     }
-    rail.innerHTML = subs.map(function(s2){
-      return '<button class="subcat" type="button">' + s2 + '</button>';
+
+    ncActiveSub = '';
+    if(!items.length){ wrap.classList.remove('open'); rail.innerHTML = ''; return; }
+
+    rail.innerHTML = items.map(function(it){
+      var pic = it.img
+        ? '<img src="' + it.img + '" alt="" loading="lazy">'
+        : '<span class="subcat-ph icon">' + (ICONS.grid || '') + '</span>';
+      var subAttr = it.isCat ? '' : ' data-sub="' + String(it.name).replace(/"/g, '&quot;') + '"';
+      return '<button class="subcat" type="button" data-cat="' + it.catId + '"' + subAttr + '>' +
+               '<span class="subcat-img">' + pic + '</span>' +
+               '<span class="subcat-name">' + it.name + '</span>' +
+             '</button>';
     }).join('');
+
     Array.prototype.forEach.call(rail.querySelectorAll('.subcat'), function(b){
       b.onclick = function(){
-        var was = b.classList.contains('on');
-        Array.prototype.forEach.call(rail.querySelectorAll('.subcat'), function(x){ x.classList.remove('on'); });
-        if(was){ ncActiveSub = ''; }
-        else { b.classList.add('on'); ncActiveSub = b.textContent; }
-        ncApplyGrid();
-        if(b.scrollIntoView) b.scrollIntoView({ behavior:'smooth', block:'nearest', inline:'center' });
+        var catId = b.getAttribute('data-cat');
+        var sub   = b.getAttribute('data-sub');
+        if(sub && sub.length){ openSubCategoryProducts(catId, sub); }
+        else if(catId){ openCategoryProducts(catId); }
       };
     });
     wrap.classList.add('open');
@@ -7009,6 +7273,9 @@ function renderAdminSettings(shell){
       };
     });
 
+    // With "All" selected the row shows every main category as a picture,
+    // so it is filled in straight away as well as on every tab tap.
+    ncRenderSubs();
     move(false);
     // The app renders behind a splash/skeleton, so offsetWidth can still be 0
     // when this first runs. Re-measure a few times and after fonts settle.

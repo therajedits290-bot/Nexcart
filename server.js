@@ -9,8 +9,10 @@ const PORT = process.env.PORT || 3000;
 const KEY = process.env.ADMIN_KEY || 'changeme';
 const FILE = path.join(process.env.DATA_DIR || __dirname, 'data.json');
 
-let db = { products: [], categories: [], orders: [], updatedAt: 0 };
+let db = { products: [], categories: [], orders: [], settings: {}, updatedAt: 0 };
 try { db = JSON.parse(fs.readFileSync(FILE, 'utf8')); } catch (e) {}
+// migrate older data files that have no settings bucket
+if (!db.settings || typeof db.settings !== 'object') db.settings = {};
 const save = () => { try { fs.writeFileSync(FILE, JSON.stringify(db)); } catch (e) {} };
 const id = (p) => p + Date.now().toString(36) + crypto.randomBytes(2).toString('hex');
 
@@ -42,13 +44,17 @@ http.createServer(async (req, res) => {
     return send(res, 200, { ok: true, products: db.products.length, orders: db.orders.length });
 
   if (p === '/api/bootstrap')
-    return send(res, 200, { products: db.products, categories: db.categories, updatedAt: db.updatedAt });
+    return send(res, 200, { products: db.products, categories: db.categories, settings: db.settings, updatedAt: db.updatedAt });
 
   if (p === '/api/admin/push' && req.method === 'POST') {
     if (!admin) return send(res, 401, { error: 'unauthorised' });
     const b = await readBody(req);
     if (Array.isArray(b.products)) db.products = b.products;
     if (Array.isArray(b.categories)) db.categories = b.categories;
+    if (b.settings && typeof b.settings === 'object') {
+      const pin = String(b.settings.adminPin || '');
+      if (/^\d{4,10}$/.test(pin)) db.settings.adminPin = pin;
+    }
     db.updatedAt = Date.now();
     save();
     return send(res, 200, { ok: true, products: db.products.length });

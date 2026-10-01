@@ -1,5 +1,5 @@
 /* ============================================================
-   NEXCART — Service Worker  (v3)
+   NEXCART — Service Worker  (v4)
    ------------------------------------------------------------
    What changed and why:
    v1 precached the app shell under a fixed cache name and let the
@@ -7,7 +7,7 @@
    tokri-standalone.html could keep showing the OLD design on an
    installed app.
    v2 fixes that:
-     - CACHE name bumped to v3, so every already-installed app
+     - CACHE name bumped to v4, so every already-installed app
        installs this worker, which deletes the old cache.
      - HTML/navigation requests now use cache:'reload', which
        bypasses the HTTP cache and always reads the real file.
@@ -16,7 +16,7 @@
    Nothing else about the app changes.
    ============================================================ */
 
-const CACHE = 'nexcart-v3';
+const CACHE = 'nexcart-v4';
 const ASSETS = [
   './',
   './tokri-standalone.html',
