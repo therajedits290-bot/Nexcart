@@ -2098,6 +2098,13 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 }
 
 </style>
+
+<style id="nexcart-v9">
+/* NEXCART v9 - fallbacks for a category tile that has no photo yet */
+.subcat-emoji{ font-size:30px; line-height:1; }
+.subcat-initial{ font:800 24px/1 Assistant, Inter, -apple-system, "Segoe UI", Roboto, sans-serif;
+                 color:var(--brand, #FF3F6C); }
+</style>
 </head>
 <body>
 
@@ -2667,7 +2674,7 @@ function reviewSheet(order, onDone){
         orderId: order.id,
         rating: stars,
         text,
-        userName: DB.user.name || 'NEXCART Customer',
+        userName: DB.user.name || 'Nexcart Customer',
         at: Date.now()
       });
     }
@@ -2952,12 +2959,11 @@ function buildHome(main){
       <button class="mtabs-grid" id="mtabsGrid" aria-label="All categories">${icon('grid')}</button>
     </div>
 
-    <!-- sub-categories of the selected main tab (filled in on tap) -->
+    <!-- One category row only. The old second row was a duplicate and was
+         removed on the owner's request; this row shows pictures. -->
     <div class="subcat-wrap" id="subcatWrap">
       <div class="subcat-rail" id="subcatRail"></div>
     </div>
-
-    <div class="cat-rail" id="catRail"></div>
 
     ${offerStrip ? `<div class="offer-wrap">${offerStrip}</div>` : ''}
 
@@ -3006,27 +3012,14 @@ function buildHome(main){
 
     <div class="store-footer" id="adminTapZone">
       <div class="sf-brand" id="footAppName">${appName}</div>
-      <div class="sf-line">&copy; 2026 NEXCART &middot; All rights reserved</div>
+      <div class="sf-line">&copy; 2026 Nexcart &middot; All rights reserved</div>
       <div class="sf-ver">v6.0</div>
     </div>
   `;
 
-  /* ---- category rail (own markup so the tile design is ours) ---- */
-  const rail = $('#catRail');
-  if(rail && cats.length){
-    rail.innerHTML = cats.map(c=>{
-      let thumb;
-      if(c.img) thumb = `<img src="${c.img}" alt="">`;
-      else if(c.emoji) thumb = `<span class="cat-emoji">${c.emoji}</span>`;
-      else thumb = `<span class="icon cat-svg">${(typeof ICONS!=='undefined' && ICONS[c.icon]) || ''}</span>`;
-      return `<div class="cat-tile" data-cat="${c.id}">
-        <div class="cat-tile-img">${thumb}</div>
-        <div class="cat-tile-label">${c.name}</div>
-      </div>`;
-    }).join('');
-    $$('.cat-tile', rail).forEach(el=>
-      el.addEventListener('click', ()=> openCategoryProducts(el.dataset.cat)));
-  }
+  /* The separate category rail that used to render here duplicated the
+     row above (which already shows every category as a picture), so it was
+     removed on the owner's request. Nothing else referenced #catRail. */
 
   /* ---- grid + tabs + search ---- */
   ncApplyGrid();
@@ -4482,7 +4475,7 @@ function renderProfilePage(main){
        </div>
        <div class="profile-menu-item" data-act="install-app" id="installAppRow" style="display:none;">
          <div class="profile-menu-icon">${icon('download')}</div>
-         <div class="profile-menu-text">Install App<span>Add NEXCART to your home screen</span></div>
+         <div class="profile-menu-text">Install App<span>Add Nexcart to your home screen</span></div>
          ${icon('chevronRight','chev')}
        </div>
      </div>
@@ -4517,7 +4510,7 @@ function renderProfilePage(main){
     </div>
     <div class="store-footer" id="adminTapZone">
       <div class="sf-brand" id="footAppName">${(typeof ncBrandName === 'function') ? ncBrandName() : 'Nexcart'}</div>
-      <div class="sf-line">&copy; 2026 NEXCART &middot; All rights reserved</div>
+      <div class="sf-line">&copy; 2026 Nexcart &middot; All rights reserved</div>
       <div class="sf-ver">v4.0</div>
     </div>
   `;
@@ -5208,14 +5201,14 @@ function promptInstallApp(){
   if(deferredInstallPrompt){
     deferredInstallPrompt.prompt();
     deferredInstallPrompt.userChoice.then((res)=>{
-      if(res.outcome === 'accepted') showToast('Installing NEXCART…', 'checkCircle');
+      if(res.outcome === 'accepted') showToast('Installing Nexcart…', 'checkCircle');
       deferredInstallPrompt = null;
     });
     return;
   }
   // iOS Safari + browsers without the prompt event — show manual steps
   confirmAction(
-    'Install NEXCART on your phone',
+    'Install Nexcart on your phone',
     isIOS()
       ? 'Tap the Share button in Safari, then choose "Add to Home Screen".'
       : 'Open the browser menu (⋮) and choose "Install app" or "Add to Home screen".'
@@ -7195,11 +7188,12 @@ function renderAdminSettings(shell){
     var items = [];
     if(!ncActiveCat || ncActiveCat === 'all'){
       items = (DB.categories || []).map(function(c){
-        return { name: c.name, img: window.ncCatImage(c), catId: c.id, isCat: true };
+        return { name: c.name, img: window.ncCatImage(c), emoji: c.emoji || '',
+                 catId: c.id, isCat: true };
       });
     } else {
       items = window.ncSubsFor(ncActiveCat).map(function(s){
-        return { name: s.name, img: s.img, catId: ncActiveCat, isCat: false };
+        return { name: s.name, img: s.img, emoji: '', catId: ncActiveCat, isCat: false };
       });
     }
 
@@ -7207,9 +7201,13 @@ function renderAdminSettings(shell){
     if(!items.length){ wrap.classList.remove('open'); rail.innerHTML = ''; return; }
 
     rail.innerHTML = items.map(function(it){
-      var pic = it.img
-        ? '<img src="' + it.img + '" alt="" loading="lazy">'
-        : '<span class="subcat-ph icon">' + (ICONS.grid || '') + '</span>';
+      // real photo first; then the category's own emoji; then its initial.
+      // Never a grey placeholder box.
+      var pic;
+      if(it.img)        pic = '<img src="' + it.img + '" alt="" loading="lazy">';
+      else if(it.emoji) pic = '<span class="subcat-emoji">' + it.emoji + '</span>';
+      else              pic = '<span class="subcat-initial">' +
+                              String(it.name || '?').charAt(0).toUpperCase() + '</span>';
       var subAttr = it.isCat ? '' : ' data-sub="' + String(it.name).replace(/"/g, '&quot;') + '"';
       return '<button class="subcat" type="button" data-cat="' + it.catId + '"' + subAttr + '>' +
                '<span class="subcat-img">' + pic + '</span>' +
