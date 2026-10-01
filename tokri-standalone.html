@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>NEXCART — Online Store</title>
+<title>Nexcart — Online Store</title>
 <!-- PWA / installable-app meta -->
 <meta name="theme-color" content="#FF3F6C">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="NEXCART">
+<meta name="apple-mobile-web-app-title" content="Nexcart">
 <meta name="description" content="Sasta shopping, full paisa vasool. Cash on Delivery available.">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -1767,6 +1767,230 @@ img{ max-width:100%; display:block; }
 .offer-wrap{ margin:12px 0 0; }
 
 </style>
+
+<!-- NEXCART v7: owner-requested changes (header, sub-categories,
+     categories page, splash screen). Presentation only. -->
+<style id="nexcart-v7">
+/* ============================================================
+   NEXCART v7 — owner requests
+   ------------------------------------------------------------
+   1. Header: only brand mark + search + mic + camera + wishlist
+      (the pincode bar, cart pill, bell and profile icon are gone)
+   2. Sub-categories under the main tabs (tap a tab -> sub row)
+   3. Categories page: side list + BIG IMAGE tiles (no tiny emoji)
+   4. Splash screen: optional photo or video
+   Presentation only - no data, routing or sync logic is touched.
+   ============================================================ */
+
+/* ---------- 1. header ---------- */
+/* the pincode row is no longer in the markup; this guards against a
+   stale cached copy of the old header coming back */
+.topbar .loc-bar{ display:none !important; }
+
+.hdr-row{
+  display:flex; align-items:center;
+  gap:4px;
+  padding:9px 9px 10px 12px;
+}
+.hdr-icons{ gap:0; }
+.srch{ flex:1 1 auto; min-width:0; }
+
+/* the wishlist heart needs to be a comfortable thumb target */
+.hdr-icons .hdr-ic{
+  width:44px; height:44px;
+  display:flex; align-items:center; justify-content:center;
+}
+
+/* ---------- 2. sub-category rail ---------- */
+.subcat-wrap{
+  max-height:0;
+  overflow:hidden;
+  background:var(--surface, #fff);
+  border-bottom:1px solid var(--hairline, #E7E7EA);
+  transition:max-height 260ms cubic-bezier(.22,.61,.36,1);
+}
+.subcat-wrap.open{ max-height:56px; }
+
+.subcat-rail{
+  display:flex;
+  gap:20px;
+  overflow-x:auto;
+  padding:10px 16px 13px;
+  scrollbar-width:none;
+  -webkit-overflow-scrolling:touch;
+}
+.subcat-rail::-webkit-scrollbar{ display:none; }
+
+.subcat{
+  flex:none;
+  position:relative;
+  border:0;
+  background:none;
+  padding:0 0 4px;
+  margin:0;
+  cursor:pointer;
+  white-space:nowrap;
+  font:600 13px/1.2 Assistant, Inter, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color:var(--ink-soft, #535766);
+  transition:color 140ms cubic-bezier(.22,.61,.36,1);
+  -webkit-tap-highlight-color:transparent;
+}
+.subcat.on{ color:var(--ink, #282C3F); font-weight:700; }
+.subcat.on::after{
+  content:"";
+  position:absolute;
+  left:0; right:0; bottom:0;
+  height:2px;
+  border-radius:2px;
+  background:var(--brand, #FF3F6C);
+}
+
+/* ---------- 3. categories page: side list + big image tiles ---------- */
+.catpage{
+  display:flex;
+  align-items:stretch;
+  min-height:66vh;
+  background:var(--surface, #fff);
+}
+
+.catpage-side{
+  flex:0 0 94px;
+  background:var(--canvas, #F6F6F8);
+  border-right:1px solid var(--hairline, #E7E7EA);
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+}
+.catpage-item{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:6px;
+  padding:12px 6px 11px;
+  cursor:pointer;
+  border-left:3px solid transparent;
+  transition:background 140ms cubic-bezier(.22,.61,.36,1);
+  -webkit-tap-highlight-color:transparent;
+}
+.catpage-item.on{
+  background:var(--surface, #fff);
+  border-left-color:var(--brand, #FF3F6C);
+}
+.catpage-item .cpi-img{
+  width:46px; height:46px;
+  border-radius:11px;
+  overflow:hidden;
+  background:#fff;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 0 0 1px var(--hairline, #E7E7EA);
+}
+.catpage-item .cpi-img img{
+  width:100%; height:100%; object-fit:cover; display:block;
+}
+.catpage-item span{
+  font:600 11.5px/1.2 Assistant, Inter, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color:var(--ink-soft, #535766);
+  text-align:center;
+  max-width:84px;
+}
+.catpage-item.on span{ color:var(--ink, #282C3F); font-weight:700; }
+
+.catpage-panel{
+  flex:1 1 auto;
+  min-width:0;
+  padding:14px 12px 26px;
+}
+.catpage-h{
+  font:700 14.5px/1.25 Assistant, Inter, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color:var(--ink, #282C3F);
+  margin:2px 2px 11px;
+}
+.catpage-h + .catpage-grid{ margin-top:0; }
+.catpage-note{
+  font:500 12.5px/1.45 Assistant, Inter, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color:var(--ink-faint, #94969F);
+  margin:0 2px 14px;
+}
+
+.catpage-grid{
+  display:grid;
+  grid-template-columns:repeat(3, minmax(0,1fr));
+  gap:10px;
+  margin-bottom:20px;
+}
+
+.cat-tile-lg{
+  position:relative;
+  border:0; padding:0; margin:0;
+  background:var(--surface-2, #F5F5F6);
+  border-radius:12px;
+  overflow:hidden;
+  cursor:pointer;
+  text-align:center;
+  padding-bottom:8px;
+  transition:transform 140ms cubic-bezier(.22,.61,.36,1), box-shadow 140ms cubic-bezier(.22,.61,.36,1);
+  -webkit-tap-highlight-color:transparent;
+}
+.cat-tile-lg:active{ transform:scale(.968); }
+.cat-tile-lg img{
+  width:100%;
+  aspect-ratio:1 / 1;
+  object-fit:cover;
+  display:block;
+  background:var(--surface-2, #F5F5F6);
+}
+.cat-tile-lg .ctl-emoji,
+.cat-tile-lg .ctl-icon{
+  width:100%;
+  aspect-ratio:1 / 1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.cat-tile-lg .ctl-emoji{ font-size:40px; line-height:1; }
+.cat-tile-lg .ctl-icon svg{ width:36px; height:36px; opacity:.42; }
+.cat-tile-lg span{
+  display:block;
+  padding:7px 6px 0;
+  font:600 11.5px/1.28 Assistant, Inter, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color:var(--ink, #282C3F);
+  overflow:hidden;
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+}
+
+/* ---------- 4. splash screen: photo / video ---------- */
+.splash.has-media{ background:#0B0B0D; }
+.splash-media{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  z-index:0;
+}
+.splash.has-media .splash-inner{
+  position:relative;
+  z-index:2;
+  text-shadow:0 2px 14px rgba(0,0,0,.55);
+}
+.splash.has-media::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:1;
+  background:linear-gradient(180deg, rgba(0,0,0,.16) 0%, rgba(0,0,0,.42) 100%);
+}
+
+/* ---------- admin: splash + segments + hint ---------- */
+.admin-hint{
+  font:500 12px/1.45 Assistant, Inter, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color:var(--ink-faint, #94969F);
+  margin:8px 0 0;
+}
+input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
+
+</style>
 </head>
 <body>
 
@@ -1786,7 +2010,7 @@ img{ max-width:100%; display:block; }
       <img id="splashLogo" class="splash-logo-img" src="" alt="" style="display:none">
       <div id="splashLogoFallback" class="splash-logo-fallback"></div>
     </div>
-    <h1 class="splash-title" id="splashAppName">NEXCART</h1>
+    <h1 class="splash-title" id="splashAppName">Nexcart</h1>
     <p class="splash-tagline" id="splashTagline">Everything you need, delivered.</p>
     <div class="splash-loader"><span></span><span></span><span></span></div>
   </div>
@@ -1799,19 +2023,9 @@ img{ max-width:100%; display:block; }
   <!-- Top bar: location + search + actions (Myntra-class) -->
   <header class="topbar" id="topbar">
 
-    <!-- Row 1: delivery location -->
-    <div class="loc-bar" id="locBar">
-      <span class="icon loc-pin" id="locPinIcon"></span>
-      <span>Deliver to</span>
-      <b id="locPin">530048</b>
-      <span class="icon loc-caret" id="locCaretIcon"></span>
-      <button class="loc-edit" id="locEdit">Change</button>
-      <div class="loc-right">
-        <button class="loc-wallet" id="locWallet" aria-label="Cart value">&#8377;0</button>
-      </div>
-    </div>
-
-    <!-- Row 2: search + bell / wishlist / profile -->
+    <!-- Single row: brand mark + search + mic + camera, then wishlist.
+         (The delivery/pincode bar, the cart-value pill, the notification
+          bell and the profile icon were removed on the owner's request.) -->
     <div class="hdr-row">
       <div class="srch" id="searchBar">
         <img id="topLogo" class="brand-logo-img srch-brand" src="" alt="" style="display:none">
@@ -1823,14 +2037,12 @@ img{ max-width:100%; display:block; }
         <button class="srch-btn" id="camBtn" aria-label="Search by photo" type="button"></button>
       </div>
       <div class="hdr-icons">
-        <button class="hdr-ic" id="bellBtn" aria-label="Notifications" type="button"></button>
         <button class="hdr-ic" id="wishlistTopBtn" aria-label="Wishlist" type="button"></button>
-        <button class="hdr-ic" id="profileTopBtn" aria-label="Profile" type="button"></button>
       </div>
     </div>
 
     <!-- applyBranding() writes here, so it must exist (and stays out of the way) -->
-    <span id="topAppName" style="position:absolute;left:-9999px;top:0;width:1px;height:1px;overflow:hidden;">NEXCART</span>
+    <span id="topAppName" style="position:absolute;left:-9999px;top:0;width:1px;height:1px;overflow:hidden;">Nexcart</span>
   </header>
 
   <!-- Announcement ticker -->
@@ -2060,10 +2272,13 @@ function defaultDB(){
   const now = Date.now();
   return {
     branding: {
-      appName: 'NEXCART',
+      appName: 'Nexcart',
       tagline: 'Everything you need, delivered.',
       logoDataUrl: '',
       primaryColor: '#FF3F6C',
+      /* Opening screen. type: 'default' (logo) | 'image' | 'video'.
+         'url' holds a link; 'dataUrl' holds a file picked on this phone. */
+      splash: { type: 'default', url: '', dataUrl: '', seconds: 4 },
     },
     settings: {
       adminPin: '1234',
@@ -2611,7 +2826,8 @@ function renderHome(main){
 function buildHome(main){
   const activeBanners = (DB.banners||[]).filter(b=>b.active);
   const cats = DB.categories || [];
-  const appName = (DB.branding && DB.branding.appName) || 'NEXCART';
+  const appName = (typeof ncBrandName === 'function') ? ncBrandName()
+                : ((DB.branding && DB.branding.appName) || 'Nexcart');
 
   // The announcement ticker lives in a static slot outside this view; we hide
   // that slot (CSS) and render the strip here instead, so the order matches a
@@ -2627,6 +2843,11 @@ function buildHome(main){
         <span class="mtabs-ink" id="mtabsInk"></span>
       </div>
       <button class="mtabs-grid" id="mtabsGrid" aria-label="All categories">${icon('grid')}</button>
+    </div>
+
+    <!-- sub-categories of the selected main tab (filled in on tap) -->
+    <div class="subcat-wrap" id="subcatWrap">
+      <div class="subcat-rail" id="subcatRail"></div>
     </div>
 
     <div class="cat-rail" id="catRail"></div>
@@ -2929,24 +3150,131 @@ function toggleWishlist(pid){
 // ============================================================
 // CATEGORIES PAGE
 // ============================================================
+/* Categories page, rebuilt on the owner's request: a side list of
+   categories on the left and BIG IMAGE tiles on the right (real product
+   photos where we have them), instead of small emoji tiles. */
 function renderCategoriesPage(main){
   main.innerHTML = `<div class="section"><div class="skel-grid">${Array(6).fill('<div class="skel-chip skeleton" style="width:100%;height:90px;border-radius:14px;"></div>').join('')}</div></div>`;
   const tok = ++renderToken;
   setTimeout(()=>{
     if(tok !== renderToken) return;
-    main.innerHTML = `
-      <div class="section">
-        <div class="section-head"><span class="section-title">All Categories</span></div>
-      </div>
-      <div class="admin-menu-grid" id="allCatGrid"></div>
-    `;
-    const grid = $('#allCatGrid');
-    grid.innerHTML = DB.categories.map(c=>`
-      <div class="admin-menu-card card-fade-in" data-cat="${c.id}">
-         <div class="cat-thumb-44">${categoryThumbHTML(c, 'cat-svg-lg')}</div>
-        <span>${c.name}</span>
-      </div>`).join('');
-    $$('.admin-menu-card', grid).forEach(el=> el.addEventListener('click', ()=> openCategoryProducts(el.dataset.cat)));
+
+    const cats = DB.categories || [];
+    if(!cats.length){
+      main.innerHTML = `<div class="section"><div class="section-head"><span class="section-title">All Categories</span></div>
+        <p class="catpage-note">No categories yet. Add some from the admin panel.</p></div>`;
+      return;
+    }
+
+    main.innerHTML = `<div class="catpage">
+        <div class="catpage-side" id="catSide"></div>
+        <div class="catpage-panel" id="catPanel"></div>
+      </div>`;
+
+    const side  = $('#catSide');
+    const panel = $('#catPanel');
+    let active  = cats[0].id;
+
+    /* A category's own image if it has one; otherwise the first product
+       photo in that category. That way tiles show REAL images rather than
+       emoji, which is what the owner asked for. */
+    function catImg(c){
+      if(c && c.img) return c.img;
+      const p = (DB.products || []).filter(x=> x.category === c.id && x.img)[0];
+      return p ? p.img : '';
+    }
+
+    const sideThumb = (c) => catImg(c)
+      ? `<img src="${catImg(c)}" alt="" loading="lazy">`
+      : (c.emoji ? `<span style="font-size:22px;line-height:1;">${c.emoji}</span>`
+                 : `<span class="icon" style="width:20px;height:20px;opacity:.45;">${ICONS[c.icon] || ICONS.grid}</span>`);
+
+    /* one tile: real image if we have one, else emoji, else line icon */
+    function tile(label, img, emoji, iconName, onTap){
+      const el = document.createElement('button');
+      el.type = 'button';
+      el.className = 'cat-tile-lg card-fade-in';
+      if(img){
+        const im = document.createElement('img');
+        im.src = img; im.alt = ''; im.loading = 'lazy';
+        el.appendChild(im);
+      } else {
+        const d = document.createElement('div');
+        if(emoji){ d.className = 'ctl-emoji'; d.textContent = emoji; }
+        else { d.className = 'ctl-icon icon'; d.innerHTML = ICONS[iconName] || ICONS.grid; }
+        el.appendChild(d);
+      }
+      const cap = document.createElement('span');
+      cap.textContent = label;
+      el.appendChild(cap);
+      el.addEventListener('click', onTap);
+      return el;
+    }
+
+    function paintSide(){
+      side.innerHTML = cats.map(c=>`
+        <div class="catpage-item ${c.id === active ? 'on' : ''}" data-cat="${c.id}">
+          <div class="cpi-img">${sideThumb(c)}</div>
+          <span>${c.name}</span>
+        </div>`).join('');
+      $$('.catpage-item', side).forEach(el=> el.addEventListener('click', ()=>{
+        active = el.dataset.cat;
+        paintSide();
+        paintPanel();
+      }));
+    }
+
+    function paintPanel(){
+      panel.innerHTML = '';
+      const cat   = getCategory(active);
+      const prods = (DB.products || []).filter(p=> p.category === active);
+
+      if(prods.length){
+        const h = document.createElement('div');
+        h.className = 'catpage-h';
+        h.textContent = (cat ? cat.name : 'Products') + ' \u00B7 ' + prods.length + (prods.length === 1 ? ' item' : ' items');
+        panel.appendChild(h);
+
+        const g = document.createElement('div');
+        g.className = 'catpage-grid';
+        prods.slice(0, 30).forEach(p=>{
+          g.appendChild(tile(p.name, p.img, '', 'box', ()=> openProductDetail(p.id)));
+        });
+        panel.appendChild(g);
+      } else {
+        const h = document.createElement('div');
+        h.className = 'catpage-h';
+        h.textContent = cat ? cat.name : 'Products';
+        panel.appendChild(h);
+        const n = document.createElement('p');
+        n.className = 'catpage-note';
+        n.textContent = 'Nothing in this category yet.';
+        panel.appendChild(n);
+      }
+
+      const others = cats.filter(c=> c.id !== active);
+      if(others.length){
+        const h2 = document.createElement('div');
+        h2.className = 'catpage-h';
+        h2.textContent = 'More categories';
+        panel.appendChild(h2);
+
+        const g2 = document.createElement('div');
+        g2.className = 'catpage-grid';
+        others.forEach(c=>{
+          g2.appendChild(tile(c.name, catImg(c), c.emoji, c.icon, ()=>{
+            active = c.id;
+            side.scrollTop = 0;
+            paintSide();
+            paintPanel();
+          }));
+        });
+        panel.appendChild(g2);
+      }
+    }
+
+    paintSide();
+    paintPanel();
   }, 350);
 }
 function openCategoryProducts(catId){
@@ -4060,7 +4388,7 @@ function renderProfilePage(main){
       </div>
     </div>
     <div class="store-footer" id="adminTapZone">
-      <div class="sf-brand" id="footAppName">${(DB.branding && DB.branding.appName) || 'NEXCART'}</div>
+      <div class="sf-brand" id="footAppName">${(typeof ncBrandName === 'function') ? ncBrandName() : 'Nexcart'}</div>
       <div class="sf-line">&copy; 2026 NEXCART &middot; All rights reserved</div>
       <div class="sf-ver">v4.0</div>
     </div>
@@ -4558,7 +4886,7 @@ function showLoginScreen(onSuccess, reason){
 
   function renderStep(){
     const body = loginEl.querySelector('#loginBody');
-    const appName = DB.branding.appName || 'NEXCART';
+    const appName = DB.branding.appName || 'Nexcart';
     const signup = mode === 'signup';
     body.innerHTML = `
       <h2 class="lf-brand">${appName}</h2>
@@ -4681,15 +5009,41 @@ function launchApp(){
   initPinKeypad();
   switchTab('home');
 
-  // Splash sequence
+  // Splash sequence. If the owner has set a photo or video splash in
+  // Admin > Branding, that plays first; otherwise the normal splash shows.
+  const splash = $('#splash');
+  let hold = 1500;
+  try{
+    const sp = (DB.branding && DB.branding.splash) || {};
+    const src = sp.url || sp.dataUrl || '';
+    if(sp.type && sp.type !== 'default' && src){
+      const isVideo = sp.type === 'video';
+      const media = document.createElement(isVideo ? 'video' : 'img');
+      media.className = 'splash-media';
+      media.src = src;
+      if(isVideo){
+        media.autoplay = true; media.muted = true; media.loop = true;
+        media.setAttribute('playsinline', ''); media.setAttribute('muted', '');
+        const pr = media.play();
+        if(pr && pr.catch) pr.catch(()=>{});
+      } else {
+        media.alt = '';
+      }
+      splash.classList.add('has-media');
+      splash.insertBefore(media, splash.firstChild);
+      hold = Math.max(1, Math.min(15, Number(sp.seconds) || 4)) * 1000;
+    }
+  }catch(e){}
+
   setTimeout(()=>{
-    const splash = $('#splash');
     splash.style.animation = 'fadeOut .4s ease forwards';
     setTimeout(()=>{
       splash.style.display = 'none';
       $('#app').style.display = 'flex';
+      const m = splash.querySelector('.splash-media');
+      if(m && m.tagName === 'VIDEO'){ try{ m.pause(); }catch(e){} }
     }, 380);
-  }, 1500);
+  }, hold);
 }
 
 /* ============================================================
@@ -5848,6 +6202,7 @@ function couponForm(cid, onSaved){
 
 function renderAdminBranding(shell){
    const b = DB.branding;
+   const sp = b.splash || { type: 'default', url: '', dataUrl: '', seconds: 4 };
    const colors = ['#FF3F6C','#FF905A','#03A685','#3B5BDB','#7B4DFF','#282C3F'];
    const body = `
     <div class="admin-section">
@@ -5867,6 +6222,32 @@ function renderAdminBranding(shell){
           ${colors.map(c=>`<div class="color-swatch ${c.toLowerCase()===b.primaryColor.toLowerCase()?'selected':''}" style="background:${c};" data-color="${c}"></div>`).join('')}
         </div>
       </div>
+
+      <!-- Opening screen: photo / video splash -->
+      <div class="admin-section" style="margin-top:16px;">
+        <div class="form-group">
+          <label class="form-label">Opening screen (splash)</label>
+          <select class="form-input" id="spType">
+            <option value="default" ${sp.type==='default'?'selected':''}>Logo (default)</option>
+            <option value="image" ${sp.type==='image'?'selected':''}>Photo</option>
+            <option value="video" ${sp.type==='video'?'selected':''}>Video</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Photo or video link</label>
+          <input class="form-input" id="spUrl" placeholder="https://... (mp4 for video)" value="${sp.url||''}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">...or choose a file from this phone</label>
+          <input type="file" id="spFile" class="form-input" accept="image/*,video/*">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Show it for <b id="spSecsLbl">${sp.seconds||4}</b> seconds</label>
+          <input type="range" id="spSecs" min="1" max="10" step="1" value="${sp.seconds||4}">
+        </div>
+        <p class="admin-hint">A link keeps the app small (a long video file can slow it down). This splash is saved on this phone — to show it to every customer, tell us and we will put it inside the app.</p>
+      </div>
+
       <button class="btn btn-primary btn-block" id="brSaveBtn">Save Branding</button>
     </div>
     <div class="policy-note" style="margin:0 16px;">${icon('info')}<span>Changes apply instantly across splash screen, header logo, and buttons.</span></div>
@@ -5876,6 +6257,7 @@ function renderAdminBranding(shell){
 
   let newLogo = b.logoDataUrl;
   let newColor = b.primaryColor;
+  let newSplashData = sp.dataUrl || '';
 
   const fileInput = $('#brLogoInput');
   $('#brChangeLogoBtn').addEventListener('click', ()=> fileInput.click());
@@ -5898,11 +6280,38 @@ function renderAdminBranding(shell){
       sw.classList.add('selected');
     });
   });
+  // --- opening screen (splash) controls ---
+  const spFile = $('#spFile');
+  if(spFile) spFile.addEventListener('change', (e)=>{
+    const f = e.target.files[0];
+    if(!f) return;
+    if(f.size > 4 * 1024 * 1024){
+      showToast('That file is large - a link is better for video', 'info');
+    }
+    const r = new FileReader();
+    r.onload = (ev)=>{
+      newSplashData = ev.target.result;
+      showToast('Splash file ready - now tap Save', 'checkCircle');
+    };
+    r.readAsDataURL(f);
+  });
+  const spSecs = $('#spSecs');
+  if(spSecs) spSecs.addEventListener('input', ()=>{
+    const lbl = $('#spSecsLbl');
+    if(lbl) lbl.textContent = spSecs.value;
+  });
+
   $('#brSaveBtn').addEventListener('click', ()=>{
     DB.branding.appName = $('#brAppName').value.trim() || b.appName;
     DB.branding.tagline = $('#brTagline').value.trim() || b.tagline;
     DB.branding.logoDataUrl = newLogo;
     DB.branding.primaryColor = newColor;
+    DB.branding.splash = {
+      type: ($('#spType') && $('#spType').value) || 'default',
+      url: ($('#spUrl') && $('#spUrl').value.trim()) || '',
+      dataUrl: newSplashData,
+      seconds: Number($('#spSecs') && $('#spSecs').value) || 4
+    };
     persist();
     applyBranding();
     showToast('Branding updated', 'checkCircle');
@@ -6474,11 +6883,93 @@ function renderAdminSettings(shell){
     el.textContent = n + (n === 1 ? ' product' : ' products');
   };
 
+  /* ---------- brand name shown in the UI ----------
+     The stored branding may be all-caps ("NEXCART"); the owner wants it
+     displayed as "Nexcart", so all-caps names are converted once here. */
+  window.ncBrandName = function(){
+    var n = (typeof DB !== 'undefined' && DB.branding && DB.branding.appName) || 'Nexcart';
+    if(n.length > 1 && n === n.toUpperCase() && /[A-Z]/.test(n)){
+      n = n.charAt(0).toUpperCase() + n.slice(1).toLowerCase();
+    }
+    return n;
+  };
+
+  /* ---------- sub-categories, shown under the main tabs ----------
+     Tapping a main tab reveals its sub-categories (like Myntra): Shirts,
+     Trousers, Jeans and so on. Known category names use the list below;
+     anything else is derived from that category's real product names. */
+  var NC_SUBS = {
+    fashion:     ['T-Shirts','Shirts','Jeans','Trousers','Track Pants','Kurtas','Dresses','Tops','Sarees','Jackets','Sweatshirts','Shorts'],
+    electronics: ['Mobiles','Laptops','Headphones','Earbuds','Smart Watches','Cameras','Speakers','Power Banks','Tablets','Cables'],
+    home:        ['Bedsheets','Cushions','Curtains','Cookware','Storage','Lighting','Bath','Decor','Mats'],
+    beauty:      ['Lipstick','Kajal','Perfume','Face Wash','Hair Oil','Creams','Nail Polish','Serum','Sunscreen'],
+    kids:        ['Kids T-Shirts','Kids Jeans','Frocks','Toys','School Bags','Baby Care','Kids Shoes','Kidswear']
+  };
+  var NC_STOP = ['the','and','with','for','pack','set','new','best','buy','free','size','inch','pcs','piece','combo','offer','style','premium','cotton','men','women','kids','shipping','delivery'];
+
+  window.ncActiveSub = '';
+
+  window.ncSubsFor = function(catId){
+    var cat = (DB.categories || []).filter(function(c){ return c.id === catId; })[0];
+    if(!cat) return [];
+    var key = String(cat.name || '').toLowerCase();
+    for(var k in NC_SUBS){
+      if(key.indexOf(k) !== -1) return NC_SUBS[k].slice();
+    }
+    var seen = {}, out = [];
+    (DB.products || []).filter(function(p){ return p.category === catId; }).forEach(function(p){
+      String(p.name || '').split(/\s+/).forEach(function(w){
+        w = w.replace(/[^A-Za-z]/g, '');
+        var low = w.toLowerCase();
+        if(w.length >= 4 && NC_STOP.indexOf(low) === -1 && !seen[low]){
+          seen[low] = 1;
+          out.push(w.charAt(0).toUpperCase() + low.slice(1));
+        }
+      });
+    });
+    return out.slice(0, 12);
+  };
+
+  window.ncMatchSub = function(p, sub){
+    if(!sub) return true;
+    var s = String(sub).toLowerCase().replace(/s$/, '');
+    var hay = ((p.name || '') + ' ' + (p.cat || '') + ' ' + (p.catName || '')).toLowerCase();
+    return hay.indexOf(s) !== -1;
+  };
+
+  window.ncRenderSubs = function(){
+    var wrap = document.getElementById('subcatWrap');
+    var rail = document.getElementById('subcatRail');
+    if(!wrap || !rail) return;
+    var subs = (ncActiveCat && ncActiveCat !== 'all') ? window.ncSubsFor(ncActiveCat) : [];
+    ncActiveSub = '';
+    if(!subs.length){
+      wrap.classList.remove('open');
+      rail.innerHTML = '';
+      return;
+    }
+    rail.innerHTML = subs.map(function(s2){
+      return '<button class="subcat" type="button">' + s2 + '</button>';
+    }).join('');
+    Array.prototype.forEach.call(rail.querySelectorAll('.subcat'), function(b){
+      b.onclick = function(){
+        var was = b.classList.contains('on');
+        Array.prototype.forEach.call(rail.querySelectorAll('.subcat'), function(x){ x.classList.remove('on'); });
+        if(was){ ncActiveSub = ''; }
+        else { b.classList.add('on'); ncActiveSub = b.textContent; }
+        ncApplyGrid();
+        if(b.scrollIntoView) b.scrollIntoView({ behavior:'smooth', block:'nearest', inline:'center' });
+      };
+    });
+    wrap.classList.add('open');
+  };
+
   window.ncApplyGrid = function(){
     var grid = document.getElementById('homeProductGrid');
     if(!grid) return;
     var ps = (DB.products || []).slice();
     if(ncActiveCat !== 'all') ps = ps.filter(function(p){ return p.category === ncActiveCat; });
+    if(ncActiveSub) ps = ps.filter(function(p){ return ncMatchSub(p, ncActiveSub); });
     if(ncQuery) ps = ps.filter(function(p){ return (p.name || '').toLowerCase().indexOf(ncQuery) >= 0; });
     renderProductGrid(grid, ps, true);
     staggerCards();
@@ -6508,6 +6999,7 @@ function renderAdminSettings(shell){
         });
         t.classList.add('active');
         ncActiveCat = t.dataset.cat || 'all';
+        ncRenderSubs();
         move(true);
         // keep the selected tab in view
         if(scroller && t.offsetLeft < scroller.scrollLeft + 16){
@@ -6534,11 +7026,6 @@ function renderAdminSettings(shell){
   function initHeader(){
     put('micBtn',  NC_ICON.mic);
     put('camBtn',  NC_ICON.camera);
-    put('bellBtn', NC_ICON.bell);
-    put('locPinIcon', NC_ICON.pin);
-    put('locCaretIcon', NC_ICON.caret);
-    paintPin();
-    ncWallet();
 
     // --- voice search (real, via the Web Speech API) ---
     var mic = document.getElementById('micBtn');
@@ -6574,54 +7061,6 @@ function renderAdminSettings(shell){
       };
       inp.click();
     };
-
-    // --- notifications: real badge from pending orders ---
-    function paintBell(){
-      var b = document.getElementById('bellBtn');
-      if(!b) return;
-      var n = 0;
-      try{
-        n = (DB.orders || []).filter(function(o){
-          return o.status !== 'Delivered' && o.status !== 'Cancelled';
-        }).length;
-      }catch(e){ n = 0; }
-      var old = b.querySelector('.hdr-badge');
-      if(old) old.remove();
-      if(n){
-        var s = document.createElement('span');
-        s.className = 'hdr-badge';
-        s.textContent = n > 9 ? '9+' : String(n);
-        b.appendChild(s);
-      }
-    }
-    paintBell();
-    window.ncPaintBell = paintBell;
-
-    var bell = document.getElementById('bellBtn');
-    if(bell) bell.onclick = function(){
-      var n = 0;
-      try{
-        n = (DB.orders || []).filter(function(o){
-          return o.status !== 'Delivered' && o.status !== 'Cancelled';
-        }).length;
-      }catch(e){}
-      if(n){ switchTab('orders'); }
-      else { ncToast('No new notifications'); }
-    };
-
-    // --- profile ---
-    var prof = document.getElementById('profileTopBtn');
-    if(prof) prof.onclick = function(){ viewStack = []; switchTab('profile'); };
-
-    // --- pincode ---
-    var edit = document.getElementById('locEdit');
-    if(edit) edit.onclick = openPinModal;
-    var pinEl = document.getElementById('locPin');
-    if(pinEl) pinEl.onclick = openPinModal;
-
-    // --- cart value pill ---
-    var w = document.getElementById('locWallet');
-    if(w) w.onclick = function(){ viewStack = []; switchTab('cart'); };
 
     // --- sticky header shadow on scroll ---
     var tb = document.getElementById('topbar');
