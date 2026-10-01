@@ -2105,6 +2105,33 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 .subcat-initial{ font:800 24px/1 Assistant, Inter, -apple-system, "Segoe UI", Roboto, sans-serif;
                  color:var(--brand, #FF3F6C); }
 </style>
+
+<style id="nexcart-v10">
+/* NEXCART v10 - expected-delivery date range.
+   Same tokens as the rest of the theme, so dark mode needs no extra rules. */
+.order-eta{ display:flex; align-items:center; gap:7px; font-size:12px; font-weight:600;
+            color:var(--success); background:var(--success-bg); border-radius:var(--radius-sm);
+            padding:8px 11px; margin:9px 0 1px; }
+.order-eta.is-delivered{ color:var(--ink-soft); background:var(--surface-2); }
+.order-eta .icon{ flex:none; }
+.order-eta .icon svg{ width:14px; height:14px; }
+.order-eta b{ font-weight:800; }
+.eta-card{ display:flex; align-items:center; gap:13px; background:var(--surface);
+           box-shadow:var(--shadow-2); border-radius:var(--radius-lg);
+           border-left:4px solid var(--success); padding:15px; margin:0 0 16px; }
+.eta-card.is-delivered{ border-left-color:var(--ink-faint); }
+.eta-card .eta-ico{ width:36px; height:36px; border-radius:50%; background:var(--success-bg);
+                    color:var(--success); display:flex; align-items:center; justify-content:center; flex:none; }
+.eta-card .eta-ico svg{ width:19px; height:19px; }
+.eta-card.is-delivered .eta-ico{ background:var(--surface-2); color:var(--ink-soft); }
+.eta-card .eta-k{ font-size:11px; letter-spacing:0.6px; text-transform:uppercase;
+                  color:var(--ink-faint); font-weight:700; }
+.eta-card .eta-v{ font-size:17px; font-weight:800; color:var(--ink); margin-top:3px;
+                  font-family:var(--font-display); }
+.eta-card .eta-n{ font-size:12px; color:var(--ink-faint); margin-top:4px; line-height:1.45; }
+.summary-row.summary-eta{ align-items:flex-start; }
+.summary-row.summary-eta > span:last-child{ text-align:right; font-weight:700; color:var(--success); }
+</style>
 </head>
 <body>
 
@@ -2398,6 +2425,10 @@ function defaultDB(){
       adminPin: '1234',
       onlinePaymentEnabled: false,
       returnWindowDays: 3,
+      /* Delivery estimate quoted to customers. The app shows these as real
+         calendar dates (order date + these days), not as a plain day count. */
+      deliveryMinDays: 7,
+      deliveryMaxDays: 8,
       freeShipThreshold: 499,
       shippingFee: 40,
       theme: 'light',
@@ -2525,6 +2556,83 @@ function formatDate(ts){
   return d.toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' }) + ', ' + d.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
 }
 function daysBetween(ts1, ts2){ return Math.floor((ts2-ts1)/(1000*60*60*24)); }
+
+/* ============================================================
+   EXPECTED DELIVERY DATE
+   The shop quotes a window (default 7-8 days). Customers want the
+   ACTUAL date, so every quoted window is converted to real
+   calendar dates, e.g. "8 Oct - 9 Oct".
+   ============================================================ */
+function deliveryWindow(){
+  const st = DB.settings || {};
+  let min = parseInt(st.deliveryMinDays, 10);
+  let max = parseInt(st.deliveryMaxDays, 10);
+  if(!min || min < 1) min = 7;
+  if(!max || max < 1) max = 8;
+  if(max < min) max = min;
+  return { min: min, max: max };
+}
+/* Noon avoids any timezone drift flipping the date by a day. */
+function addDaysTs(ts, n){
+  const d = new Date(ts);
+  d.setHours(12, 0, 0, 0);
+  d.setDate(d.getDate() + n);
+  return d.getTime();
+}
+function orderPlacedTs(order){
+  return (order && (order.placedAt || order.createdAt)) ||
+         (order && order.timeline && order.timeline[0] && order.timeline[0].at) ||
+         Date.now();
+}
+function shortDay(d){
+  const isDate = Object.prototype.toString.call(d) === '[object Date]';
+  const dt = isDate ? d : new Date(d);
+  const sameYear = dt.getFullYear() === new Date().getFullYear();
+  return dt.toLocaleDateString('en-IN', sameYear
+    ? { day: 'numeric', month: 'short' }
+    : { day: 'numeric', month: 'short', year: 'numeric' });
+}
+/* Orders remember the window they were quoted. Changing the estimate in
+   Settings must never rewrite the promise already made on an old order. */
+function orderWindow(order){
+  const w = deliveryWindow();
+  let min = parseInt(order && order.etaMin, 10) || w.min;
+  let max = parseInt(order && order.etaMax, 10) || w.max;
+  if(max < min) max = min;
+  return { min: min, max: max };
+}
+/* Everything the UI needs to talk about one order's delivery. */
+function orderEta(order){
+  if(!order) return { kind: 'none' };
+  if(order.status === 'Cancelled' || order.status === 'Returned' || order.status === 'Refunded')
+    return { kind: 'none' };
+  if(order.status === 'Delivered'){
+    const hits = (order.timeline || []).filter(t => t.stage === 'Delivered');
+    const at = hits.length ? hits[hits.length - 1].at : addDaysTs(orderPlacedTs(order), orderWindow(order).max);
+    return { kind: 'delivered', from: shortDay(at), to: shortDay(at) };
+  }
+  const placed = orderPlacedTs(order);
+  const w = orderWindow(order);
+  const from = shortDay(addDaysTs(placed, w.min));
+  const to   = shortDay(addDaysTs(placed, w.max));
+  return { kind: 'expected', from: from, to: to, min: w.min, max: w.max };
+}
+function etaDaysText(min, max){ return min === max ? (min + (min === 1 ? ' day' : ' days')) : (min + '\u2013' + max + ' days'); }
+function etaRangeLabel(order){
+  const e = orderEta(order);
+  if(e.kind === 'none') return '';
+  if(e.kind === 'delivered') return e.from;
+  return e.from === e.to ? e.from : (e.from + ' \u2013 ' + e.to);
+}
+/* Estimate for a basket that has not been ordered yet. */
+function cartEta(){
+  const w = deliveryWindow();
+  const now = Date.now();
+  const from = shortDay(addDaysTs(now, w.min));
+  const to   = shortDay(addDaysTs(now, w.max));
+  return { from: from, to: to, min: w.min, max: w.max,
+           label: from === to ? from : (from + ' \u2013 ' + to) };
+}
 
 function cartCount(){ return DB.cart.reduce((s,i)=>s+i.qty,0); }
 function cartTotal(){
@@ -3455,6 +3563,7 @@ function buildProductDetail(main, p){
       <div class="pd-section">
         <h4>Delivery &amp; Returns</h4>
         <div class="trust-row">${icon('truck')}<span>Free delivery on orders above ₹499</span></div>
+        <div class="trust-row">${icon('calendar')}<span>Delivery by <b>${cartEta().label}</b> if you order today</span></div>
         <div class="trust-row">${icon('refresh')}<span>Easy returns within ${DB.settings.returnWindowDays} days of delivery</span></div>
         <div class="trust-row">${icon('cash')}<span>Cash on Delivery available</span></div>
       </div>
@@ -3727,6 +3836,7 @@ function renderCartSummary(){
     <div class="summary-row"><span>Discount</span><span style="color:var(--success)">-${formatMoney(discount)}</span></div>
     ${t.discount > 0 ? `<div class="summary-row"><span>Coupon ${coupon?`(${coupon.code})`:''}</span><span style="color:var(--success)">-${formatMoney(t.discount)}</span></div>` : ''}
     <div class="summary-row"><span>Delivery</span><span>${t.delivery===0?'<span class="free">FREE</span>':formatMoney(t.delivery)}</span></div>
+    <div class="summary-row summary-eta"><span>Expected delivery</span><span>${cartEta().label}</span></div>
     <div class="summary-row total"><span>Total Amount</span><span>${formatMoney(t.grand)}</span></div>
   `;
 }
@@ -3905,6 +4015,7 @@ function openCheckoutPaymentStep(addr){
           <div class="summary-row"><span>Item Total</span><span>${formatMoney(total)}</span></div>
           ${t.discount > 0 ? `<div class="summary-row"><span>Coupon ${coupon?`(${coupon.code})`:''}</span><span style="color:var(--success)">-${formatMoney(t.discount)}</span></div>` : ''}
           <div class="summary-row"><span>Delivery</span><span>${delivery===0?'<span class="free">FREE</span>':formatMoney(delivery)}</span></div>
+          <div class="summary-row summary-eta"><span>Expected delivery</span><span>${cartEta().label}</span></div>
           <div class="summary-row total"><span>Amount Payable</span><span>${formatMoney(grand)}</span></div>
         </div>
         <div class="trust-row" style="justify-content:center;">${icon('shield')}<span>Secure order · Pay on delivery</span></div>
@@ -3987,6 +4098,10 @@ function placeOrder(grand, addr){
       couponCode: coupon ? coupon.code : null,
       couponDiscount: disc,
       deliveryFee: del,
+      /* The window quoted at checkout, stored on the order so a later
+         settings change cannot rewrite what this customer was promised. */
+      etaMin: deliveryWindow().min,
+      etaMax: deliveryWindow().max,
       reviewed: false,
       timeline: [ { stage:'Placed', at: now, city: cityStr, note:'Order placed successfully' } ],
     };
@@ -4051,7 +4166,7 @@ function showOrderSuccess(orders, onDone){
       Pay <b>${formatMoney(total)}</b> in cash when it arrives.
     </div>
     <button class="btn btn-primary" id="sucDone" style="min-width:200px;">Continue</button>
-    <p style="font-size:11px;color:var(--ink-faint);margin-top:14px;">${icon('truck')} Arriving in 3–5 days</p>
+    <p style="font-size:12px;color:var(--ink-faint);margin-top:14px;">${icon('calendar')} Expected delivery <b>${etaRangeLabel(list[0])}</b></p>
   `;
   document.body.appendChild(el);
 
@@ -4114,6 +4229,14 @@ function statusClass(status){ return 'status-' + status.toLowerCase().replace(/\
 function orderCardHTML(o){
   const imgs = o.items.slice(0,3).map(i=> getProduct(i.productId)?.img).filter(Boolean);
   const extra = o.items.length - 3;
+  const eta = orderEta(o);
+  const etaRow = eta.kind === 'none' ? '' : `
+      <div class="order-eta ${eta.kind === 'delivered' ? 'is-delivered' : ''}">
+        ${icon(eta.kind === 'delivered' ? 'checkCircle' : 'calendar')}
+        <span>${eta.kind === 'delivered'
+          ? 'Delivered on <b>' + eta.from + '</b>'
+          : 'Expected delivery <b>' + etaRangeLabel(o) + '</b>'}</span>
+      </div>`;
   return `
     <div class="order-card card-fade-in" data-oid="${o.id}">
       <div class="order-card-top">
@@ -4123,6 +4246,7 @@ function orderCardHTML(o){
         </div>
         <span class="order-status-badge ${statusClass(o.status)}">${o.status}</span>
       </div>
+      ${etaRow}
       <div class="order-products-row">
         ${imgs.map(img=>`<img src="${img}">`).join('')}
         ${extra>0?`<div class="order-more-badge">+${extra}</div>`:''}
@@ -4183,7 +4307,7 @@ function buildOrderDetail(main, order){
           <div class="track-current-sub">Your order is on the way</div>
         </div>
         <div style="text-align:right;">
-          <div style="background:rgba(255,255,255,0.2);border-radius:20px;padding:6px 14px;font-size:12px;font-weight:700;">${order.status==='Delivered'?'Delivered':'Arriving soon'}</div>
+          <div style="background:rgba(255,255,255,0.2);border-radius:20px;padding:6px 14px;font-size:12px;font-weight:700;">${order.status==='Delivered' ? 'Delivered' : ('By ' + orderEta(order).to)}</div>
           ${order.trackingId?`<div style="font-size:10.5px;opacity:0.8;margin-top:6px;">ID: ${order.trackingId}</div>`:''}
         </div>
       </div>
@@ -4215,8 +4339,33 @@ function buildOrderDetail(main, order){
     }
   }
 
+  const etaCardHTML = (()=>{
+    const e = orderEta(order);
+    if(e.kind === 'none') return '';
+    if(e.kind === 'delivered'){
+      return `<div class="eta-card is-delivered">
+        <div class="eta-ico">${icon('checkCircle')}</div>
+        <div>
+          <div class="eta-k">Delivered On</div>
+          <div class="eta-v">${e.from}</div>
+          <div class="eta-n">Received in full. A return can still be raised inside the return window.</div>
+        </div>
+      </div>`;
+    }
+    const w = orderWindow(order);
+    return `<div class="eta-card">
+      <div class="eta-ico">${icon('truck')}</div>
+      <div>
+        <div class="eta-k">Expected Delivery</div>
+        <div class="eta-v">${etaRangeLabel(order)}</div>
+        <div class="eta-n">${etaDaysText(w.min, w.max)} from your order on ${shortDay(new Date(orderPlacedTs(order)))}</div>
+      </div>
+    </div>`;
+  })();
+
   main.innerHTML = `
     ${currentCityBlock}
+    ${etaCardHTML}
     <div class="section"><span class="section-title">Order Timeline</span></div>
     <div class="timeline">${timelineHTML}</div>
     ${actionsHTML ? `<div class="track-actions" style="flex-direction:column;">${actionsHTML}</div>` : ''}
@@ -6531,6 +6680,13 @@ function renderAdminSettings(shell){
         <button class="btn btn-secondary btn-block" id="saveRulesBtn">Save Rules</button>
       </div>
       <div class="od-section">
+        <h4>Delivery Estimate</h4>
+        <div class="form-group"><label class="form-label">Minimum days after the order</label><input class="form-input" id="delMinInput" type="number" value="${s.deliveryMinDays != null ? s.deliveryMinDays : 7}" min="1" max="60"></div>
+        <div class="form-group"><label class="form-label">Maximum days after the order</label><input class="form-input" id="delMaxInput" type="number" value="${s.deliveryMaxDays != null ? s.deliveryMaxDays : 8}" min="1" max="60"></div>
+        <p class="form-hint">Customers see a real date, not a day count — e.g. an order placed today reads <b>${cartEta().label}</b>. Existing orders keep the date they were promised.</p>
+        <button class="btn btn-secondary btn-block" id="saveDeliveryBtn">Save Delivery Estimate</button>
+      </div>
+      <div class="od-section">
         <h4>Data</h4>
         <button class="btn btn-danger-outline btn-block" id="resetDataBtn">${icon('refresh')} Reset Demo Data</button>
       </div>
@@ -6558,6 +6714,18 @@ function renderAdminSettings(shell){
     DB.settings.returnWindowDays = days;
     persist();
     showToast('Policy rules updated', 'checkCircle');
+  });
+  $('#saveDeliveryBtn').addEventListener('click', ()=>{
+    let min = parseInt($('#delMinInput').value, 10);
+    let max = parseInt($('#delMaxInput').value, 10);
+    if(!min || min < 1 || min > 60){ showToast('Minimum must be 1-60 days'); return; }
+    if(!max || max < 1 || max > 60){ showToast('Maximum must be 1-60 days'); return; }
+    if(max < min){ showToast('Maximum cannot be less than minimum'); return; }
+    DB.settings.deliveryMinDays = min;
+    DB.settings.deliveryMaxDays = max;
+    persist();
+    renderAdminSettings(shell);
+    showToast('Delivery estimate: ' + etaDaysText(min, max), 'checkCircle');
   });
   $('#resetDataBtn').addEventListener('click', ()=>{
     confirmAction('Reset all demo data?', 'This restores default products, orders and branding.', ()=>{
@@ -6682,7 +6850,11 @@ function renderAdminSettings(shell){
 
   function catalogHash() {
     try { return JSON.stringify([DB.products, DB.categories]).length + ':' +
-                 (DB.products || []).map(function (p) { return p.id + p.price + p.stock; }).join(','); }
+                 (DB.products || []).map(function (p) { return p.id + p.price + p.stock; }).join(',') +
+                 ':s' + [DB.settings && DB.settings.adminPin,
+                         DB.settings && DB.settings.deliveryMinDays,
+                         DB.settings && DB.settings.deliveryMaxDays,
+                         DB.settings && DB.settings.returnWindowDays].join('|'); }
     catch (e) { return ''; }
   }
 
@@ -6699,6 +6871,28 @@ function renderAdminSettings(shell){
       if (d.settings && /^[0-9]{4,10}$/.test(String(d.settings.adminPin || ''))) {
         D.settings = D.settings || {};
         D.settings.adminPin = String(d.settings.adminPin);
+      }
+      /* Delivery estimate + return window are shop-wide promises, so the
+         value the owner saved is what every phone should show. Only adopt
+         numbers that are actually sane. */
+      if (d.settings) {
+        D.settings = D.settings || {};
+        var numRule = function (v, lo, hi) {
+          var n = parseInt(v, 10);
+          return (isFinite(n) && n >= lo && n <= hi) ? n : null;
+        };
+        var fromServer = {
+          deliveryMinDays: numRule(d.settings.deliveryMinDays, 1, 60),
+          deliveryMaxDays: numRule(d.settings.deliveryMaxDays, 1, 60),
+          returnWindowDays: numRule(d.settings.returnWindowDays, 1, 30)
+        };
+        Object.keys(fromServer).forEach(function (k) {
+          if (fromServer[k] !== null) D.settings[k] = fromServer[k];
+        });
+        if (D.settings.deliveryMinDays && D.settings.deliveryMaxDays &&
+            D.settings.deliveryMaxDays < D.settings.deliveryMinDays) {
+          D.settings.deliveryMaxDays = D.settings.deliveryMinDays;
+        }
         if (typeof persist === 'function') persist();
       }
       if (Array.isArray(d.products) && d.products.length) {
@@ -6726,9 +6920,18 @@ function renderAdminSettings(shell){
       body: {
         products: D.products || [],
         categories: D.categories || [],
-        /* the admin PIN travels with the catalogue so one change applies
-           to every device, not only the phone that made it */
-        settings: { adminPin: (D.settings && D.settings.adminPin) || '' }
+        /* The admin PIN and the shop rules travel with the catalogue so one
+           change applies to every device, not only the phone that made it.
+           That includes the delivery estimate, so a customer always sees the
+           dates the owner actually promised. */
+        settings: {
+          adminPin: (D.settings && D.settings.adminPin) || '',
+          deliveryMinDays: D.settings && D.settings.deliveryMinDays,
+          deliveryMaxDays: D.settings && D.settings.deliveryMaxDays,
+          returnWindowDays: D.settings && D.settings.returnWindowDays,
+          freeShipThreshold: D.settings && D.settings.freeShipThreshold,
+          shippingFee: D.settings && D.settings.shippingFee
+        }
       }
     }).then(function (r) {
       lastCatalogHash = catalogHash();

@@ -54,6 +54,27 @@ http.createServer(async (req, res) => {
     if (b.settings && typeof b.settings === 'object') {
       const pin = String(b.settings.adminPin || '');
       if (/^\d{4,10}$/.test(pin)) db.settings.adminPin = pin;
+      // Shop rules travel with the catalogue so one change in the admin panel
+      // applies to every phone. Numbers only and range-checked: a bad value
+      // must never be able to reach the storefront.
+      const num = (v, lo, hi) => {
+        const n = parseInt(v, 10);
+        return (Number.isFinite(n) && n >= lo && n <= hi) ? n : null;
+      };
+      const dMin = num(b.settings.deliveryMinDays, 1, 60);
+      const dMax = num(b.settings.deliveryMaxDays, 1, 60);
+      if (dMin !== null) db.settings.deliveryMinDays = dMin;
+      if (dMax !== null) db.settings.deliveryMaxDays = dMax;
+      if (db.settings.deliveryMinDays && db.settings.deliveryMaxDays &&
+          db.settings.deliveryMaxDays < db.settings.deliveryMinDays) {
+        db.settings.deliveryMaxDays = db.settings.deliveryMinDays;
+      }
+      const rw = num(b.settings.returnWindowDays, 1, 30);
+      if (rw !== null) db.settings.returnWindowDays = rw;
+      const fs2 = num(b.settings.freeShipThreshold, 0, 100000);
+      if (fs2 !== null) db.settings.freeShipThreshold = fs2;
+      const sf = num(b.settings.shippingFee, 0, 10000);
+      if (sf !== null) db.settings.shippingFee = sf;
     }
     db.updatedAt = Date.now();
     save();
