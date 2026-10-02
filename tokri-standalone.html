@@ -2136,6 +2136,11 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 .storage-fill{ height:100%; border-radius:6px; background:var(--success); transition:width .3s ease; }
 .storage-fill.is-mid{ background:#E0A82E; }
 .storage-fill.is-high{ background:var(--danger); }
+/* backup rows in admin > Settings */
+.snap-row{ display:flex; align-items:center; justify-content:space-between; gap:12px;
+           padding:10px 12px; border:1px solid var(--line); border-radius:10px; margin-bottom:8px; }
+.snap-when{ font-size:13px; font-weight:700; color:var(--ink); }
+.snap-counts{ font-size:11.5px; color:var(--ink-faint); margin-top:2px; }
 </style>
 </head>
 <body>
@@ -2567,6 +2572,128 @@ function catalogSignature(db){
     return p + '#' + c + '#' + b;
   }catch(e){ return ''; }
 }
+/* ============================================================
+   CATALOGUE BACKUPS
+   The shop's products and categories used to be losable: a stale copy on the
+   server could replace them when the app started, or a save could fail when
+   the phone's storage was full. A copy of the catalogue is therefore kept in
+   IndexedDB - which has far more room than the ~5 MB the app itself lives in -
+   so anything that goes missing can be brought back with one tap in
+   admin > Settings > Backups.
+   ============================================================ */
+const SNAP_DB = 'nexcart_backups', SNAP_STORE = 'shop', SNAP_KEEP = 12;
+
+function snapSupported(){ try{ return !!(window.indexedDB); }catch(e){ return false; } }
+function snapOpen(){
+  return new Promise(function(res, rej){
+    if(!snapSupported()) return rej(new Error('no indexeddb'));
+    const r = indexedDB.open(SNAP_DB, 1);
+    r.onupgradeneeded = function(){
+      const d = r.result;
+      if(!d.objectStoreNames.contains(SNAP_STORE)) d.createObjectStore(SNAP_STORE, { keyPath:'at' });
+    };
+    r.onsuccess = function(){ res(r.result); };
+    r.onerror     = function(){ rej(r.error || new Error('could not open backups')); };
+  });
+}
+/* Keep a copy of the catalogue as it is now. An identical copy is not repeated. */
+function snapSave(source){
+  if(!snapSupported()) return Promise.resolve(false);
+  const src = source || DB;
+  if(!src) return Promise.resolve(false);
+  const sig = catalogSignature(src);
+  return snapOpen().then(function(d){
+    return new Promise(function(res){
+      const tx = d.transaction(SNAP_STORE, 'readwrite');
+      const st = tx.objectStore(SNAP_STORE);
+      let skip = false;
+      const last = st.openCursor(null, 'prev');
+      last.onsuccess = function(e){
+        const c = e.target.result;
+        if(c && c.value && c.value.sig === sig){ skip = true; return; }
+        st.put({ at: Date.now(), sig: sig,
+                 products:   (src.products   || []).slice(),
+                 categories: (src.categories || []).slice(),
+                 np: (src.products   || []).length,
+                 nc: (src.categories || []).length });
+      };
+      tx.oncomplete = function(){ res(!skip); };
+      tx.onerror    = function(){ res(false); };
+    });
+  }).then(function(added){
+    return added ? snapTrim().then(function(){ return true; }) : false;
+  }).catch(function(){ return false; });
+}
+function snapTrim(){
+  return snapOpen().then(function(d){
+    return new Promise(function(res){
+      const keys = [];
+      const tx = d.transaction(SNAP_STORE, 'readonly');
+      tx.objectStore(SNAP_STORE).openCursor(null, 'prev').onsuccess = function(e){
+        const c = e.target.result;
+        if(c){ keys.push(c.key); c.continue(); }
+      };
+      tx.oncomplete = function(){
+        const dead = keys.slice(SNAP_KEEP);
+        if(!dead.length) return res(true);
+        const t2 = d.transaction(SNAP_STORE, 'readwrite');
+        dead.forEach(function(k){ t2.objectStore(SNAP_STORE).delete(k); });
+        t2.oncomplete = function(){ res(true); };
+        t2.onerror    = function(){ res(false); };
+      };
+      tx.onerror = function(){ res(false); };
+    });
+  }).catch(function(){ return false; });
+}
+/* Newest first: { at, np, nc } */
+function snapList(){
+  if(!snapSupported()) return Promise.resolve([]);
+  return snapOpen().then(function(d){
+    return new Promise(function(res){
+      const out = [];
+      const tx = d.transaction(SNAP_STORE, 'readonly');
+      tx.objectStore(SNAP_STORE).openCursor(null, 'prev').onsuccess = function(e){
+        const c = e.target.result;
+        if(c){ out.push({ at:c.value.at, np:c.value.np||0, nc:c.value.nc||0 }); c.continue(); }
+      };
+      tx.oncomplete = function(){ res(out); };
+      tx.onerror    = function(){ res(out); };
+    });
+  }).catch(function(){ return []; });
+}
+function snapGet(at){
+  if(!snapSupported()) return Promise.resolve(null);
+  return snapOpen().then(function(d){
+    return new Promise(function(res){
+      const tx = d.transaction(SNAP_STORE, 'readonly');
+      const g = tx.objectStore(SNAP_STORE).get(Number(at));
+      g.onsuccess = function(){ res(g.result || null); };
+      g.onerror   = function(){ res(null); };
+    });
+  }).catch(function(){ return null; });
+}
+/* Put the shop back to a saved copy. This phone then owns the newer catalogue,
+   so the next sync uploads it instead of being overwritten by the server. */
+function snapRestore(at){
+  return snapGet(at).then(function(snp){
+    if(!snp) return false;
+    DB.products   = snp.products   || [];
+    DB.categories = snp.categories || [];
+    DB.catalogUpdatedAt = Date.now();
+    if(!persistOrStop()) return false;
+    lastCatalogSig = catalogSignature(DB);
+    scheduleSnapshot(DB);
+    return true;
+  });
+}
+/* Back up shortly after the catalogue changes, however many changes arrive. */
+let snapTimer = null, snapPending = null;
+function scheduleSnapshot(src){
+  snapPending = src || DB;
+  try{ clearTimeout(snapTimer); }catch(e){}
+  snapTimer = setTimeout(function(){ try{ snapSave(snapPending); }catch(e){} }, 2500);
+}
+
 /* Names the biggest picture we hold, so a storage warning can say WHAT to remove. */
 /* How full is the app's storage box? Pictures are what fill it, so the
    owner needs to see the number BEFORE a save silently fails. */
@@ -2599,7 +2726,11 @@ function saveDB(db){
   try{
     const sig = catalogSignature(db);
     if(lastCatalogSig === null)                  lastCatalogSig = sig;
-    else if(sig !== lastCatalogSig){ lastCatalogSig = sig; db.catalogUpdatedAt = Date.now(); }
+    else if(sig !== lastCatalogSig){
+      lastCatalogSig = sig;
+      db.catalogUpdatedAt = Date.now();
+      scheduleSnapshot(db);          // keep a copy that a bad sync cannot erase
+    }
     localStorage.setItem(DB_KEY, JSON.stringify(db));
     return true;
   }catch(e){
@@ -6859,6 +6990,12 @@ function renderAdminSettings(shell){
         <button class="btn btn-secondary btn-block" id="saveDeliveryBtn">Save Delivery Estimate</button>
       </div>
       <div class="od-section">
+        <h4>Backups</h4>
+        <p class="form-hint">A copy of your shop is saved by itself whenever it changes. If products or categories ever go missing, put them back here.</p>
+        <div id="snapList"><p class="form-hint">Checking&hellip;</p></div>
+        <button class="btn btn-secondary btn-block" id="snapNowBtn">${icon('upload')} Back up the shop right now</button>
+      </div>
+      <div class="od-section">
         <h4>Storage</h4>
         ${(()=>{ const r = storageReport(); return `
           <div class="storage-bar"><div class="storage-fill ${r.pct>85?'is-high':(r.pct>60?'is-mid':'')}" style="width:${r.pct}%"></div></div>
@@ -6906,6 +7043,52 @@ function renderAdminSettings(shell){
     renderAdminSettings(shell);
     showToast('Delivery estimate: ' + etaDaysText(min, max), 'checkCircle');
   });
+  /* ---- backups: list, restore, back up now ---- */
+  const paintSnaps = ()=>{
+    const box = $('#snapList');
+    if(!box) return;
+    snapList().then(list=>{
+      if(!$('#snapList')) return;                  // page moved on
+      if(!list.length){
+        box.innerHTML = '<p class="form-hint">No backups yet &mdash; one is saved automatically as soon as you change something.</p>';
+        return;
+      }
+      box.innerHTML = list.map(x=>`
+        <div class="snap-row">
+          <div style="min-width:0;">
+            <div class="snap-when">${new Date(x.at).toLocaleString('en-IN', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}</div>
+            <div class="snap-counts">${x.np} products &middot; ${x.nc} categories</div>
+          </div>
+          <button class="btn btn-secondary btn-sm" data-restore="${x.at}">Restore</button>
+        </div>`).join('');
+      $$('[data-restore]', box).forEach(b=> b.addEventListener('click', ()=>{
+        const at = Number(b.dataset.restore);
+        const when = new Date(at).toLocaleString('en-IN', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+        if(!confirm('Put the shop back to how it was on ' + when + '?\n\nThe products and categories you have now will be replaced by that copy.')) return;
+        b.disabled = true; b.textContent = 'Restoring\u2026';
+        snapRestore(at).then(ok=>{
+          if(ok){
+            showToast('Shop restored from backup', 'checkCircle');
+            setTimeout(()=> location.reload(), 1000);
+          } else {
+            b.disabled = false; b.textContent = 'Restore';
+            showToast('That backup could not be restored', 'xCircle');
+          }
+        });
+      }));
+    });
+  };
+  paintSnaps();
+  const snapBtn = $('#snapNowBtn');
+  if(snapBtn) snapBtn.addEventListener('click', ()=>{
+    snapBtn.disabled = true;
+    snapSave(DB).then(()=>{
+      snapBtn.disabled = false;
+      paintSnaps();
+      showToast('Backup saved', 'checkCircle');
+    });
+  });
+
   $('#resetDataBtn').addEventListener('click', ()=>{
     confirmAction('Reset all demo data?', 'This restores default products, orders and branding.', ()=>{
       resetDB();
@@ -7020,10 +7203,22 @@ function renderAdminSettings(shell){
 
   function refreshVisibleCatalog() {
     try {
-      var grid = document.getElementById('homeProductGrid');
-      if (grid && typeof renderProductGrid === 'function') renderProductGrid(grid, DB.products);
+      // Use the real grid renderer, which also honours the selected category
+      // and the search box, instead of dumping every product in.
+      if (typeof window.ncApplyGrid === 'function') {
+        try { window.ncApplyGrid(); } catch (e) {}
+      } else {
+        var grid = document.getElementById('homeProductGrid');
+        if (grid && typeof renderProductGrid === 'function') renderProductGrid(grid, DB.products);
+      }
       var chips = document.getElementById('catChipRow');
       if (chips && typeof renderCategoryChips === 'function') renderCategoryChips(chips);
+      // The category row and the "N products" label are drawn when Home first
+      // renders. A catalogue that arrives from the server afterwards must
+      // redraw them too, or the shop shows old categories next to new
+      // products and a product count that does not match what is on screen.
+      if (typeof window.ncRenderSubs === 'function') { try { window.ncRenderSubs(); } catch (e) {} }
+      if (typeof window.setGridMeta === 'function') { try { window.setGridMeta(); } catch (e) {} }
     } catch (e) {}
   }
 
@@ -7081,8 +7276,20 @@ function renderAdminSettings(shell){
            server), and then the server still wins — the previous behaviour. */
         var localStamp  = Number(D.catalogUpdatedAt) || 0;
         var serverStamp = Number(d.catalogUpdatedAt) || 0;
-        var hasLocal    = Array.isArray(D.products) && D.products.length > 0;
-        if (!hasLocal || serverStamp >= localStamp) {
+        var localCount  = ((D.products   || []).length + (D.categories || []).length);
+        var serverCount = (d.products.length +
+                           ((d.categories || []).length));
+        var hasLocal    = (D.products || []).length > 0;
+        /* Take the server's copy only when it cannot be a step backwards.
+           Being "not smaller" is the extra safety net here: a device that
+           holds less than this phone is never allowed to replace it, even if
+           neither side carries a version stamp yet. Losing work is far worse
+           than briefly missing someone else's change - the next sync uploads
+           this phone's copy, so the server heals by itself. */
+        var notSmaller   = serverCount >= localCount;
+        var clearlyNewer = serverStamp > localStamp;
+        var takeServer   = !hasLocal || clearlyNewer || (serverStamp >= localStamp && notSmaller);
+        if (takeServer) {
           D.products   = d.products;
           D.categories = Array.isArray(d.categories) && d.categories.length ? d.categories : D.categories;
           if (serverStamp) D.catalogUpdatedAt = serverStamp;
@@ -7108,6 +7315,12 @@ function renderAdminSettings(shell){
 
   function pushCatalog(silent) {
     var D = db(); if (!D || !getKey()) return Promise.resolve();
+    /* An empty shop is never uploaded over a real one. A device that has lost
+       its catalogue must not be able to erase what is on the server. */
+    if (!(D.products || []).length && !(D.categories || []).length) {
+      if (!silent) toast('Nothing to upload - this device has no products or categories.');
+      return Promise.resolve();
+    }
     return api('/api/admin/push', {
       method: 'POST', admin: true,
       body: {
