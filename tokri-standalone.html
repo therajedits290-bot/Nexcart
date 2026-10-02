@@ -3780,7 +3780,11 @@ function renderCategoriesPage(main){
           g.appendChild(tile(p.name, p.img, '', 'box', ()=> openProductDetail(p.id)));
         });
         panel.appendChild(g);
-      } else {
+      } else if(!subs.length){
+        /* A category with nothing in it and no sub-categories still needs to
+           say so, or the panel would look broken. But when there ARE
+           sub-categories to browse, the "nothing here yet" line is just noise
+           sitting under them, so it is not shown (owner's request). */
         const h = document.createElement('div');
         h.className = 'catpage-h';
         h.textContent = cat ? cat.name : 'Products';
