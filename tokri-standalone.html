@@ -3402,6 +3402,7 @@ function buildHome(main){
               </div>
               <span class="adv-cta">${bn.cta||'Shop Now'} ${icon('arrowRight')}</span>
             </div>
+            <span class="mq-beads"></span>
           </div>`).join('')}
       </div>
       <div class="banner-dots" id="bannerDots">
@@ -3419,7 +3420,7 @@ function buildHome(main){
     <div class="section">
       <div class="section-head">
         <span class="section-title">Trending Now</span>
-        <span class="section-link" data-goto="categories">See all ${icon('chevronRight')}</span>
+        <span class="section-link" data-mqall="products">See all ${icon('chevronRight')}</span>
       </div>
       <div class="section-sub" id="gridMeta"></div>
     </div>
@@ -9424,9 +9425,29 @@ function renderAdminSettings(shell){
 
 .mq-fcard{ padding:0; }
 
+.mq-seeall-row{ display:flex; justify-content:center; padding:2px 0 2px; }
+.mq-seeall{
+  display:inline-flex; align-items:center; gap:4px; cursor:pointer;
+  background: rgba(255,255,255,.94); border:0; border-radius:999px;
+  padding:7px 16px; font-family:var(--mq-font); font-size:12px; font-weight:800;
+  color:#8A2A0A; letter-spacing:.3px;
+  box-shadow: 0 2px 8px rgba(96,26,6,.28);
+}
+.mq-seeall:active{ transform:scale(.97); }
+
+.mq-vip-in{ cursor:pointer; }
+.mq-vip-in:active{ transform:scale(.993); transition:transform .12s ease; }
+
 /* ---------------------------------------------- the hero banner frame */
 .banner-slide.adv{
+  /* An older rule set aspect-ratio 5/4 on every slide. At 362px wide that
+     forced 290px of card for 244px of content, so each banner carried a band
+     of dead white space at the bottom and stopped looking like a proper box. */
+  aspect-ratio: auto;
   border-radius:14px;
+}
+.banner-slide.adv .mq-beads{ z-index:4; }
+.banner-slide.adv{
   box-shadow:
     0 0 0 2px rgba(255,224,148,.98),
     0 0 0 4.5px rgba(255,168,48,.55),
@@ -9640,9 +9661,11 @@ function renderAdminSettings(shell){
       }).join('');
     }
     if(!tiles) return '';
+    /* The whole board is the link, so a tap anywhere on it goes somewhere -
+       before only the fourth panel was live. */
     return '<div class="mq-vip">' +
-      '<div class="mq-vip-in">' + tiles +
-        '<div class="mq-vip-cta" data-mqgo="#mqDeals">' +
+      '<div class="mq-vip-in" data-mqgo="#mqDeals">' + tiles +
+        '<div class="mq-vip-cta">' +
           '<b>Grab The <em>Deals!</em></b><span><u>Shop Now</u></span>' +
         '</div>' +
       '</div>' +
@@ -9651,7 +9674,7 @@ function renderAdminSettings(shell){
 
   /* ---------------------------------------------------------------- deals */
   function dealsHTML(){
-    var ps = top(prods(), 6);
+    var ps = balanced(top(prods(), prods().length), 6);
     if(!ps.length) return '';
     var cards = ps.map(function(p){
       return '<div class="mq-deal" data-mqpid="' + p.id + '">' + ornCard(
@@ -9668,6 +9691,7 @@ function renderAdminSettings(shell){
       plate('Sneak Peek', 'Deals') +
       '<div class="mq-sub">Catch sale prices before the sale' + CHEV + '</div>' +
       '<div class="mq-rail">' + cards + '</div>' +
+      seeAllRow('deals') +
     '</section>';
   }
 
@@ -9725,7 +9749,7 @@ function renderAdminSettings(shell){
 
   /* -------------------------------------------------------- lowest prices */
   function lowestHTML(){
-    var ps = cheapest(prods(), 6);
+    var ps = balanced(cheapest(prods(), prods().length), 6);
     if(!ps.length) return '';
     var cards = ps.map(function(p){
       return '<div class="mq-low" data-mqpid="' + p.id + '">' + ornCard(
@@ -9739,6 +9763,7 @@ function renderAdminSettings(shell){
       '<div class="mq-bulbs"></div>' +
       plate('Lowest Prices', 'In Our Store', true) +
       '<div class="mq-rail">' + cards + '</div>' +
+      seeAllRow('cheap') +
     '</section>';
   }
 
@@ -9769,6 +9794,58 @@ function renderAdminSettings(shell){
   }
 
   /* ---------------------------------------------------------------- slot */
+  /* "See all" used to jump to the categories screen, which is not what "all
+     products" means. This lists the products themselves. */
+  function mqAll(kind){
+    var list = prods().slice(), title = 'All Products';
+    if(kind === 'deals'){
+      list = list.filter(function(p){ return p.mrp > p.price; })
+                 .sort(function(a, b){ return off(b) - off(a); });
+      title = 'All Deals';
+    } else if(kind === 'cheap'){
+      list = list.sort(function(a, b){ return a.price - b.price; });
+      title = 'Lowest Prices';
+    }
+    if(typeof pushView !== 'function' || typeof renderProductGrid !== 'function'){
+      if(typeof openCategoryProducts === 'function') openCategoryProducts('__all__');
+      return;
+    }
+    pushView(title, function(main){
+      main.innerHTML = '<div class="section"><span class="section-title">' +
+                         list.length + ' product' + (list.length === 1 ? '' : 's') +
+                       '</span></div><div class="product-grid" id="mqAllGrid"></div>';
+      renderProductGrid(document.getElementById('mqAllGrid'), list, true);
+    });
+  }
+
+  /* Fill a row across categories first, so a shop with more than one kind of
+     product shows more than one kind. Deepest-first would show only the
+     biggest-discount category. */
+  function balanced(ps, n){
+    var groups = {}, order = [];
+    ps.forEach(function(p){
+      if(!groups[p.category]){ groups[p.category] = []; order.push(p.category); }
+      groups[p.category].push(p);
+    });
+    var out = [], i = 0;
+    while(out.length < n){
+      var added = false;
+      for(var g = 0; g < order.length && out.length < n; g++){
+        var item = groups[order[g]][i];
+        if(item){ out.push(item); added = true; }
+      }
+      if(!added) break;
+      i++;
+    }
+    return out.length ? out : ps.slice(0, n);
+  }
+
+  function seeAllRow(kind){
+    return '<div class="mq-seeall-row">' +
+             '<button class="mq-seeall" type="button" data-mqall="' + kind + '">See all' + CHEV + '</button>' +
+           '</div>';
+  }
+
   function mqSlot(where){
     try{
       var s = (typeof DB !== 'undefined' && DB.marquee) || {};
@@ -9804,6 +9881,8 @@ function renderAdminSettings(shell){
       openProductDetail(card.dataset.mqpid);
       return;
     }
+    var all = e.target.closest('[data-mqall]');
+    if(all){ mqAll(all.dataset.mqall); return; }
     var cat = e.target.closest('[data-mqcat]');
     if(cat && typeof openCategoryProducts === 'function'){
       openCategoryProducts(cat.dataset.mqcat);
