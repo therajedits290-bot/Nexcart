@@ -3389,7 +3389,6 @@ function buildHome(main){
             <div class="adv-media ${bn.img?'':'adv-grad'}" style="${bn.img?'':`--adv-bg:${bn.bg||'linear-gradient(135deg,#FF3F6C 0%,#FF905A 100%)'};`}">
               ${bn.img?`<img src="${bn.img}" alt="">`:''}
               <div class="adv-shade"></div>
-              ${bn.ad?`<span class="adv-ad">AD</span>`:''}
               <div class="adv-copy">
                 ${bn.badge?`<div class="adv-badge">${bn.badge}</div>`:''}
                 ${bn.sub?`<div class="adv-sub">${bn.sub}</div>`:''}
@@ -9335,6 +9334,114 @@ function renderAdminSettings(shell){
 
 <style>
 /* ============================================================
+   v20 - rectangular marquee: gold frames with bead lights right
+   round the border, on clean rectangles.
+   ============================================================ */
+:root{
+  /* one bead light: a small round gold dot on a transparent tile */
+  --mq-bead: radial-gradient(circle, #FFFDEB 0 1.5px, #F0BE3C 1.7px 2.6px, rgba(240,190,60,0) 2.9px);
+}
+
+/* Beads on all four edges of any box. Four tiled layers: two run along the
+   top and bottom, two down the left and right. */
+.mq-beads{
+  position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:3;
+  background-image: var(--mq-bead), var(--mq-bead), var(--mq-bead), var(--mq-bead);
+  background-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
+  background-size: 12px 12px;
+  background-position: 0 5px, 0 calc(100% - 5px), 5px 0, calc(100% - 5px) 0;
+}
+
+/* ---------------------------------------------- the rectangular plate */
+.mq-plate{
+  position:relative; margin:0 24px; padding:11px; border-radius:9px;
+  background: linear-gradient(180deg,#FFF8CC 0%,#EDBE4D 17%,#A96B08 41%,#F7D570 61%,#B07C10 80%,#8C5503 100%);
+  box-shadow: 0 1px 2px rgba(80,20,0,.34), 0 9px 22px rgba(96,26,6,.38),
+              inset 0 0 0 1px rgba(255,246,196,.52);
+}
+.mq-plate-in{
+  position:relative; z-index:2; border-radius:5px; padding:13px 16px;
+  background: radial-gradient(125% 175% at 50% -25%, #C41E43 0%, #8A0A28 52%, #5A0416 100%);
+  box-shadow: inset 0 0 0 1.5px rgba(255,240,180,.48), inset 0 0 30px rgba(48,0,10,.62);
+}
+.mq-plate-t{
+  display:block; text-align:center; font-family:var(--mq-font);
+  text-transform:uppercase; font-weight:800; letter-spacing:1.5px; line-height:1.1;
+  font-size:clamp(15px,4.9vw,19px);
+  background: linear-gradient(180deg,#FFFBDF 0%,#FFE9A2 26%,#F3C24B 50%,#B8810F 74%,#F7DC8A 100%);
+  -webkit-background-clip:text; background-clip:text;
+  color:transparent; -webkit-text-fill-color:transparent;
+  filter: drop-shadow(0 1px 0 rgba(60,8,0,.55)) drop-shadow(0 2px 4px rgba(60,8,0,.45));
+}
+.mq-plate--bolt .mq-plate-in{ padding-left:46px; }
+.mq-plate--bolt .mq-plate-t{ text-align:left; }
+.mq-plate .mq-bolt{
+  position:absolute; left:24px; top:50%; transform:translateY(-50%); z-index:4;
+  width:26px; height:26px; color:#FFF3B8; filter: drop-shadow(0 0 7px rgba(255,214,110,.9));
+}
+.mq-plate .mq-bolt svg{ width:100%; height:100%; display:block; }
+
+/* ---------------------------------------------- the featured brands band */
+.mq-band{
+  position:relative; padding:14px 14px 15px; margin:0;
+  background: linear-gradient(180deg,#710B21 0%,#4C0416 52%,#38020F 100%);
+  box-shadow: inset 0 3px 0 rgba(255,214,110,.6), inset 0 -3px 0 rgba(255,214,110,.52),
+              0 6px 18px rgba(58,0,14,.42);
+}
+.mq-band-t{
+  display:block; text-align:center; position:relative; z-index:2;
+  font-family:var(--mq-font); font-size:21px; font-weight:800;
+  letter-spacing:2px; text-transform:uppercase; padding:3px 0;
+  background: linear-gradient(180deg,#FFFBDF 0%,#FFE9A2 26%,#F3C24B 50%,#B8810F 72%,#F7DC8A 100%);
+  -webkit-background-clip:text; background-clip:text;
+  color:transparent; -webkit-text-fill-color:transparent;
+  filter: drop-shadow(0 1px 0 rgba(0,0,0,.55)) drop-shadow(0 0 7px rgba(255,200,80,.4));
+}
+
+/* ---------------------------------------------- card frames: beads all round */
+.orn-card{ padding:11px; border-radius:14px; }
+.orn-card::before{
+  content:''; position:absolute; inset:0; border-radius:inherit; z-index:3; pointer-events:none;
+  background-image: var(--mq-bead), var(--mq-bead), var(--mq-bead), var(--mq-bead);
+  background-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
+  background-size: 12px 12px;
+  background-position: 0 4px, 0 calc(100% - 4px), 4px 0, calc(100% - 4px) 0;
+}
+.orn-card::after{ content:none; }
+.orn-card-in{ border-radius:7px; }
+.orn-corner{ width:16px; height:16px; }
+
+/* the gold offer board: beads right round it as well */
+.mq-vip{ padding:11px; border-radius:16px; }
+.mq-vip::before{
+  content:''; position:absolute; inset:0; border-radius:inherit; z-index:3; pointer-events:none;
+  background-image: var(--mq-bead), var(--mq-bead), var(--mq-bead), var(--mq-bead);
+  background-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
+  background-size: 12px 12px;
+  background-position: 0 4px, 0 calc(100% - 4px), 4px 0, calc(100% - 4px) 0;
+}
+.mq-vip-in{ border-radius:8px; }
+
+.mq-fcard{ padding:0; }
+
+/* ---------------------------------------------- the hero banner frame */
+.banner-slide.adv{
+  border-radius:14px;
+  box-shadow:
+    0 0 0 2px rgba(255,224,148,.98),
+    0 0 0 4.5px rgba(255,168,48,.55),
+    0 0 16px 4px rgba(255,146,20,.42),
+    0 10px 24px rgba(140,60,0,.26);
+}
+.banner-slide.adv .adv-media{ border-radius:0; }
+
+/* the wide banner is a rectangle with the same bead frame */
+.mq-wide{ border-radius:12px; }
+.mq-wide .mq-beads{ background-position: 0 4px, 0 calc(100% - 4px), 4px 0, calc(100% - 4px) 0; }
+</style>
+
+<style>
+/* ============================================================
    v19 - the lit-up gold frame on the hero banner, and the fee strip
    ============================================================ */
 
@@ -9494,34 +9601,19 @@ function renderAdminSettings(shell){
       '</defs></svg>';
   }
 
-  /* The big arched theatre plaque. */
-  function plaque(t1, t2, small){
-    return '<div class="mq-plaque' + (small ? ' mq-plaque--small' : '') + '">' +
-      '<svg viewBox="0 0 320 108" fill="none" aria-hidden="true">' +
-        '<path d="M10 96C10 40 78 10 160 10s150 30 150 86Z" fill="url(#mqGoldV)"/>' +
-        '<path d="M28 92C28 47 86 22 160 22s132 25 132 70Z" fill="url(#mqVelvet)"/>' +
-        '<path d="M28 92C28 47 86 22 160 22s132 25 132 70" stroke="#FFE9A0" stroke-width="6.5" ' +
-              'stroke-linecap="round" stroke-dasharray="0.1 12.6" filter="url(#mqGlow)"/>' +
-        '<path d="M28 92C28 47 86 22 160 22s132 25 132 70" stroke="url(#mqGoldH)" stroke-width="1.8"/>' +
-        '<path d="M10 96C10 40 78 10 160 10s150 30 150 86" stroke="url(#mqGoldH)" stroke-width="1.4" opacity=".85"/>' +
-        '<rect x="16" y="90" width="288" height="12" rx="6" fill="url(#mqGoldV)"/>' +
-        '<rect x="24" y="94" width="272" height="3.6" rx="1.8" fill="rgba(255,246,196,.42)"/>' +
-      '</svg>' +
-      '<span class="mq-plaque-t">' + esc(t1) + (t2 ? '<br>' + esc(t2) : '') + '</span>' +
-    '</div>' +
-    '<div class="mq-jewels">' + new Array(10).join('<i></i>') + '</div>';
-  }
+  var BOLT =
+    '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">' +
+      '<path d="M13.6 1.5 4.2 13.1a.7.7 0 0 0 .54 1.15h4.9l-1.75 8.2a.7.7 0 0 0 1.24.58l9.4-11.6a.7.7 0 0 0-.54-1.15h-4.9l1.75-8.2a.7.7 0 0 0-1.24-.58Z"/>' +
+    '</svg>';
 
-  /* A straight marquee sign, for the second headline. */
-  function sign(t1, t2){
-    return '<div class="mq-sign">' +
-      '<div class="mq-sign-in">' +
-        '<span class="mq-bolt">' +
-          '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">' +
-            '<path d="M13.6 1.5 4.2 13.1a.7.7 0 0 0 .54 1.15h4.9l-1.75 8.2a.7.7 0 0 0 1.24.58l9.4-11.6a.7.7 0 0 0-.54-1.15h-4.9l1.75-8.2a.7.7 0 0 0-1.24-.58Z"/>' +
-          '</svg>' +
-        '</span>' +
-        '<span class="mq-sign-t">' + esc(t1) + (t2 ? '<br>' + esc(t2) : '') + '</span>' +
+  /* The headline plate: a clean RECTANGLE - gold frame, bead lights running
+     right round the border, velvet centre, gold lettering. */
+  function plate(t1, t2, bolt){
+    return '<div class="mq-plate' + (bolt ? ' mq-plate--bolt' : '') + '">' +
+      (bolt ? '<span class="mq-bolt">' + BOLT + '</span>' : '') +
+      '<span class="mq-beads"></span>' +
+      '<div class="mq-plate-in">' +
+        '<span class="mq-plate-t">' + esc(t1) + (t2 ? '<br>' + esc(t2) : '') + '</span>' +
       '</div>' +
     '</div>';
   }
@@ -9560,7 +9652,7 @@ function renderAdminSettings(shell){
   /* ---------------------------------------------------------------- deals */
   function dealsHTML(){
     var ps = top(prods(), 6);
-    if(ps.length < 2) return '';
+    if(!ps.length) return '';
     var cards = ps.map(function(p){
       return '<div class="mq-deal" data-mqpid="' + p.id + '">' + ornCard(
         '<div class="mq-deal-media"><img src="' + p.img + '" alt="" loading="lazy"></div>' +
@@ -9573,7 +9665,7 @@ function renderAdminSettings(shell){
     }).join('');
     return '<section class="mq" id="mqDeals">' +
       '<div class="mq-bulbs"></div>' +
-      plaque('Sneak Peek', 'Deals') +
+      plate('Sneak Peek', 'Deals') +
       '<div class="mq-sub">Catch sale prices before the sale' + CHEV + '</div>' +
       '<div class="mq-rail">' + cards + '</div>' +
     '</section>';
@@ -9585,14 +9677,17 @@ function renderAdminSettings(shell){
       var ps = prods().filter(function(p){ return p.category === c.id; });
       if(!ps.length) return null;
       var best = top(ps, 1)[0];
-      return { name: c.name, img: c.img || best.img, off: off(best) };
+      return { name: c.name, img: c.img || best.img, off: off(best),
+               pid: best.id, cid: c.id };
     }).filter(Boolean).sort(function(a, b){ return b.off - a.off; });
 
     var two = rows.slice(0, 2);
     if(!two.length) return '';
 
+    /* A brand card should open that brand's range, and it must be tappable -
+       these were the only cards on the page with no link on them. */
     var cards = two.map(function(x){
-      return ornCard(
+      return '<div class="mq-fcard" data-mqcat="' + esc(x.cid) + '">' + ornCard(
         '<div class="mq-fcard-media">' +
           '<img src="' + x.img + '" alt="" loading="lazy">' +
           '<div class="mq-fcard-copy">' +
@@ -9600,20 +9695,23 @@ function renderAdminSettings(shell){
             '<b>' + (x.off ? ('UP TO ' + x.off + '% OFF') : 'SHOP NOW') + '</b>' +
           '</div>' +
         '</div>' +
-        '<div class="mq-fcard-strip">' + esc(x.name) + '</div>',
-        'mq-fcard'
-      );
+        '<div class="mq-fcard-strip">' + esc(x.name) + '</div>'
+      ) + '</div>';
     }).join('');
 
-    var wide = top(prods(), 1)[0];
+    /* Skip anything already shown in the cards above, so the shop does not
+       look like it only has one product. */
+    var used = two.map(function(x){ return x.pid; });
+    var wide = top(prods(), 6).filter(function(p){ return used.indexOf(p.id) < 0; })[0];
     var wideHTML = wide ? (
       '<div class="mq-wide" data-mqpid="' + wide.id + '">' +
+        '<span class="mq-beads"></span>' +
         '<div class="mq-wide-media"><img src="' + wide.img + '" alt="" loading="lazy"></div>' +
         '<div class="mq-wide-right">' +
           '<span class="mq-wide-brand">' + esc(brandOf(wide)) + '</span>' +
           '<b>' + (off(wide) ? 'UP TO ' + off(wide) + '% OFF' : 'SHOP NOW') + '</b>' +
         '</div>' +
-        '<span class="mq-ad">AD</span>' +
+
       '</div>' +
       '<div class="mq-dots"><i class="on"></i><i></i><i></i></div>'
     ) : '';
@@ -9628,7 +9726,7 @@ function renderAdminSettings(shell){
   /* -------------------------------------------------------- lowest prices */
   function lowestHTML(){
     var ps = cheapest(prods(), 6);
-    if(ps.length < 2) return '';
+    if(!ps.length) return '';
     var cards = ps.map(function(p){
       return '<div class="mq-low" data-mqpid="' + p.id + '">' + ornCard(
         '<div class="mq-low-media"><img src="' + p.img + '" alt="" loading="lazy"></div>' +
@@ -9639,7 +9737,7 @@ function renderAdminSettings(shell){
     }).join('');
     return '<section class="mq" id="mqLowest">' +
       '<div class="mq-bulbs"></div>' +
-      sign('Lowest Prices', 'In Our Store') +
+      plate('Lowest Prices', 'In Our Store', true) +
       '<div class="mq-rail">' + cards + '</div>' +
     '</section>';
   }
@@ -9706,9 +9804,18 @@ function renderAdminSettings(shell){
       openProductDetail(card.dataset.mqpid);
       return;
     }
+    var cat = e.target.closest('[data-mqcat]');
+    if(cat && typeof openCategoryProducts === 'function'){
+      openCategoryProducts(cat.dataset.mqcat);
+      return;
+    }
     var go = e.target.closest('[data-mqgo]');
     if(go){
-      var t = document.querySelector(go.dataset.mqgo);
+      /* The named section may not exist on a small catalogue, which used to
+         make this button do nothing at all. Fall back to something real. */
+      var t = document.querySelector(go.dataset.mqgo)
+           || document.querySelector('#mqFeatured')
+           || document.querySelector('#homeProductGrid');
       if(t && t.scrollIntoView) t.scrollIntoView({ behavior:'smooth', block:'start' });
     }
   });
