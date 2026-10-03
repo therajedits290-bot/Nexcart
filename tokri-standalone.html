@@ -9696,7 +9696,7 @@ function renderAdminSettings(shell){
       }).join('');
     } else {
       tiles = top(prods(), 3).map(function(p){
-        return '<div class="mq-vip-tile"><b>Min. ' + off(p) + '% Off*</b>' +
+        return '<div class="mq-vip-tile"><b>' + (off(p) ? ('Min. ' + off(p) + '% Off*') : 'Special Price') + '</b>' +
                '<span>' + esc(brandOf(p)) + '</span></div>';
       }).join('');
     }
@@ -9723,7 +9723,7 @@ function renderAdminSettings(shell){
           '<span class="mq-brand">' + esc(brandOf(p)) + '</span>' +
           '<span class="mq-more">&amp; More</span>' +
         '</div>' +
-        '<div class="mq-caption">Min. ' + off(p) + '% Off</div>'
+        '<div class="mq-caption">' + (off(p) ? ('Min. ' + off(p) + '% Off') : 'Best Price') + '</div>'
       ) + '</div>';
     }).join('');
     return '<section class="mq" id="mqDeals">' +
@@ -10024,6 +10024,16 @@ function renderAdminSettings(shell){
 }
 .nci-step p{ font-size:12.5px; line-height:1.55; color:var(--ink-soft); margin-bottom:11px; }
 .nci-step p b{ color:var(--ink); font-weight:800; }
+.nci-lbl{
+  display:block; font-family:var(--font-display); font-size:12px; font-weight:800;
+  color:var(--ink); margin:14px 0 6px; letter-spacing:.2px;
+}
+.nci-inp{
+  width:100%; box-sizing:border-box; border:1.5px solid var(--line); background:var(--surface);
+  border-radius:10px; padding:11px 12px; font-size:13px; color:var(--ink); margin-bottom:10px;
+}
+.nci-inp:focus{ outline:none; border-color:var(--brand); }
+
 .nci-cols{
   font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11.5px;
   background:var(--surface-2); border-radius:9px; padding:10px 12px;
@@ -10060,6 +10070,8 @@ function renderAdminSettings(shell){
   padding:11px 12px; font-size:12px; line-height:1.55; margin-bottom:10px;
 }
 .nci-msg.warn{ background:#FFF6E5; color:#8A5A00; }
+.nci-msg.warn{ background:#FFF7E6; color:#8A5300; box-shadow:inset 0 0 0 1px #F5D9A0; }
+.nci-msg.warn .nci-mic{ background:#F0A500; color:#fff; }
 .nci-msg.bad{ background:#FFEDEF; color:#A3122C; }
 .nci-msg.ok{ background:#EAF8EF; color:#0A6B33; }
 .nci-msg b{ font-weight:800; }
@@ -10118,7 +10130,29 @@ function renderAdminSettings(shell){
   'use strict';
 
   var LIMIT = 4.9 * 1024 * 1024;      // the app's own storage ceiling
+  /* The same options the product form offers, plus anything numeric. */
   var state = { parsed: null, mode: 'skip' };
+
+  var LETTER_SIZES = ['XS','S','M','L','XL','XXL','XXXL','FREE','FREE SIZE','ONESIZE','ONE SIZE'];
+  var NUM_SIZES = ['26','28','30','32','34','36','38','40','42','44','46','48','50'];
+
+  /* "S, M, L" or "S|M|L" or "32,34,36" all work. */
+  function parseSizes(v){
+    if(!v) return [];
+    var out = [];
+    String(v).split(/[|,;/]+/).forEach(function(x){
+      x = x.trim();
+      if(!x) return;
+      /* "S" and "XL" read best in capitals, but "FREE SIZE" shouted from a
+         button looks wrong - keep multi-word sizes in normal case. */
+      x = /^\d+$/.test(x) ? x
+        : (x.indexOf(' ') >= 0
+           ? x.replace(/\b[a-z]/g, function(c){ return c.toUpperCase(); })
+           : x.toUpperCase());
+      if(out.indexOf(x) < 0) out.push(x);
+    });
+    return out;
+  }
 
   function esc(s){
     return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
@@ -10169,6 +10203,7 @@ function renderAdminSettings(shell){
     name:     ['name','product','product name','productname','title','item','item name'],
     category: ['category','category name','categories','cat','type','group'],
     sub:      ['subcategory','sub category','sub-category','subcat','sub','sub group','subgroup'],
+    sizes:    ['sizes','size','available sizes','size options','size range','variants','variant'],
     price:    ['price','selling price','sale price','our price','sp','offer price'],
     mrp:      ['mrp','list price','original price','max price','strike','compare price'],
     stock:    ['stock','qty','quantity','inventory','stock quantity','available'],
@@ -10190,7 +10225,7 @@ function renderAdminSettings(shell){
   }
 
   /* ------------------------------------------------------ build the rows */
-  function build(text){
+  function build(text, base){
     var rows = parseCSV(text);
     if(rows.length < 2){
       return { fatal: 'I could not find any rows. A file needs a first row of column names, then one row per product.' };
@@ -10210,7 +10245,8 @@ function renderAdminSettings(shell){
       catByName[String(c.name || '').trim().toLowerCase()] = c;
     });
 
-    var out = [], errors = [], newCats = [], newSubs = [], dups = [], dataImgs = 0;
+    var out = [], errors = [], newCats = [], newSubs = [], dups = [], dataImgs = 0, badSizes = [];
+    var namedImgs = 0;
 
     rows.slice(1).forEach(function(r, n){
       var at = n + 2;                                   // the spreadsheet's own row number
@@ -10230,9 +10266,15 @@ function renderAdminSettings(shell){
         else if(newCats.indexOf(catName) < 0) newCats.push(catName);
       }
       var sub = get('sub');
+      var sizes = parseSizes(get('sizes'));
+      sizes.forEach(function(z){
+        if(/[A-Z]/.test(z) && LETTER_SIZES.indexOf(z) < 0 && badSizes.indexOf(z) < 0) badSizes.push(z);
+      });
       var stock = num(get('stock'));
       if(stock === null || stock < 0) stock = 10;
-      var img = get('img');
+      var rawImg = get('img');
+      if(rawImg && !isLink(rawImg)) namedImgs++;        // a bare file name
+      var img = resolveImg(rawImg, base);
       if(/^data:/i.test(img)) dataImgs++;
       if(!img) img = (typeof PLACEHOLDER_IMG === 'function') ? PLACEHOLDER_IMG(encodeURIComponent(name).slice(0, 24)) : '';
 
@@ -10257,6 +10299,7 @@ function renderAdminSettings(shell){
         category: cat ? cat.id : ('__new__' + catName),
         price: price, mrp: mrp, stock: stock, img: img,
         desc: get('desc'), brand: get('brand'), sub: sub,
+        sizes: sizes, hasSizes: sizes.length > 0,
         rating: rating, ratingCount: rc,
         _at: at, _catName: catName, _sub: sub
       };
@@ -10266,6 +10309,7 @@ function renderAdminSettings(shell){
 
     return {
       list: out, errors: errors, newCats: newCats, newSubs: newSubs, dups: dups,
+      badSizes: badSizes, namedImgs: namedImgs, base: base || '',
       dataImgs: dataImgs,
       newBytes: JSON.stringify(out).length,
       curBytes: (function(){ try{ return JSON.stringify(DB).length; }catch(e){ return 0; } })()
@@ -10287,16 +10331,27 @@ function renderAdminSettings(shell){
           '<h3><i>1</i>Put your products in a spreadsheet</h3>' +
           '<p>One row per product, and the <b>first row must be the column names</b>. ' +
              'Save it as <b>CSV</b> from Excel or Google Sheets (File &rsaquo; Download &rsaquo; CSV).</p>' +
-          '<div class="nci-cols"><b>name</b>, category, <b>subcategory</b>, <b>price</b>, mrp, stock, image, description, brand</div>' +
+          '<div class="nci-cols"><b>name</b>, category, subcategory, <b>price</b>, mrp, stock, <b>sizes</b>, image, description, brand</div>' +
           '<p>Only <b>name</b> and <b>price</b> are compulsory. Column names can be in any order, ' +
              'and common alternatives work too (qty, picture, MRP&hellip;).</p>' +
           '<p><b>subcategory</b> and <b>description</b> are optional but worth filling: the ' +
              'sub-category becomes one of the picture tiles under the tabs, and new ones are ' +
              'created for you.</p>' +
+          '<p><b>sizes</b> is for clothing. Write them separated by commas, e.g. ' +
+             '<b>S, M, L, XL</b> or <b>32, 34, 36</b>. Leave it empty for everything else.</p>' +
+          '<p>The <b>image</b> column takes either a full link ' +
+             '(<b>https://&hellip;/kurta1.jpg</b>) or just the <b>file name</b> ' +
+             '(<b>kurta1.jpg</b>) if you set the photo folder below.</p>' +
           '<div class="nci-msg warn"><span class="nci-mic">&nbsp;!</span><span>' +
-            '<b>The image column must be a web link</b> (https://&hellip;), not a file. ' +
-            'The app keeps everything in a box of about 4.9 MB, so 1000 uploaded photos ' +
-            'would be roughly 130 MB and cannot fit.</span></div>' +
+            '<b>A sheet cannot hold a picture.</b> A CSV file is text only, so a photo pasted ' +
+            'into Excel is thrown away the moment you save it. The photo has to live on the ' +
+            'web &mdash; either a full link, or just its file name as explained below.</span></div>' +
+          '<p>Or, instead of pasting a link for every photo: put all your photos in one folder ' +
+             'and write only the <b>file name</b> here &mdash; <b>kurta1.jpg</b>. Tell me where ' +
+             'the folder is once, and the app fills in the rest.</p>' +
+          '<label class="nci-lbl" for="nciBase">Where are your photos?</label>' +
+          '<input class="nci-inp" id="nciBase" type="text" spellcheck="false" ' +
+             'placeholder="https://your-shop.github.io/Nexcart/img/" value="' + esc(guessBase()) + '">' +
           '<button class="btn btn-secondary btn-block" id="nciTemplate" type="button">Download the template</button>' +
         '</div>' +
         '<div class="nci-step">' +
@@ -10338,10 +10393,124 @@ function renderAdminSettings(shell){
     document.documentElement.style.overflow = '';
   }
 
+  /* ------------------------------------------------- dead picture handling */
+  /* A link that does not load used to spill the whole product name across the
+     card as alt text. Swap in a clean grey placeholder instead. Catches every
+     picture in the app, including ones drawn later, because error events do not
+     bubble but they do travel in the capture phase. */
+  var FALLBACK_IMG = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 440">' +
+    '<rect width="400" height="440" fill="#F1F1F3"/>' +
+    '<g fill="none" stroke="#C7CAD0" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">' +
+    '<rect x="142" y="176" width="116" height="92" rx="11"/>' +
+    '<path d="M142 246l32-32 28 28 24-24 32 32"/><circle cx="175" cy="206" r="10"/></g></svg>');
+
+  document.addEventListener('error', function(e){
+    var t = e.target;
+    if(!t || t.tagName !== 'IMG') return;
+    if(t.getAttribute('src') === FALLBACK_IMG) return;
+    t.setAttribute('src', FALLBACK_IMG);
+    t.setAttribute('alt', '');
+    t.style.objectFit = 'cover';
+  }, true);
+
+  /* ------------------------------------------------ where the photos live */
+  /* A sheet cannot hold a picture - CSV is text only, so a picture pasted into
+     Excel is thrown away when it is saved as CSV. The next best thing: put all
+     the photos in one folder and write only the file name here. Much less typing
+     than a full link, and the folder is remembered. */
+  function guessBase(){
+    try{
+      var saved = localStorage.getItem('nexcart_img_base');
+      if(saved) return saved;
+    }catch(e){}
+    try{
+      if(location.protocol === 'http:' || location.protocol === 'https:'){
+        return location.origin + location.pathname.replace(/[^/]*$/, '') + 'img/';
+      }
+    }catch(e){}
+    return '';
+  }
+  function readBase(){
+    var el = document.getElementById('nciBase');
+    var v = el ? String(el.value || '').trim() : '';
+    try{ localStorage.setItem('nexcart_img_base', v); }catch(e){}
+    return v;
+  }
+  function isLink(v){ return /^(https?:|data:|\/\/)/i.test(String(v == null ? '' : v).trim()); }
+  function resolveImg(v, base){
+    v = String(v == null ? '' : v).trim();
+    if(!v) return '';
+    if(isLink(v)) return v;
+    if(!base) return v;
+    return base.replace(/\/+$/, '') + '/' + v.replace(/^\/+/, '');
+  }
+
+  /* ---------------------------------------------------- testing the pictures */
+  /* Pictures are the usual reason a shop looks wrong, and a wrong link is
+     silent until you look at the shop. Load each one here and name the rows
+     that fail. Eight at a time so a 1000 row sheet does not swamp the phone. */
+  function testLinks(){
+    var rows = (state.parsed && state.parsed.list) || [];
+    var out = document.getElementById('nciLinkOut');
+    if(!out || !rows.length) return;
+    var total = rows.length;
+    var queue = rows.slice(), inflight = 0, done = 0, broken = [], MAX = 8;
+
+    function paint(html){ out.innerHTML = html; }
+    function line(txt){
+      paint('<div class="nci-msg"><span class="nci-mic">&#8230;</span><span>' + txt + '</span></div>');
+    }
+    function finish(){
+      /* Links finish in whatever order the network returns them, so list the
+         rows in order - random row numbers read like a bug. */
+      broken.sort(function(a, b){ return a._at - b._at; });
+      if(broken.length){
+        paint('<div class="nci-msg bad"><span class="nci-mic">!</span><span>' +
+              '<b>' + broken.length + ' of ' + total + ' picture link' +
+              (total === 1 ? '' : 's') + ' did not load.</b><br>' +
+              'Rows ' + broken.slice(0, 15).map(function(r){ return r._at; }).join(', ') +
+              (broken.length > 15 ? ' and more' : '') +
+              '<br>Open one of those links in a browser tab. If you see a web page instead of ' +
+              'just the photo, the link is not a direct picture link.</span></div>');
+      } else {
+        paint('<div class="nci-msg ok"><span class="nci-mic">+</span><span>All ' + total +
+              ' picture link' + (total === 1 ? '' : 's') + ' loaded.</span></div>');
+      }
+    }
+    function pump(){
+      while(inflight < MAX && queue.length){
+        one(queue.shift());
+      }
+    }
+    function one(x){
+      if(!x.img || /^data:/i.test(x.img)){ done++; return soon(); }
+      inflight++;
+      var im = new Image(), settled = false;
+      function end(good){
+        if(settled) return;
+        settled = true;
+        inflight--; done++;
+        if(!good) broken.push(x);
+        if(done >= total) return finish();
+        line('Checking pictures\u2026 ' + done + ' of ' + total);
+        soon();
+      }
+      im.onload  = function(){ end(true); };
+      im.onerror = function(){ end(false); };
+      setTimeout(function(){ end(false); }, 15000);
+      im.src = x.img;
+    }
+    function soon(){ setTimeout(pump, 0); }
+
+    line('Checking pictures\u2026 0 of ' + total);
+    pump();
+  }
+
   /* --------------------------------------------------------- the template */
   function template(){
     var rows = [
-      'name,category,subcategory,price,mrp,stock,image,description,brand',
+      'name,category,subcategory,price,mrp,stock,sizes,image,description,brand',
       '"Women Floral Kurta Set",Women\'s Wear,Kurta Sets,449,999,25,https://picsum.photos/seed/kurta1/400/440,"Cotton blend kurta with palazzo.","Nexcart"',
       '"Men Slim Fit Shirt",Men\'s Wear,Casual Shirts,399,899,30,https://picsum.photos/seed/shirt1/400/440,"100% cotton, wrinkle resistant.","Nexcart"',
       '"Wireless Earbuds",Electronics,Audio,799,2499,12,https://picsum.photos/seed/earbuds1/400/440,"24 hour battery, deep bass.","Nexcart"'
@@ -10358,7 +10527,7 @@ function renderAdminSettings(shell){
   /* ------------------------------------------------------------ the report */
   var rpt = null;
   function check(text){
-    var p = build(text);
+    var p = build(text, readBase());
     rpt = p;
     var box = document.getElementById('nciReport');
     if(p.fatal){
@@ -10428,6 +10597,30 @@ function renderAdminSettings(shell){
              (p.list.length - 5) + ' more</p>' : '') + '</div>';
     }
 
+    if(p.namedImgs){
+      if(p.base){
+        h += '<div class="nci-msg ok"><span class="nci-mic">+</span><span>' +
+             '<b>' + p.namedImgs + ' photo file name' + (p.namedImgs === 1 ? '' : 's') + '</b> ' +
+             'will be looked up in <b>' + esc(p.base) + '</b></span></div>';
+      } else {
+        h += '<div class="nci-msg bad"><span class="nci-mic">!</span><span>' +
+             '<b>' + p.namedImgs + ' row' + (p.namedImgs === 1 ? ' has a file name' : 's have file names') +
+             ' but no photo folder is set.</b> Fill in "Where are your photos?" above, or use ' +
+             'full https:// links in the sheet.</span></div>';
+      }
+    }
+
+    if(p.badSizes && p.badSizes.length){
+      h += '<div class="nci-msg warn"><span class="nci-mic">!</span><span>Unusual size' +
+           (p.badSizes.length === 1 ? '' : 's') + ': <b>' + esc(p.badSizes.join(', ')) +
+           '</b>. That works, but check for a typo.</span></div>';
+    }
+
+    h += '<p style="font-size:12.5px;color:var(--ink-soft);margin:14px 0 8px;">' +
+         'Pictures are the usual reason a shop looks wrong. Test the links before adding:</p>' +
+         '<button class="btn btn-secondary btn-block" id="nciTest" type="button">Test the picture links</button>' +
+         '<div id="nciLinkOut" style="margin-top:10px;"></div>';
+
     if(p.dups.length){
       h += '<p style="font-size:12.5px;font-weight:800;color:var(--ink);margin-bottom:8px;">' +
            'A product with the same name is already in your shop. What should happen to those?</p>' +
@@ -10458,6 +10651,9 @@ function renderAdminSettings(shell){
         };
       });
     }
+    var tl = document.getElementById('nciTest');
+    if(tl) tl.onclick = testLinks;
+
     var go = document.getElementById('nciDo');
     if(go) go.onclick = runImport;
     box.scrollIntoView({ behavior:'smooth', block:'start' });
@@ -10515,6 +10711,8 @@ function renderAdminSettings(shell){
           if(x.brand) prev.brand = x.brand;
           if(catId) prev.category = catId;
           if(x._sub) prev.sub = x._sub;
+          prev.hasSizes = !!x.hasSizes;
+          prev.sizes = x.sizes || [];
           updated++;
         } else skipped++;
         return;
@@ -10523,7 +10721,7 @@ function renderAdminSettings(shell){
         id: newId('p'), name: x.name, category: catId, price: x.price, mrp: x.mrp,
         stock: x.stock, desc: x.desc || '', img: x.img, sub: x._sub || '',
         rating: x.rating || 0, ratingCount: x.ratingCount || 0,
-        hasSizes: false, sizes: []
+        hasSizes: !!x.hasSizes, sizes: x.sizes || []
       };
       if(x.brand) item.brand = x.brand;
       DB.products.push(item);
