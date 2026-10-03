@@ -3377,6 +3377,10 @@ function buildHome(main){
 
     ${offerStrip ? `<div class="offer-wrap">${offerStrip}</div>` : ''}
 
+    ${(typeof mqSlot==='function') ? mqSlot('vip') : ''}
+
+    ${(typeof mqSlot==='function') ? mqSlot('fee') : ''}
+
     ${activeBanners.length ? `
     <div class="hero-wrap">
       <div class="banner-carousel" id="bannerCarousel">
@@ -3393,7 +3397,10 @@ function buildHome(main){
               </div>
             </div>
             <div class="adv-strip">
-              <div class="adv-brand">${bn.brand||appName}${bn.brandSub?`<small>${bn.brandSub}</small>`:''}</div>
+              <div class="adv-brand">
+                <b>${bn.brand||appName}</b>
+                <i>${bn.brandSub||'&amp; More'}</i>
+              </div>
               <span class="adv-cta">${bn.cta||'Shop Now'} ${icon('arrowRight')}</span>
             </div>
           </div>`).join('')}
@@ -3402,6 +3409,8 @@ function buildHome(main){
         ${activeBanners.map((_,i)=>`<i class="${i===0?'on':''}"></i>`).join('')}
       </div>
     </div>` : ''}
+
+    ${(typeof mqSlot==='function') ? mqSlot('main') : ''}
 
     <div class="brand-strip">
       <span class="bs-tag">POWERED BY</span>
@@ -9000,6 +9009,709 @@ function renderAdminSettings(shell){
 
   window.ncSearchOpen = open;    // so other screens can jump straight in
   window.ncSearchClose = close;
+})();
+</script>
+
+<!-- ============================================================
+     NEXCART marquee sections  (v18)
+     The festival / theatre look the owner asked for: gold plaques,
+     bead lights, velvet panels, sparkle backgrounds and ornate
+     gold-framed cards.
+     Every colour here is fixed on purpose - these sections are
+     meant to look like artwork, not like part of the light theme.
+     ============================================================ -->
+<style>
+/* ------------------------------------------------ palette */
+.mq, .mq-vip, .mq-wide, .mq-band {
+  --g1:#FFF8CC; --g2:#F7D570; --g3:#D79B1E; --g4:#A96B08; --g5:#7A4602;
+  --vel1:#C41E43; --vel2:#8A0A28; --vel3:#5E0418;
+  --ink-dark:#4A020F;
+  --mq-font: 'Assistant', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* ------------------------------------------------ section shell */
+.mq{
+  position:relative; margin:16px 0 0; padding:15px 0 18px;
+  background:
+    radial-gradient(120% 70% at 50% -12%, #FFB64A 0%, #F58A22 34%, #E2650F 62%, #C4450A 100%);
+  overflow:hidden; isolation:isolate;
+}
+/* the sparkle field */
+.mq::before{
+  content:''; position:absolute; inset:0; pointer-events:none; opacity:.5;
+  background-image:
+    radial-gradient(circle, rgba(255,246,205,.95) 0 1.1px, rgba(255,246,205,0) 1.4px),
+    radial-gradient(circle, rgba(255,255,255,.55) 0 .8px, rgba(255,255,255,0) 1.1px);
+  background-size: 27px 27px, 53px 53px;
+  background-position: 0 0, 13px 9px;
+}
+/* scalloped top and bottom edges, like a paper garland */
+.mq::after{
+  content:''; position:absolute; left:0; right:0; bottom:-1px; height:11px; pointer-events:none;
+  background: radial-gradient(circle at 9px 11px, transparent 8px, rgba(255,255,255,.20) 8.4px, rgba(255,255,255,.20) 9.6px, transparent 10px);
+  background-size: 18px 11px; background-repeat: repeat-x;
+}
+.mq > *{ position:relative; z-index:1; }
+
+/* the row of golden bulbs that runs above a plaque */
+.mq-bulbs{
+  display:block; height:8px; margin:0 22px 5px;
+  background-image: radial-gradient(circle, #FFFCE6 0 1.6px, #F2C247 1.8px 2.6px, rgba(242,194,71,0) 2.9px);
+  background-size: 15px 8px; background-repeat: repeat-x; background-position: center;
+}
+.mq-bulbs.dark{
+  background-image: radial-gradient(circle, #FFF6C0 0 1.7px, #E3A922 1.9px 2.7px, rgba(227,169,34,0) 3px);
+}
+
+/* ------------------------------------------------ the fans / plaques */
+.mq-plaque{ position:relative; width:min(300px,84%); margin:0 auto; }
+.mq-plaque svg{ display:block; width:100%; height:auto; }
+.mq-plaque-t{
+  position:absolute; left:0; right:0; top:19%; bottom:16%;
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center; text-align:center;
+  padding:0 13%; line-height:1.02;
+  font-family: var(--mq-font); font-weight:800; font-size:clamp(15px,5.7vw,19px);
+  letter-spacing:.6px; text-transform:uppercase;
+  background: linear-gradient(180deg,#FFFBDF 0%,#FFE9A2 30%,#F3C24B 55%,#B8810F 78%,#F7DC8A 100%);
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent; -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 1.5px 0 rgba(70,20,0,.55)) drop-shadow(0 3px 5px rgba(70,20,0,.45));
+}
+.mq-plaque--small .mq-plaque-t{ font-size:clamp(13px,5vw,16px); }
+
+/* jewellery row sitting on the plaque's lower rim */
+.mq-jewels{
+  display:flex; justify-content:center; gap:5px; margin-top:-14px; position:relative; z-index:2;
+}
+.mq-jewels i{
+  width:7px; height:7px; border-radius:50%;
+  background: radial-gradient(circle at 34% 30%, #FFFBDF, #F2C247 46%, #A96B08 100%);
+  box-shadow: 0 0 5px rgba(255,236,150,.85);
+}
+.mq-jewels i:nth-child(3n+2){ width:5px; height:5px; margin-top:1px; }
+
+/* ------------------------------------------------ section heading text */
+.mq-sub{
+  display:flex; align-items:center; justify-content:center; gap:5px;
+  margin:11px 14px 0; padding:5px 12px;
+  font-family: var(--mq-font); font-size:12.5px; font-weight:800; color:#FFF6D8;
+  text-shadow: 0 1px 2px rgba(90,10,28,.55);
+}
+.mq-sub b{ font-weight:800; }
+.mq-sub .icon{ width:13px; height:13px; }
+
+/* ------------------------------------------------ ornate gold frame */
+.orn-card{
+  position:relative; border-radius:13px; padding:7px;
+  background:
+    linear-gradient(158deg,#FFF8CC 0%,#EDBE4D 18%,#A96B08 34%,#F7D570 47%,#B07C10 60%,#EBC55F 74%,#8E5503 88%,#F3D275 100%);
+  box-shadow:
+    0 1px 2px rgba(80,20,0,.30),
+    0 8px 18px rgba(96,26,6,.26),
+    inset 0 0 0 1px rgba(255,246,196,.55);
+  isolation:isolate;
+}
+.orn-card-in{
+  position:relative; border-radius:8px; overflow:hidden; background:#fff;
+  box-shadow: inset 0 0 0 1px rgba(150,100,10,.5), inset 0 0 0 2.5px rgba(255,248,205,.34);
+}
+/* the bead lights that run along the top and bottom of the frame */
+.orn-card::before, .orn-card::after{
+  content:''; position:absolute; left:13px; right:13px; height:7px; z-index:3; pointer-events:none;
+  background-image: radial-gradient(circle, #FFFDEB 0 1.5px, #F0BE3C 1.7px 2.5px, rgba(240,190,60,0) 2.8px);
+  background-size: 12px 7px; background-repeat: repeat-x; background-position: center;
+}
+.orn-card::before{ top:0; }
+.orn-card::after{ bottom:0; }
+/* hand-drawn corner curls */
+.orn-corner{ position:absolute; width:17px; height:17px; z-index:4; pointer-events:none; color:#FFF8CC; opacity:.96; }
+.orn-corner svg{ width:100%; height:100%; display:block; }
+.orn-corner.tl{ top:0; left:0; }
+.orn-corner.tr{ top:0; right:0; transform: scaleX(-1); }
+.orn-corner.bl{ bottom:0; left:0; transform: scaleY(-1); }
+.orn-corner.br{ bottom:0; right:0; transform: scale(-1,-1); }
+
+/* ------------------------------------------------ the gold offer board */
+.mq-vip{
+  position:relative; margin:14px 12px 0; border-radius:15px; padding:8px;
+  background: linear-gradient(158deg,#FFF8CC 0%,#EDBE4D 18%,#A96B08 34%,#F7D570 48%,#B07C10 64%,#8C5503 82%,#F3D275 100%);
+  box-shadow: 0 1px 2px rgba(80,20,0,.28), 0 9px 22px rgba(96,26,6,.30), inset 0 0 0 1px rgba(255,246,196,.5);
+}
+.mq-vip::before{
+  content:''; position:absolute; left:16px; right:16px; top:1px; height:7px; z-index:3; pointer-events:none;
+  background-image: radial-gradient(circle, #FFFDEB 0 1.5px, #F0BE3C 1.7px 2.5px, rgba(240,190,60,0) 2.8px);
+  background-size: 13px 7px; background-repeat: repeat-x; background-position: center;
+}
+.mq-vip-in{
+  position:relative; border-radius:10px; overflow:hidden; display:flex; align-items:stretch;
+  background: radial-gradient(130% 130% at 50% -10%, #D7284E 0%, #A50F31 46%, #6E051C 100%);
+  box-shadow: inset 0 0 0 1.5px rgba(255,240,180,.44), inset 0 0 34px rgba(50,0,10,.6);
+}
+.mq-vip-tile{ flex:1; padding:14px 7px; text-align:center; display:flex; flex-direction:column; justify-content:center; }
+.mq-vip-tile + .mq-vip-tile{ border-left:1px solid rgba(255,240,180,.32); }
+.mq-vip-tile b{
+  display:block; font-family:var(--mq-font); font-size:11px; font-weight:800; color:#FFF4CC;
+  line-height:1.3; text-shadow:0 1px 2px rgba(60,0,12,.6);
+}
+.mq-vip-tile span{ display:block; font-size:9px; font-weight:700; color:#FFCBD7; margin-top:4px; line-height:1.32; }
+.mq-vip-cta{
+  flex:1.2; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
+  padding:12px 9px; margin:5px; border-radius:8px;
+  background: linear-gradient(180deg,#FFFEF6,#FFEFC6 60%,#FBDFA0 100%);
+  box-shadow: inset 0 0 0 1.5px rgba(255,236,170,.9), 0 2px 8px rgba(60,0,12,.35);
+}
+.mq-vip-cta b{
+  font-family:var(--mq-font); font-size:15px; font-weight:800; color:#C4143C;
+  line-height:1.05; text-align:center; letter-spacing:.2px;
+}
+.mq-vip-cta b em{ font-style:normal; color:#8A0A28; }
+.mq-vip-cta span{ font-size:8.5px; font-weight:800; color:#8A2A0A; }
+.mq-vip-cta span u{ text-decoration:underline; }
+
+/* ------------------------------------------------ deal cards */
+.mq-rail{
+  display:flex; gap:13px; overflow-x:auto; padding:14px 14px 8px;
+  scroll-snap-type:x mandatory; scrollbar-width:none; -webkit-overflow-scrolling:touch;
+}
+.mq-rail::-webkit-scrollbar{ display:none; }
+.mq-deal{ flex:0 0 62%; max-width:252px; scroll-snap-align:center; }
+.mq-deal-media{ position:relative; height:188px; background:#f2efe8; }
+.mq-deal-media img{ width:100%; height:100%; object-fit:cover; display:block; }
+.mq-brandrow{
+  display:flex; align-items:stretch; justify-content:center; gap:3px;
+  margin:-20px 0 0; padding:0 11px; position:relative; z-index:3;
+}
+.mq-brand{
+  background:#fff; border-radius:9px; padding:8px 13px;
+  font-family:var(--mq-font); font-size:11.5px; font-weight:800; color:#282C3F;
+  letter-spacing:.4px; text-transform:uppercase; white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis; max-width:76%;
+  box-shadow: 0 3px 9px rgba(60,20,0,.25);
+}
+.mq-more{
+  background:#fff; border-radius:8px; padding:6px 7px 5px; align-self:flex-end;
+  font-family:var(--mq-font); font-size:7px; font-weight:800; color:#7A4602;
+  box-shadow: 0 3px 9px rgba(60,20,0,.22); white-space:nowrap;
+}
+.mq-caption{
+  background: linear-gradient(180deg,#3A3A44,#26262E); color:#fff;
+  font-family:var(--mq-font); font-size:15.5px; font-weight:800; text-align:center;
+  padding:10px 8px; letter-spacing:.2px;
+}
+
+/* ------------------------------------------------ featured brands band */
+.mq-band{
+  position:relative; padding:10px 14px 11px; margin:0;
+  background: linear-gradient(180deg,#710B21 0%,#4C0416 52%,#38020F 100%);
+  box-shadow: inset 0 2.5px 0 rgba(255,214,110,.6), inset 0 -2.5px 0 rgba(255,214,110,.5),
+              0 5px 16px rgba(58,0,14,.4);
+}
+.mq-band::before, .mq-band::after{
+  content:''; position:absolute; left:0; right:0; height:7px; pointer-events:none;
+  background-image: radial-gradient(circle, #FFFBE0 0 1.6px, #F0BE3C 1.8px 2.6px, rgba(240,190,60,0) 2.9px);
+  background-size: 14px 7px; background-repeat: repeat-x; background-position: center;
+}
+.mq-band::before{ top:1px; }
+.mq-band::after{ bottom:1px; }
+.mq-band-t{
+  display:block; text-align:center; position:relative;
+  font-family:var(--mq-font); font-size:21px; font-weight:800;
+  letter-spacing:2px; text-transform:uppercase; padding:4px 0;
+  background: linear-gradient(180deg,#FFFBDF 0%,#FFE9A2 26%,#F3C24B 50%,#B8810F 72%,#F7DC8A 100%);
+  -webkit-background-clip:text; background-clip:text;
+  color:transparent; -webkit-text-fill-color:transparent;
+  filter: drop-shadow(0 1px 0 rgba(0,0,0,.55)) drop-shadow(0 0 7px rgba(255,200,80,.4));
+}
+
+/* ------------------------------------------------ featured 2-up cards */
+.mq-grid2{ display:grid; grid-template-columns:1fr 1fr; gap:11px; padding:15px 12px 0; }
+.mq-fcard{ padding:6px; }
+.mq-fcard .orn-card-in{ border-radius:7px; }
+.mq-fcard-media{ position:relative; height:186px; background:#efeae1; }
+.mq-fcard-media img{ width:100%; height:100%; object-fit:cover; display:block; }
+.mq-fcard-copy{
+  position:absolute; left:0; right:0; bottom:0; padding:0 7px 11px; text-align:center; color:#fff;
+  background: linear-gradient(180deg, rgba(14,6,0,0) 0%, rgba(14,6,0,.20) 42%, rgba(14,6,0,.74) 100%);
+}
+.mq-fcard-copy span{ display:block; font-size:11px; font-weight:700; opacity:.97; }
+.mq-fcard-copy b{
+  display:block; font-family:var(--mq-font); font-size:16.5px; font-weight:800;
+  letter-spacing:-.2px; margin-top:1px; text-shadow:0 1px 3px rgba(0,0,0,.45);
+}
+.mq-fcard-strip{
+  background:#fff; text-align:center; padding:10px 6px;
+  font-family:var(--mq-font); font-size:13px; font-weight:800; letter-spacing:.5px;
+  color:#B4132F; text-transform:uppercase;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+
+/* ------------------------------------------------ wide ad banner */
+.mq-wide{
+  position:relative; display:flex; align-items:stretch; margin:12px 12px 0;
+  border-radius:12px; overflow:hidden;
+  background: linear-gradient(100deg,#FBB53A 0%,#F2841A 48%,#E85A0A 100%);
+  box-shadow: 0 5px 16px rgba(96,26,6,.3), inset 0 0 0 1.5px rgba(255,236,170,.55);
+}
+.mq-wide-media{ flex:0 0 41%; background:#efeae1; }
+.mq-wide-media img{ width:100%; height:100%; object-fit:cover; display:block; }
+.mq-wide-right{
+  flex:1; min-width:0; display:flex; flex-direction:column; align-items:center;
+  justify-content:center; gap:8px; padding:12px 9px; position:relative;
+}
+.mq-wide-brand{
+  background:#fff; border-radius:8px; padding:8px 15px; max-width:100%;
+  font-family:var(--mq-font); font-size:13.5px; font-weight:800; color:#22252E;
+  letter-spacing:.4px; text-transform:uppercase; white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis; box-shadow:0 2px 7px rgba(80,20,0,.22);
+}
+.mq-wide-right b{
+  font-family:var(--mq-font); font-size:15px; font-weight:800; color:#fff;
+  text-align:center; text-shadow:0 1px 3px rgba(96,30,0,.45);
+}
+.mq-wide .mq-ad{
+  position:absolute; top:7px; right:7px;
+  background: rgba(20,20,30,.42); color:#fff; font-size:9px; font-weight:800;
+  letter-spacing:.6px; padding:3px 6px; border-radius:4px;
+}
+.mq-dots{ display:flex; justify-content:center; gap:6px; padding:11px 0 2px; }
+.mq-dots i{
+  width:6px; height:6px; border-radius:50%; background: rgba(255,255,255,.45);
+  box-shadow: inset 0 0 0 1px rgba(120,60,0,.25);
+}
+.mq-dots i.on{ background: linear-gradient(180deg,#FFF8CC,#E9B93F); box-shadow: 0 0 6px rgba(255,220,120,.8); }
+
+/* ------------------------------------------------ lowest price rail */
+.mq-low{ flex:0 0 42%; max-width:172px; scroll-snap-align:start; }
+.mq-low .orn-card-in{ border-radius:7px; }
+.mq-low-media{ position:relative; height:152px; background:#f2efe8; }
+.mq-low-media img{ width:100%; height:100%; object-fit:cover; display:block; }
+.mq-low-name{
+  background:#fff; text-align:center; padding:9px 5px;
+  font-family:var(--mq-font); font-size:12px; font-weight:800; color:#B4132F;
+  text-transform:uppercase; letter-spacing:.3px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.mq-low-price{
+  background: linear-gradient(180deg,#3A3A44,#26262E); color:#fff; text-align:center;
+  font-size:12.5px; font-weight:800; padding:7px 5px;
+}
+.mq-low-price s{ color:#A9A9B4; font-weight:600; font-size:10.5px; margin-left:4px; }
+
+/* ------------------------------------------------ straight marquee sign */
+.mq-sign{
+  position:relative; width:min(312px,86%); margin:0 auto; border-radius:9px; padding:5px;
+  background: linear-gradient(180deg,#FFF8CC 0%,#EDBE4D 22%,#A96B08 48%,#F7D570 72%,#8C5503 100%);
+  box-shadow: 0 1px 2px rgba(80,20,0,.3), 0 6px 16px rgba(96,26,6,.32), inset 0 0 0 1px rgba(255,246,196,.5);
+}
+.mq-sign-in{
+  position:relative; border-radius:5px; padding:12px 12px 12px 44px;
+  display:flex; align-items:center; justify-content:center;
+  background: radial-gradient(130% 140% at 50% -10%, #C41E43 0%, #8A0A28 52%, #560415 100%);
+  box-shadow: inset 0 0 0 1.5px rgba(255,240,180,.5), inset 0 0 26px rgba(50,0,10,.55);
+}
+.mq-bolt{
+  position:absolute; left:11px; top:50%; transform:translateY(-50%);
+  width:26px; height:26px; color:#FFF3B8; filter: drop-shadow(0 0 6px rgba(255,214,110,.85));
+}
+.mq-bolt svg{ width:100%; height:100%; display:block; }
+.mq-sign-t{
+  display:block; text-align:center; font-family:var(--mq-font);
+  font-size:clamp(14px,4.9vw,17px); font-weight:800; letter-spacing:.9px;
+  text-transform:uppercase; line-height:1.06;
+  background: linear-gradient(180deg,#FFFBDF 0%,#FFE9A2 28%,#F3C24B 52%,#B8810F 74%,#F7DC8A 100%);
+  -webkit-background-clip:text; background-clip:text;
+  color:transparent; -webkit-text-fill-color:transparent;
+  filter: drop-shadow(0 1px 0 rgba(70,20,0,.55)) drop-shadow(0 2px 4px rgba(70,20,0,.4));
+}
+
+/* stacked marquee sections should read as one continuous band */
+.mq + .mq{ margin-top:0; }
+.mq + .mq::after{ display:none; }
+.mq-flush{ padding-top:0; }
+.mq-grid2.one{ grid-template-columns:1fr; }
+
+</style>
+
+<style>
+/* ============================================================
+   v19 - the lit-up gold frame on the hero banner, and the fee strip
+   ============================================================ */
+
+/* The banner card sits inside a lit gold/orange halo, like the
+   reference. Layered rings give the glow without an extra element. */
+.banner-slide.adv{
+  border-radius:16px;
+  box-shadow:
+    0 0 0 1.5px rgba(255,224,148,.98),
+    0 0 0 3.5px rgba(255,168,48,.58),
+    0 0 15px 3px rgba(255,146,20,.46),
+    0 10px 24px rgba(140,60,0,.26);
+}
+.banner-slide.adv .adv-strip{
+  background:#fff; padding:9px 9px 9px 13px; min-height:58px; gap:9px;
+}
+.banner-slide.adv .adv-brand{
+  display:flex; align-items:baseline; gap:7px; min-width:0; flex-wrap:nowrap;
+  text-transform:none;
+}
+.banner-slide.adv .adv-brand b{
+  font-size:14px; font-weight:800; letter-spacing:.2px; color:#1B1D21;
+  text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.banner-slide.adv .adv-brand i{
+  font-style:normal; font-size:10px; font-weight:700; letter-spacing:.7px;
+  color:#9AA0A8; text-transform:uppercase; white-space:nowrap; flex-shrink:0;
+}
+.banner-slide.adv .adv-cta{
+  background: linear-gradient(180deg,#FFDE63 0%,#F7B426 52%,#E89A0C 100%);
+  color:#3A2400; font-weight:800; letter-spacing:.2px; border-radius:10px;
+  padding:10px 13px;
+  box-shadow: 0 3px 10px rgba(190,120,0,.36), inset 0 1px 0 rgba(255,255,255,.6);
+}
+
+/* ---------------------------------------------------- the fee strip */
+.mq-fee{
+  display:flex; align-items:center; gap:10px; margin:14px 12px 0; padding:9px 11px;
+  background:#fff; border-radius:11px;
+  box-shadow: 0 0 0 1.5px rgba(255,63,108,.34), 0 3px 11px rgba(150,40,80,.13);
+}
+.mq-fee-row{
+  display:flex; align-items:center; gap:8px; flex:1; min-width:0; flex-wrap:wrap;
+}
+.mq-fee-i{
+  font-family:var(--mq-font); font-size:11.5px; font-weight:700; color:#C4143C;
+  white-space:nowrap;
+}
+.mq-fee-i s{ color:#9AA0A8; font-weight:600; margin:0 1px; }
+.mq-fee-i b{ color:#0E8A3E; font-weight:800; }
+.mq-fee-sep{ color:#EBC9D4; font-weight:800; }
+.mq-fee-tag{
+  display:inline-flex; align-items:center; gap:4px; flex-shrink:0;
+  background: linear-gradient(180deg,#31C266,#118C41); color:#fff;
+  font-family:var(--mq-font); font-size:10px; font-weight:800; letter-spacing:.4px;
+  padding:7px 9px; border-radius:8px; text-transform:uppercase;
+  box-shadow: 0 3px 9px rgba(10,110,50,.32), inset 0 1px 0 rgba(255,255,255,.28);
+}
+.mq-fee-tag svg{ width:13px; height:13px; flex-shrink:0; }
+</style>
+
+<script id="nexcart-marquee-v18">
+/* ============================================================
+   NEXCART marquee sections  (v18)
+
+   The content is built from the shop's own products and
+   categories - nothing is hard-coded copy about a discount that
+   does not exist. Every "X% off" on screen is worked out from
+   that product's real price and MRP.
+   ============================================================ */
+(function(){
+  'use strict';
+
+  function esc(s){
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+      return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+    });
+  }
+  function money(n){
+    try{ if(typeof formatMoney === 'function') return formatMoney(n); }catch(e){}
+    return '\u20B9' + n;
+  }
+  var NOTE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<rect x="2" y="6" width="20" height="12" rx="2.4"/>' +
+    '<circle cx="12" cy="12" r="2.6"/><path d="M6 10v4M18 10v4"/></svg>';
+
+  /* a local chevron, so this block does not lean on the core icon helper */
+  var CHEV = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" ' +
+             'stroke-linecap="round" stroke-linejoin="round" ' +
+             'style="width:13px;height:13px;vertical-align:-2px">' +
+             '<path d="m9 6 6 6-6 6"/></svg>';
+  function prods(){ return (typeof DB !== 'undefined' && DB.products) ? DB.products : []; }
+  function cats(){  return (typeof DB !== 'undefined' && DB.categories) ? DB.categories : []; }
+  function catName(id){
+    var c = cats().filter(function(x){ return x.id === id; })[0];
+    return c ? c.name : '';
+  }
+  function off(p){
+    if(!p || !p.mrp || p.mrp <= p.price) return 0;
+    return Math.max(1, Math.round((1 - p.price / p.mrp) * 100));
+  }
+  /* The strip on a card shows a brand when the product has one, otherwise the
+     category - never an invented brand name. */
+  function brandOf(p){
+    return (p.brand || '').trim() || catName(p.category) || 'Nexcart';
+  }
+  function top(list, n){
+    return list.slice().sort(function(a, b){ return off(b) - off(a); }).slice(0, n);
+  }
+  function cheapest(list, n){
+    return list.slice().sort(function(a, b){ return a.price - b.price; }).slice(0, n);
+  }
+
+  /* ---------------------------------------------- gold vocabulary */
+  var CURL =
+    '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+      '<path d="M1 23V11.5C1 5.7 5.7 1 11.5 1H23" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>' +
+      '<path d="M5 23V13.2C5 8.6 8.6 5 13.2 5H23" stroke="#A97610" stroke-width="1.05"/>' +
+    '</svg>';
+
+  function corners(){
+    return ['tl','tr','bl','br'].map(function(k){
+      return '<i class="orn-corner ' + k + '">' + CURL + '</i>';
+    }).join('');
+  }
+  function ornCard(inner, extra){
+    return '<div class="orn-card ' + (extra || '') + '">' + corners() +
+             '<div class="orn-card-in">' + inner + '</div>' +
+           '</div>';
+  }
+
+  /* The gradient and filter definitions live once, in a hidden svg, and the
+     plaques reference them by id. */
+  function defs(){
+    if(document.getElementById('mqDefs')) return '';
+    return '<svg id="mqDefs" width="0" height="0" style="position:absolute" aria-hidden="true">' +
+      '<defs>' +
+        '<linearGradient id="mqGoldV" x1="0" y1="0" x2="0" y2="1">' +
+          '<stop offset="0" stop-color="#FFF8CC"/><stop offset=".2" stop-color="#EFC257"/>' +
+          '<stop offset=".44" stop-color="#B07C10"/><stop offset=".58" stop-color="#F7D570"/>' +
+          '<stop offset=".78" stop-color="#A96B08"/><stop offset="1" stop-color="#E9C362"/>' +
+        '</linearGradient>' +
+        '<linearGradient id="mqGoldH" x1="0" y1="0" x2="1" y2="0">' +
+          '<stop offset="0" stop-color="#8C5A05"/><stop offset=".2" stop-color="#EFC257"/>' +
+          '<stop offset=".5" stop-color="#FFF3B8"/><stop offset=".8" stop-color="#EFC257"/>' +
+          '<stop offset="1" stop-color="#8C5A05"/>' +
+        '</linearGradient>' +
+        '<linearGradient id="mqVelvet" x1="0" y1="0" x2="0" y2="1">' +
+          '<stop offset="0" stop-color="#C41E43"/><stop offset=".55" stop-color="#8A0A28"/>' +
+          '<stop offset="1" stop-color="#5E0418"/>' +
+        '</linearGradient>' +
+        '<filter id="mqGlow" x="-30%" y="-30%" width="160%" height="160%">' +
+          '<feGaussianBlur stdDeviation="1.9" result="b"/>' +
+          '<feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>' +
+        '</filter>' +
+      '</defs></svg>';
+  }
+
+  /* The big arched theatre plaque. */
+  function plaque(t1, t2, small){
+    return '<div class="mq-plaque' + (small ? ' mq-plaque--small' : '') + '">' +
+      '<svg viewBox="0 0 320 108" fill="none" aria-hidden="true">' +
+        '<path d="M10 96C10 40 78 10 160 10s150 30 150 86Z" fill="url(#mqGoldV)"/>' +
+        '<path d="M28 92C28 47 86 22 160 22s132 25 132 70Z" fill="url(#mqVelvet)"/>' +
+        '<path d="M28 92C28 47 86 22 160 22s132 25 132 70" stroke="#FFE9A0" stroke-width="6.5" ' +
+              'stroke-linecap="round" stroke-dasharray="0.1 12.6" filter="url(#mqGlow)"/>' +
+        '<path d="M28 92C28 47 86 22 160 22s132 25 132 70" stroke="url(#mqGoldH)" stroke-width="1.8"/>' +
+        '<path d="M10 96C10 40 78 10 160 10s150 30 150 86" stroke="url(#mqGoldH)" stroke-width="1.4" opacity=".85"/>' +
+        '<rect x="16" y="90" width="288" height="12" rx="6" fill="url(#mqGoldV)"/>' +
+        '<rect x="24" y="94" width="272" height="3.6" rx="1.8" fill="rgba(255,246,196,.42)"/>' +
+      '</svg>' +
+      '<span class="mq-plaque-t">' + esc(t1) + (t2 ? '<br>' + esc(t2) : '') + '</span>' +
+    '</div>' +
+    '<div class="mq-jewels">' + new Array(10).join('<i></i>') + '</div>';
+  }
+
+  /* A straight marquee sign, for the second headline. */
+  function sign(t1, t2){
+    return '<div class="mq-sign">' +
+      '<div class="mq-sign-in">' +
+        '<span class="mq-bolt">' +
+          '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">' +
+            '<path d="M13.6 1.5 4.2 13.1a.7.7 0 0 0 .54 1.15h4.9l-1.75 8.2a.7.7 0 0 0 1.24.58l9.4-11.6a.7.7 0 0 0-.54-1.15h-4.9l1.75-8.2a.7.7 0 0 0-1.24-.58Z"/>' +
+          '</svg>' +
+        '</span>' +
+        '<span class="mq-sign-t">' + esc(t1) + (t2 ? '<br>' + esc(t2) : '') + '</span>' +
+      '</div>' +
+    '</div>';
+  }
+
+  /* ---------------------------------------------------------------- VIP board */
+  /* Filled from the owner's own active coupons, so every figure on it is a real
+     offer that exists in the shop. */
+  function vipHTML(){
+    var cps = ((typeof DB !== 'undefined' && DB.coupons) || [])
+                .filter(function(c){ return c.active; }).slice(0, 3);
+    var tiles;
+    if(cps.length){
+      tiles = cps.map(function(c){
+        var b = (c.type === 'percent')
+              ? ('Extra ' + c.value + '% Off*')
+              : ('Flat ' + money(c.value) + ' Off*');
+        var s = c.minOrder ? ('On orders above ' + money(c.minOrder)) : (c.desc || '');
+        return '<div class="mq-vip-tile"><b>' + esc(b) + '</b><span>' + esc(s) + '</span></div>';
+      }).join('');
+    } else {
+      tiles = top(prods(), 3).map(function(p){
+        return '<div class="mq-vip-tile"><b>Min. ' + off(p) + '% Off*</b>' +
+               '<span>' + esc(brandOf(p)) + '</span></div>';
+      }).join('');
+    }
+    if(!tiles) return '';
+    return '<div class="mq-vip">' +
+      '<div class="mq-vip-in">' + tiles +
+        '<div class="mq-vip-cta" data-mqgo="#mqDeals">' +
+          '<b>Grab The <em>Deals!</em></b><span><u>Shop Now</u></span>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  /* ---------------------------------------------------------------- deals */
+  function dealsHTML(){
+    var ps = top(prods(), 6);
+    if(ps.length < 2) return '';
+    var cards = ps.map(function(p){
+      return '<div class="mq-deal" data-mqpid="' + p.id + '">' + ornCard(
+        '<div class="mq-deal-media"><img src="' + p.img + '" alt="" loading="lazy"></div>' +
+        '<div class="mq-brandrow">' +
+          '<span class="mq-brand">' + esc(brandOf(p)) + '</span>' +
+          '<span class="mq-more">&amp; More</span>' +
+        '</div>' +
+        '<div class="mq-caption">Min. ' + off(p) + '% Off</div>'
+      ) + '</div>';
+    }).join('');
+    return '<section class="mq" id="mqDeals">' +
+      '<div class="mq-bulbs"></div>' +
+      plaque('Sneak Peek', 'Deals') +
+      '<div class="mq-sub">Catch sale prices before the sale' + CHEV + '</div>' +
+      '<div class="mq-rail">' + cards + '</div>' +
+    '</section>';
+  }
+
+  /* ------------------------------------------------------ featured brands */
+  function featuredHTML(){
+    var rows = cats().map(function(c){
+      var ps = prods().filter(function(p){ return p.category === c.id; });
+      if(!ps.length) return null;
+      var best = top(ps, 1)[0];
+      return { name: c.name, img: c.img || best.img, off: off(best) };
+    }).filter(Boolean).sort(function(a, b){ return b.off - a.off; });
+
+    var two = rows.slice(0, 2);
+    if(!two.length) return '';
+
+    var cards = two.map(function(x){
+      return ornCard(
+        '<div class="mq-fcard-media">' +
+          '<img src="' + x.img + '" alt="" loading="lazy">' +
+          '<div class="mq-fcard-copy">' +
+            '<span>' + (x.off ? 'Upgrade Now' : 'Fresh Picks') + '</span>' +
+            '<b>' + (x.off ? ('UP TO ' + x.off + '% OFF') : 'SHOP NOW') + '</b>' +
+          '</div>' +
+        '</div>' +
+        '<div class="mq-fcard-strip">' + esc(x.name) + '</div>',
+        'mq-fcard'
+      );
+    }).join('');
+
+    var wide = top(prods(), 1)[0];
+    var wideHTML = wide ? (
+      '<div class="mq-wide" data-mqpid="' + wide.id + '">' +
+        '<div class="mq-wide-media"><img src="' + wide.img + '" alt="" loading="lazy"></div>' +
+        '<div class="mq-wide-right">' +
+          '<span class="mq-wide-brand">' + esc(brandOf(wide)) + '</span>' +
+          '<b>' + (off(wide) ? 'UP TO ' + off(wide) + '% OFF' : 'SHOP NOW') + '</b>' +
+        '</div>' +
+        '<span class="mq-ad">AD</span>' +
+      '</div>' +
+      '<div class="mq-dots"><i class="on"></i><i></i><i></i></div>'
+    ) : '';
+
+    return '<section class="mq mq-flush" id="mqFeatured">' +
+      '<div class="mq-band"><span class="mq-band-t">Featured Brands</span></div>' +
+      '<div class="mq-grid2' + (two.length < 2 ? ' one' : '') + '">' + cards + '</div>' +
+      wideHTML +
+    '</section>';
+  }
+
+  /* -------------------------------------------------------- lowest prices */
+  function lowestHTML(){
+    var ps = cheapest(prods(), 6);
+    if(ps.length < 2) return '';
+    var cards = ps.map(function(p){
+      return '<div class="mq-low" data-mqpid="' + p.id + '">' + ornCard(
+        '<div class="mq-low-media"><img src="' + p.img + '" alt="" loading="lazy"></div>' +
+        '<div class="mq-low-name">' + esc(brandOf(p)) + '</div>' +
+        '<div class="mq-low-price">' + money(p.price) +
+          (p.mrp > p.price ? '<s>' + money(p.mrp) + '</s>' : '') + '</div>'
+      ) + '</div>';
+    }).join('');
+    return '<section class="mq" id="mqLowest">' +
+      '<div class="mq-bulbs"></div>' +
+      sign('Lowest Prices', 'In Our Store') +
+      '<div class="mq-rail">' + cards + '</div>' +
+    '</section>';
+  }
+
+  /* ------------------------------------------------------------ fee strip */
+  /* Reads the shop's own delivery settings, so the figures are the real ones. */
+  function feeHTML(){
+    var st = (typeof DB !== 'undefined' && DB.settings) || {};
+    var fee = Number(st.shippingFee || 0), thr = Number(st.freeShipThreshold || 0);
+    var items = [];
+    if(fee > 0 && thr > 0){
+      items.push('Delivery Fee <s>' + money(fee) + '</s> <b>FREE</b> above ' + money(thr));
+    } else if(thr > 0){
+      items.push('Delivery <b>FREE</b> above ' + money(thr));
+    } else {
+      items.push('Delivery available across India');
+    }
+    if(st.codEnabled !== false){
+      items.push('Cash on Delivery <b>\u20B90</b> extra');
+    }
+    if(!items.length) return '';
+    return '<div class="mq-fee">' +
+      '<div class="mq-fee-row">' +
+        items.map(function(t){ return '<span class="mq-fee-i">' + t + '</span>'; })
+             .join('<span class="mq-fee-sep">|</span>') +
+      '</div>' +
+      '<div class="mq-fee-tag">' + NOTE + 'Only For You!</div>' +
+    '</div>';
+  }
+
+  /* ---------------------------------------------------------------- slot */
+  function mqSlot(where){
+    try{
+      var s = (typeof DB !== 'undefined' && DB.marquee) || {};
+      var on = function(k){ return s[k] !== false; };
+      if(where === 'vip')  return on('vip') ? vipHTML() : '';
+      if(where === 'fee')  return on('fee') ? feeHTML() : '';
+      if(where === 'main'){
+        var h = '';
+        if(on('deals'))    h += dealsHTML();
+        if(on('featured')) h += featuredHTML();
+        if(on('lowest'))   h += lowestHTML();
+        return h;
+      }
+    }catch(e){}
+    return '';
+  }
+  /* the gradients are defined once for the whole page */
+  function ensureDefs(){
+    if(document.getElementById('mqDefs')) return;
+    var box = document.createElement('div');
+    box.innerHTML = defs();
+    if(box.firstChild) document.body.appendChild(box.firstChild);
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ensureDefs);
+  else ensureDefs();
+
+  window.mqSlot = mqSlot;      // the home template calls this
+
+  /* -------------------------------------------------------------- binding */
+  document.addEventListener('click', function(e){
+    var card = e.target.closest('[data-mqpid]');
+    if(card && typeof openProductDetail === 'function'){
+      openProductDetail(card.dataset.mqpid);
+      return;
+    }
+    var go = e.target.closest('[data-mqgo]');
+    if(go){
+      var t = document.querySelector(go.dataset.mqgo);
+      if(t && t.scrollIntoView) t.scrollIntoView({ behavior:'smooth', block:'start' });
+    }
+  });
 })();
 </script>
 
