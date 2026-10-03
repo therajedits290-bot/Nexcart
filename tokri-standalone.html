@@ -2477,9 +2477,9 @@ function defaultDB(){
     ],
     /* Hero offer banners (home carousel) */
     banners: [
-      { id:'b1', badge:'Big Billion Days', title:'Big Savings Days', sub:'Up to 70% off on Fashion, Electronics & more', cta:'Shop Now', bg:'linear-gradient(135deg,#FF3F6C 0%,#FF905A 100%)', img:'', active:true },
-      { id:'b2', badge:'Mega Offer', title:'Flat ₹300 Off', sub:'On your first order above ₹999', cta:'Claim Offer', bg:'linear-gradient(135deg,#F7971E 0%,#FF4E50 100%)', img:'', active:true },
-      { id:'b3', badge:'Free Delivery', title:'Zero Shipping Fees', sub:'On every order above ₹499 — no coupon needed', cta:'Start Shopping', bg:'linear-gradient(135deg,#11998E 0%,#0F7B72 100%)', img:'', active:true },
+      { id:'b1', brand:'', ad:false, badge:'Big Billion Days', title:'Big Savings Days', sub:'Up to 70% off on Fashion, Electronics & more', cta:'Shop Now', bg:'linear-gradient(135deg,#FF3F6C 0%,#FF905A 100%)', img:'', active:true },
+      { id:'b2', brand:'', ad:false, badge:'Mega Offer', title:'Flat ₹300 Off', sub:'On your first order above ₹999', cta:'Claim Offer', bg:'linear-gradient(135deg,#F7971E 0%,#FF4E50 100%)', img:'', active:true },
+      { id:'b3', brand:'', ad:false, badge:'Free Delivery', title:'Zero Shipping Fees', sub:'On every order above ₹499 — no coupon needed', cta:'Start Shopping', bg:'linear-gradient(135deg,#11998E 0%,#0F7B72 100%)', img:'', active:true },
     ],
     /* Promo codes usable at checkout */
     coupons: [
@@ -3381,23 +3381,22 @@ function buildHome(main){
     <div class="hero-wrap">
       <div class="banner-carousel" id="bannerCarousel">
         ${activeBanners.map(bn=>`
-          <div class="banner-slide ${bn.img?'has-img':''}" data-banner="${bn.id}"
-               style="${bn.img?'':`background:${bn.bg||'linear-gradient(135deg,#FF3F6C 0%,#FF905A 100%)'};`}">
-            ${bn.img?`<img src="${bn.img}" alt=""><div class="bs-shade"></div>`:''}
-            <div class="bs-inner">
-              ${bn.badge?`<div class="banner-badge">${bn.badge}</div>`:''}
-              <div class="banner-title">${bn.title||''}</div>
-              ${bn.sub?`<div class="banner-sub">${bn.sub}</div>`:''}
-              ${bn.cta?`<div class="banner-cta">${bn.cta} ${icon('arrowRight')}</div>`:''}
+          <div class="banner-slide adv" data-banner="${bn.id}">
+            <div class="adv-media ${bn.img?'':'adv-grad'}" style="${bn.img?'':`--adv-bg:${bn.bg||'linear-gradient(135deg,#FF3F6C 0%,#FF905A 100%)'};`}">
+              ${bn.img?`<img src="${bn.img}" alt="">`:''}
+              <div class="adv-shade"></div>
+              ${bn.ad?`<span class="adv-ad">AD</span>`:''}
+              <div class="adv-copy">
+                ${bn.badge?`<div class="adv-badge">${bn.badge}</div>`:''}
+                ${bn.sub?`<div class="adv-sub">${bn.sub}</div>`:''}
+                <div class="adv-title">${bn.title||''}</div>
+              </div>
+            </div>
+            <div class="adv-strip">
+              <div class="adv-brand">${bn.brand||appName}${bn.brandSub?`<small>${bn.brandSub}</small>`:''}</div>
+              <span class="adv-cta">${bn.cta||'Shop Now'} ${icon('arrowRight')}</span>
             </div>
           </div>`).join('')}
-      </div>
-      <div class="hero-foot">
-        <div class="hero-foot-brand">
-          <span class="hf-mark"></span>
-          <span>${appName}</span>
-        </div>
-        <button class="hf-shop" data-goto="categories">Shop Now ${icon('arrowRight')}</button>
       </div>
       <div class="banner-dots" id="bannerDots">
         ${activeBanners.map((_,i)=>`<i class="${i===0?'on':''}"></i>`).join('')}
@@ -3535,9 +3534,23 @@ function initBannerCarousel(banners){
   const car = $('#bannerCarousel');
   if(!car || !banners.length) return;
   const dots = $$('#bannerDots i');
+  const slides = $$('.banner-slide', car);
+
+  /* Measure the slides themselves. The carousel has side padding and a gap,
+     so scrollLeft / clientWidth drifted about 20px per slide and the dots
+     lost track after the first one. */
+  const baseOffset = ()=> slides.length ? slides[0].offsetLeft : 0;
+  const nearestIndex = ()=>{
+    let best = 0, bd = Infinity;
+    slides.forEach((s,i)=>{
+      const d = Math.abs((s.offsetLeft - baseOffset()) - car.scrollLeft);
+      if(d < bd){ bd = d; best = i; }
+    });
+    return best;
+  };
 
   const syncDots = ()=>{
-    const idx = Math.round(car.scrollLeft / car.clientWidth);
+    const idx = nearestIndex();
     dots.forEach((d,i)=> d.classList.toggle('on', i===idx));
   };
   car.addEventListener('scroll', ()=>{ window.clearTimeout(car._t); car._t = window.setTimeout(syncDots, 60); }, {passive:true});
@@ -3556,9 +3569,8 @@ function initBannerCarousel(banners){
   if(banners.length > 1){
     bannerTimer = window.setInterval(()=>{
       if(!document.body.contains(car)){ window.clearInterval(bannerTimer); bannerTimer = null; return; }
-      const idx = Math.round(car.scrollLeft / car.clientWidth);
-      const next = (idx + 1) % banners.length;
-      car.scrollTo({ left: next * car.clientWidth, behavior:'smooth' });
+      const next = (nearestIndex() + 1) % slides.length;
+      car.scrollTo({ left: slides[next].offsetLeft - baseOffset(), behavior:'smooth' });
     }, 4200);
   }
 }
@@ -6740,6 +6752,14 @@ function bannerForm(bid, onSaved){
           <input class="form-input" id="bfSub" placeholder="e.g. Up to 70% off on Fashion" value="${b?(b.sub||''):''}"></div>
         <div class="form-group"><label class="form-label">Button text</label>
           <input class="form-input" id="bfCta" placeholder="e.g. Shop Now" value="${b?(b.cta||'Shop Now'):'Shop Now'}"></div>
+        <div class="form-group"><label class="form-label">Brand name (on the white strip)</label>
+          <input class="form-input" id="bfBrand" placeholder="Leave empty to use the shop name" value="${b?(b.brand||''):''}"></div>
+        <div class="form-group"><label class="form-label">Brand line (optional, small text)</label>
+          <input class="form-input" id="bfBrandSub" placeholder="e.g. Sportswear" value="${b?(b.brandSub||''):''}"></div>
+        <label style="display:flex;align-items:center;gap:10px;margin:0 0 16px;font-size:13px;font-weight:700;color:var(--ink-soft);cursor:pointer;">
+          <input type="checkbox" id="bfAd" ${b&&b.ad?'checked':''} style="width:18px;height:18px;accent-color:var(--brand);">
+          Show the small "AD" tag on the photo
+        </label>
         <div class="form-group"><label class="form-label">Background photo (optional)</label>
           <input type="file" id="bfFile" accept="image/*" style="display:none;">
           <div id="bfDrop" style="border-radius:12px;background:var(--bg);box-shadow:var(--shadow-inset);padding:16px;text-align:center;color:var(--ink-faint);font-size:12.5px;cursor:pointer;">
@@ -6804,6 +6824,9 @@ function bannerForm(bid, onSaved){
       title,
       sub:   overlay.querySelector('#bfSub').value.trim(),
       cta:   overlay.querySelector('#bfCta').value.trim() || 'Shop Now',
+      brand: overlay.querySelector('#bfBrand').value.trim(),
+      brandSub: overlay.querySelector('#bfBrandSub').value.trim(),
+      ad:    overlay.querySelector('#bfAd').checked,
       bg:    chosenBg,
       img:   chosenImg
     };
@@ -8079,5 +8102,906 @@ function renderAdminSettings(shell){
 })();
 
 </script>
+<!-- ============================================================
+     NEXCART search screen + ad-frame banners  (v17)
+     Added on the owner's request:
+       - banners restyled to the ad frame with a brand strip
+       - tapping the search bar opens a real search screen with
+         recent searches, filters and a result grid
+       - working voice search, working camera + photo upload
+     ============================================================ -->
+<style>
+/* ---------------- banner: ad frame ---------------- */
+.banner-slide.adv{
+  padding:0; min-height:0; display:flex; flex-direction:column;
+  justify-content:flex-start; color:var(--ink);
+  background: var(--surface);
+  border-radius:14px; overflow:hidden;
+  box-shadow: 0 1px 3px rgba(40,44,63,.10), 0 0 0 1px rgba(40,44,63,.055);
+}
+.banner-slide.adv::after{ display:none; }
+.banner-slide.adv:active{ transform:scale(.988); }
+
+.adv-media{
+  position:relative; height:186px; overflow:hidden; flex-shrink:0;
+  display:flex; flex-direction:column; justify-content:flex-end;
+}
+.adv-media > img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+/* Gradient banners get the same treatment as photo banners so both
+   frame styles read as one family. */
+.adv-media.adv-grad{ background: var(--adv-bg, linear-gradient(135deg,#FF3F6C 0%,#FF905A 100%)); }
+.adv-shade{
+  position:absolute; inset:0; pointer-events:none;
+  background: linear-gradient(180deg, rgba(20,20,30,0) 34%, rgba(20,20,30,.22) 58%, rgba(20,20,30,.72) 100%);
+}
+.adv-ad{
+  position:absolute; top:9px; right:9px; z-index:3;
+  background: rgba(20,20,30,.40); color:#fff; font-size:9.5px; font-weight:800;
+  letter-spacing:.7px; padding:3px 7px; border-radius:5px;
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+}
+.adv-copy{ position:relative; z-index:2; padding:0 15px 14px; color:#fff; }
+.adv-badge{
+  display:inline-block; background: rgba(255,255,255,.20); border:1px solid rgba(255,255,255,.38);
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+  font-size:10px; font-weight:800; letter-spacing:.5px; text-transform:uppercase;
+  padding:3px 9px; border-radius:999px; margin-bottom:8px;
+}
+.adv-sub{ font-size:13.5px; font-weight:600; opacity:.97; line-height:1.3; }
+.adv-title{ font-size:24px; font-weight:800; line-height:1.1; letter-spacing:-.4px; margin-top:2px; }
+.adv-strip{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  background: var(--surface); padding:9px 11px 9px 14px; min-height:54px;
+}
+.adv-brand{
+  font-size:14.5px; font-weight:800; letter-spacing:.2px; color:var(--ink);
+  text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  min-width:0;
+}
+.adv-brand small{ display:block; font-size:10px; font-weight:600; letter-spacing:0; text-transform:none; color:var(--ink-faint); margin-top:1px; }
+.adv-cta{
+  display:inline-flex; align-items:center; gap:5px; flex-shrink:0;
+  background: var(--brand); color:#fff; font-size:12.5px; font-weight:800;
+  padding:9px 14px; border-radius:9px; white-space:nowrap;
+  box-shadow: 0 3px 10px rgba(255,63,108,.28);
+}
+.adv-cta .icon{ width:13px; height:13px; }
+
+/* ---------------- search screen ---------------- */
+.ncs{
+  position:fixed; inset:0; z-index:500; background: var(--bg);
+  display:flex; flex-direction:column;
+  transform: translateX(100%); transition: transform .22s cubic-bezier(.22,1,.36,1);
+  visibility:hidden;
+}
+.ncs.open{ transform: translateX(0); visibility:visible; }
+.ncs-top{
+  display:flex; align-items:center; gap:10px; padding: calc(10px + env(safe-area-inset-top)) 14px 10px;
+  background: var(--surface); box-shadow: var(--shadow-1); position:relative; z-index:4; flex-shrink:0;
+}
+.ncs-back{
+  width:34px; height:34px; border-radius:50%; flex-shrink:0; border:0; background:transparent;
+  color: var(--ink); display:flex; align-items:center; justify-content:center; cursor:pointer;
+}
+.ncs-back .icon{ width:21px; height:21px; }
+.ncs-field{
+  flex:1; min-width:0; display:flex; align-items:center; gap:8px;
+  background: var(--surface-2); border-radius:10px; padding:0 8px 0 12px; height:42px;
+  box-shadow: var(--shadow-inset);
+}
+.ncs-field input{
+  flex:1; min-width:0; border:0; outline:0; background:transparent;
+  font-size:14px; font-family:inherit; color: var(--ink);
+}
+.ncs-field input::placeholder{ color: var(--ink-faint); }
+.ncs-thumb{
+  width:26px; height:26px; border-radius:6px; object-fit:cover; flex-shrink:0;
+  box-shadow: 0 0 0 1px rgba(40,44,63,.12);
+}
+.ncs-x{
+  width:26px; height:26px; border-radius:50%; border:0; flex-shrink:0; cursor:pointer;
+  background: rgba(40,44,63,.10); color: var(--ink-soft);
+  display:flex; align-items:center; justify-content:center;
+}
+.ncs-x .icon{ width:12px; height:12px; }
+.ncs-ib{
+  width:32px; height:32px; border-radius:8px; border:0; background:transparent; flex-shrink:0;
+  color: var(--ink-soft); display:flex; align-items:center; justify-content:center; cursor:pointer;
+}
+.ncs-ib .icon{ width:20px; height:20px; }
+.ncs-ib.rec{ color: var(--brand); animation: ncsPulse 1s ease-in-out infinite; }
+@keyframes ncsPulse{ 0%,100%{ opacity:1; } 50%{ opacity:.35; } }
+
+.ncs-body{ flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding-bottom:96px; }
+
+.ncs-sec{ padding:14px 14px 4px; }
+.ncs-sec-head{
+  display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:11px;
+}
+.ncs-sec-head h3{ font-size:14.5px; font-weight:800; color: var(--ink); letter-spacing:-.1px; }
+.ncs-clear{
+  border:0; background:transparent; color: var(--brand); font-size:12.5px; font-weight:800;
+  cursor:pointer; font-family:inherit; padding:4px 2px;
+}
+
+/* recent-search chips: photo + text, like the reference */
+.ncs-chips{ display:flex; flex-wrap:wrap; gap:9px; }
+.ncs-chip{
+  display:flex; align-items:center; gap:9px; background: var(--surface);
+  border-radius:999px; padding:5px 14px 5px 5px; cursor:pointer; max-width:100%;
+  box-shadow: 0 1px 2px rgba(40,44,63,.07), 0 0 0 1px rgba(40,44,63,.06);
+  transition: transform .14s ease;
+}
+.ncs-chip:active{ transform: scale(.97); }
+.ncs-chip img{ width:32px; height:32px; border-radius:50%; object-fit:cover; flex-shrink:0; }
+.ncs-chip .ncs-chip-ic{
+  width:32px; height:32px; border-radius:50%; flex-shrink:0; background: var(--surface-2);
+  color: var(--ink-faint); display:flex; align-items:center; justify-content:center;
+}
+.ncs-chip .ncs-chip-ic .icon{ width:15px; height:15px; }
+.ncs-chip span{
+  font-size:12.5px; font-weight:600; color: var(--ink-soft);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:190px;
+}
+
+/* filter row */
+.ncs-filters{
+  display:flex; gap:8px; overflow-x:auto; padding:12px 14px 10px; scrollbar-width:none;
+  border-bottom:1px solid var(--line); background: var(--bg);
+  position:sticky; top:0; z-index:3;
+}
+.ncs-filters::-webkit-scrollbar{ display:none; }
+.ncs-f{
+  display:inline-flex; align-items:center; gap:5px; flex-shrink:0; cursor:pointer;
+  background: var(--surface); border:1px solid var(--line); border-radius:999px;
+  padding:8px 13px; font-size:12.5px; font-weight:700; color: var(--ink-soft);
+  font-family:inherit; white-space:nowrap;
+}
+.ncs-f .icon{ width:14px; height:14px; }
+.ncs-f.on{ border-color: var(--brand); color: var(--brand); background: var(--brand-light); }
+
+.ncs-results{ padding:14px 14px 0; }
+.ncs-note{
+  font-size:12px; color: var(--ink-faint); font-weight:600; margin:0 0 12px;
+  display:flex; align-items:center; gap:6px;
+}
+.ncs-hint{ padding:34px 26px; text-align:center; color: var(--ink-faint); }
+.ncs-hint .icon{ width:38px; height:38px; margin-bottom:12px; color: var(--line); }
+.ncs-hint h4{ font-size:14.5px; font-weight:800; color: var(--ink-soft); margin-bottom:5px; }
+.ncs-hint p{ font-size:12.5px; line-height:1.5; }
+
+/* photo being searched */
+.ncs-qphoto{
+  display:flex; align-items:center; gap:11px; margin:0 0 14px;
+  background: var(--surface-2); border-radius:12px; padding:9px 12px;
+}
+.ncs-qphoto img{ width:46px; height:46px; border-radius:9px; object-fit:cover; flex-shrink:0; }
+.ncs-qphoto div{ min-width:0; }
+.ncs-qphoto b{ display:block; font-size:13px; color: var(--ink); font-weight:800; }
+.ncs-qphoto span{ font-size:11.5px; color: var(--ink-faint); }
+
+.ncs-swatch{
+  width:16px; height:16px; border-radius:50%; display:inline-block; flex-shrink:0;
+  box-shadow: 0 0 0 1px rgba(40,44,63,.16);
+}
+
+/* bottom action bar: Image Search / Camera Search */
+.ncs-actions{
+  position:absolute; left:0; right:0; bottom:0; z-index:5;
+  display:flex; gap:10px; padding:10px 14px calc(10px + env(safe-area-inset-bottom));
+  background: var(--surface);
+  box-shadow: 0 -2px 16px rgba(20,20,30,.09);
+}
+.ncs-act{
+  flex:1; display:flex; align-items:center; justify-content:center; gap:8px;
+  background: var(--surface); border:1px solid var(--line); border-radius:11px;
+  padding:12px 8px; font-size:12.5px; font-weight:800; color: var(--ink);
+  font-family:inherit; cursor:pointer;
+}
+.ncs-act .icon{ width:17px; height:17px; color: var(--brand); }
+.ncs-act:active{ background: var(--surface-2); }
+
+/* ---------------- voice + photo sheets ---------------- */
+.ncv, .ncp{
+  position:fixed; inset:0; z-index:560; background: rgba(15,15,20,.5);
+  display:flex; align-items:flex-end; justify-content:center;
+  opacity:0; visibility:hidden; transition: opacity .18s ease, visibility .18s;
+}
+.ncv.open, .ncp.open{ opacity:1; visibility:visible; }
+.ncv-card, .ncp-card{
+  width:100%; max-width:480px; background: var(--surface);
+  border-radius:24px 24px 0 0; padding:24px 22px calc(24px + env(safe-area-inset-bottom));
+  text-align:center; transform: translateY(16px); transition: transform .22s cubic-bezier(.22,1,.36,1);
+}
+.ncv.open .ncv-card, .ncp.open .ncp-card{ transform: translateY(0); }
+.ncv-card h3, .ncp-card h3{ font-size:16px; font-weight:800; color: var(--ink); margin-bottom:6px; }
+.ncv-card p, .ncp-card p{ font-size:12.5px; color: var(--ink-faint); line-height:1.5; }
+.ncv-mic{
+  width:74px; height:74px; border-radius:50%; margin:14px auto 16px;
+  background: var(--brand); color:#fff; display:flex; align-items:center; justify-content:center;
+  box-shadow: 0 8px 24px rgba(255,63,108,.34);
+}
+.ncv-mic .icon{ width:34px; height:34px; }
+.ncv.on .ncv-mic{ animation: ncvRing 1.4s ease-out infinite; }
+@keyframes ncvRing{
+  0%{ box-shadow: 0 0 0 0 rgba(255,63,108,.45), 0 8px 24px rgba(255,63,108,.34); }
+  70%{ box-shadow: 0 0 0 22px rgba(255,63,108,0), 0 8px 24px rgba(255,63,108,.34); }
+  100%{ box-shadow: 0 0 0 0 rgba(255,63,108,0), 0 8px 24px rgba(255,63,108,.34); }
+}
+.ncv-heard{
+  font-size:16px; font-weight:800; color: var(--ink); min-height:23px; margin-bottom:14px;
+  line-height:1.35;
+}
+.ncv-acts{ display:flex; gap:10px; }
+.nc-btn{
+  flex:1; border:0; border-radius:12px; padding:13px; font-family:inherit;
+  font-size:13.5px; font-weight:800; cursor:pointer;
+}
+.nc-btn.ghost{ background: var(--surface-2); color: var(--ink-soft); }
+.nc-btn.solid{ background: var(--brand); color:#fff; }
+
+.ncp-opt{
+  display:flex; align-items:center; gap:14px; width:100%; text-align:left;
+  background: var(--surface-2); border:0; border-radius:14px; padding:15px 16px;
+  margin-top:10px; cursor:pointer; font-family:inherit;
+}
+.ncp-opt .ncp-ic{
+  width:42px; height:42px; border-radius:12px; flex-shrink:0; background: var(--brand-light);
+  color: var(--brand); display:flex; align-items:center; justify-content:center;
+}
+.ncp-opt .ncp-ic .icon{ width:20px; height:20px; }
+.ncp-opt b{ display:block; font-size:14px; font-weight:800; color: var(--ink); }
+.ncp-opt span{ font-size:11.5px; color: var(--ink-faint); }
+
+/* pickers that live inside a sheet */
+.ncs-list{ text-align:left; margin-top:4px; max-height:52vh; overflow-y:auto; }
+.ncs-opt{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:14px 4px; border-bottom:1px solid var(--line); cursor:pointer;
+  font-size:13.5px; font-weight:700; color: var(--ink);
+}
+.ncs-opt:last-child{ border-bottom:0; }
+.ncs-opt .icon{ width:17px; height:17px; color: var(--brand); }
+</style>
+<script id="nexcart-search-v17">
+/* ============================================================
+   NEXCART search v17 — search screen, voice, photo search
+   Loaded after the app's own scripts; adds behaviour only.
+   ============================================================ */
+(function(){
+  'use strict';
+
+  var S = function(inner){
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+         + 'stroke-linecap="round" stroke-linejoin="round">' + inner + '</svg>';
+  };
+  var IC = {
+    mic:    S('<path d="M12 2.75a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0v-6a3 3 0 0 0-3-3Z"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0"/><path d="M12 18v3"/>'),
+    camera: S('<path d="M3.5 8.5h2.2l1.3-2h9l1.3 2h2.2a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13.5" r="3.6"/>'),
+    gallery:S('<rect x="3" y="4.5" width="18" height="15" rx="2.2"/><circle cx="8.6" cy="10" r="1.7"/><path d="m3.4 17.4 4.7-4.4 3.4 3.1 3.3-3.1 5.8 5.2"/>'),
+    search: S('<circle cx="11" cy="11" r="6.6"/><path d="m20 20-4.3-4.3"/>'),
+    back:   S('<path d="M15 5.5 8.5 12 15 18.5"/>'),
+    x:      S('<path d="M7 7l10 10M17 7 7 17"/>'),
+    caret:  S('<path d="M6.5 9.5 12 15l5.5-5.5"/>'),
+    sort:   S('<path d="M4 7h13M4 12h9M4 17h5"/><path d="M17 12v7m0 0 2.4-2.4M17 19l-2.4-2.4"/>'),
+    grid:   S('<rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/>'),
+    check:  S('<path d="M5 12.5 10 17.5 19 7"/>'),
+    sparkle:S('<path d="M12 3.5 13.9 9l5.6 1.9-5.6 1.9L12 18.4l-1.9-5.6L4.5 10.9 10.1 9 12 3.5Z"/>'),
+    rupee:  S('<path d="M7 4.5h10M7 9h10M15.5 4.5c0 4.5-3.2 5.5-6 5.5l6.5 9.5"/>')
+  };
+  function ic(name){ return '<span class="icon">' + (IC[name] || IC.search) + '</span>'; }
+
+  var LIST = [
+    { key:'rel',   label:'Relevance' },
+    { key:'lo',    label:'Price: low to high' },
+    { key:'hi',    label:'Price: high to low' },
+    { key:'new',   label:'Newest first' },
+    { key:'deal',  label:'Biggest discount' }
+  ];
+  var RECENT_KEY = 'nexcart_recent';
+  var state = { q:'', cat:'all', sort:'rel', cheap:false, photo:'' };
+
+  /* ---------------------------------------------------------- helpers */
+  function el(id){ return document.getElementById(id); }
+  function esc(s){
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+      return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+    });
+  }
+  function toast(m){ if(typeof window.ncToast === 'function') window.ncToast(m); }
+  function prods(){ return (typeof DB !== 'undefined' && DB.products) ? DB.products : []; }
+  function cats(){  return (typeof DB !== 'undefined' && DB.categories) ? DB.categories : []; }
+  function catName(id){
+    var c = cats().filter(function(x){ return x.id === id; })[0];
+    return c ? c.name : '';
+  }
+
+  /* ---------------------------------------------------- recent searches */
+  function recentLoad(){
+    try{ var v = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]');
+         return Object.prototype.toString.call(v) === '[object Array]' ? v : []; }
+    catch(e){ return []; }
+  }
+  function recentSave(list){
+    try{ localStorage.setItem(RECENT_KEY, JSON.stringify(list.slice(0, 8))); }catch(e){}
+  }
+  /* The chip shows a real product photo, so shrink it hard — eight full
+     data URLs would blow the localStorage quota. */
+  function thumb(src, cb){
+    if(!src){ cb(''); return; }
+    var im = new Image();
+    im.onload = function(){
+      try{
+        var N = 72, c = document.createElement('canvas');
+        c.width = N; c.height = N;
+        var g = c.getContext('2d'), m = Math.min(im.width, im.height);
+        g.drawImage(im, (im.width - m) / 2, (im.height - m) / 2, m, m, 0, 0, N, N);
+        cb(c.toDataURL('image/jpeg', 0.72));
+      }catch(e){ cb(''); }
+    };
+    im.onerror = function(){ cb(''); };
+    im.src = src;
+  }
+  function recentAdd(q){
+    q = (q || '').trim();
+    if(!q) return;
+    var list = recentLoad().filter(function(r){ return r.q.toLowerCase() !== q.toLowerCase(); });
+    var hit = state.lastHit || '';
+    list.unshift({ q: q, img: hit });
+    recentSave(list);
+    thumb(hit, function(small){
+      var l2 = recentLoad();
+      for(var i = 0; i < l2.length; i++){
+        if(l2[i].q.toLowerCase() === q.toLowerCase()){ l2[i].img = small; break; }
+      }
+      recentSave(l2);
+    });
+  }
+
+  /* ------------------------------------------- colour analysis for photos */
+  /* The catalogue has no colour tags, so the photo is matched on the
+     dominant colour of each picture. That is a real comparison we can make
+     in the browser with no service behind it — and it is labelled as such
+     so nobody expects more than it does. */
+  function dominant(img){
+    try{
+      var N = 44, c = document.createElement('canvas');
+      c.width = N; c.height = N;
+      var g = c.getContext('2d');
+      g.drawImage(img, 0, 0, N, N);
+      var d = g.getImageData(0, 0, N, N).data;
+      var bins = {}, k, i;
+      for(i = 0; i < d.length; i += 4){
+        var r = d[i], gg = d[i+1], b = d[i+2];
+        if(d[i+3] < 200) continue;
+        var mx = Math.max(r, gg, b), mn = Math.min(r, gg, b);
+        if(mx > 244 && mn > 234) continue;   // near-white background
+        if(mx < 28) continue;                // near-black background
+        k = (r >> 5) + '_' + (gg >> 5) + '_' + (b >> 5);
+        if(!bins[k]) bins[k] = { n:0, r:0, g:0, b:0, s:0 };
+        var o = bins[k];
+        o.n++; o.r += r; o.g += gg; o.b += b; o.s += (mx - mn);
+      }
+      var keys = Object.keys(bins);
+      if(!keys.length) return null;
+      // a saturated colour describes a garment far better than a grey backdrop
+      keys.sort(function(a, b){
+        var A = bins[a], B = bins[b];
+        return (B.n * (1 + (B.s / B.n) / 110)) - (A.n * (1 + (A.s / A.n) / 110));
+      });
+      var w = bins[keys[0]];
+      return { r: w.r / w.n, g: w.g / w.n, b: w.b / w.n };
+    }catch(e){ return null; }   // a cross-origin picture taints the canvas
+  }
+  function dist(a, b){
+    var dr = a.r - b.r, dg = a.g - b.g, db = a.b - b.b;
+    return Math.sqrt(2 * dr * dr + 4 * dg * dg + 3 * db * db);
+  }
+  function rgb(c){ return 'rgb(' + Math.round(c.r) + ',' + Math.round(c.g) + ',' + Math.round(c.b) + ')'; }
+
+  /* ------------------------------------------------------------ sorting */
+  function sortList(ps){
+    if(state.sort === 'lo')   ps.sort(function(a, b){ return a.price - b.price; });
+    if(state.sort === 'hi')   ps.sort(function(a, b){ return b.price - a.price; });
+    if(state.sort === 'new')  ps.reverse();
+    if(state.sort === 'deal') ps.sort(function(a, b){
+      return (1 - b.price / b.mrp) - (1 - a.price / a.mrp);
+    });
+    return ps;
+  }
+  function filterList(){
+    var ps = prods().slice();
+    if(state.cat !== 'all') ps = ps.filter(function(p){ return p.category === state.cat; });
+    if(state.cheap) ps = ps.filter(function(p){ return p.price < 299; });
+    if(state.q){
+      ps = ps.filter(function(p){
+        return (p.name || '').toLowerCase().indexOf(state.q) >= 0
+            || catName(p.category).toLowerCase().indexOf(state.q) >= 0
+            || (p.brand || '').toLowerCase().indexOf(state.q) >= 0;
+      });
+    }
+    return sortList(ps);
+  }
+
+  /* ============================================================
+     the search screen
+     ============================================================ */
+  function buildPanel(){
+    if(el('ncsPanel')) return;
+    var d = document.createElement('div');
+    d.className = 'ncs';
+    d.id = 'ncsPanel';
+    d.innerHTML =
+      '<div class="ncs-top">' +
+        '<button class="ncs-back" id="ncsBack" aria-label="Back" type="button">' + ic('back') + '</button>' +
+        '<div class="ncs-field">' +
+          '<input id="ncsInput" type="text" inputmode="search" placeholder="Search for products, brands..." ' +
+                 'autocomplete="off" autocorrect="off" spellcheck="false">' +
+          '<button class="ncs-x" id="ncsClearQ" type="button" style="display:none" aria-label="Clear">' + ic('x') + '</button>' +
+          '<button class="ncs-ib" id="ncsMic" type="button" aria-label="Voice search"></button>' +
+          '<button class="ncs-ib" id="ncsCam" type="button" aria-label="Search by photo"></button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="ncs-body" id="ncsBody">' +
+        '<div id="ncsRecentsBox"></div>' +
+        '<div id="ncsFilterBox"></div>' +
+        '<div class="ncs-results" id="ncsGrid"></div>' +
+      '</div>' +
+      '<div class="ncs-actions">' +
+        '<button class="ncs-act" id="ncsActImage" type="button">' + ic('gallery') + '<span>Image Search</span></button>' +
+        '<button class="ncs-act" id="ncsActCam" type="button">' + ic('camera') + '<span>Camera Search</span></button>' +
+      '</div>';
+    document.body.appendChild(d);
+
+    el('ncsMic').innerHTML = ic('mic');
+    el('ncsCam').innerHTML = ic('camera');
+    el('ncsBack').onclick = close;
+    el('ncsClearQ').onclick = function(){ el('ncsInput').value = ''; state.q = ''; state.photo = ''; paintThumb(''); paint(); el('ncsInput').focus(); };
+    el('ncsInput').addEventListener('input', function(){
+      state.q = this.value.trim().toLowerCase();
+      state.photo = ''; paintThumb('');
+      el('ncsClearQ').style.display = this.value ? 'flex' : 'none';
+      paint();
+    });
+    el('ncsInput').addEventListener('keydown', function(e){
+      if(e.key === 'Enter' || e.keyCode === 13){
+        this.blur();
+        if(state.q){ recentAdd(el('ncsInput').value.trim()); paint(); }
+      }
+    });
+    el('ncsMic').onclick = voiceStart;
+    el('ncsCam').onclick = function(){ photoSheet('both'); };
+    el('ncsActImage').onclick = function(){ photoSheet('upload'); };
+    el('ncsActCam').onclick = function(){ pickPhoto('camera'); };
+    // a tap on a result opens the product, so put the search screen away first
+    el('ncsGrid').addEventListener('click', function(e){
+      if(e.target.closest('.product-card')){
+        if(state.q) recentAdd(el('ncsInput').value.trim());
+        setTimeout(close, 0);
+      }
+    });
+    el('ncsPanel').addEventListener('click', function(e){
+      if(e.target === el('ncsRecentsBox') || e.target === el('ncsBody')) { /* noop */ }
+    });
+    document.addEventListener('keydown', function(e){
+      if(e.key === 'Escape' && el('ncsPanel').classList.contains('open')) close();
+    });
+  }
+
+  function paintThumb(src){
+    var f = document.querySelector('.ncs-field');
+    if(!f) return;
+    var old = f.querySelector('.ncs-thumb');
+    if(old) old.remove();
+    if(!src) return;
+    var im = document.createElement('img');
+    im.className = 'ncs-thumb';
+    im.src = src;
+    f.insertBefore(im, f.firstChild);
+  }
+
+  function open(seed){
+    buildPanel();
+    if(typeof seed === 'string'){ el('ncsInput').value = seed; state.q = seed.trim().toLowerCase(); }
+    el('ncsClearQ').style.display = el('ncsInput').value ? 'flex' : 'none';
+    el('ncsPanel').classList.add('open');
+    document.documentElement.style.overflow = 'hidden';
+    paint();
+    setTimeout(function(){ try{ el('ncsInput').focus(); }catch(e){} }, 240);
+  }
+  function close(){
+    var p = el('ncsPanel');
+    if(!p) return;
+    p.classList.remove('open');
+    document.documentElement.style.overflow = '';
+    try{ el('ncsInput').blur(); }catch(e){}
+  }
+
+  /* ------------------------------------------------------ recent chips */
+  function paintRecents(){
+    var box = el('ncsRecentsBox');
+    var list = recentLoad();
+    if(!list.length){ box.innerHTML = ''; return; }
+    box.innerHTML =
+      '<div class="ncs-sec">' +
+        '<div class="ncs-sec-head">' +
+          '<h3>Recent searches</h3>' +
+          '<button class="ncs-clear" id="ncsClearAll" type="button">Clear All</button>' +
+        '</div>' +
+        '<div class="ncs-chips">' +
+          list.map(function(r){
+            return '<button class="ncs-chip" data-q="' + esc(r.q) + '" type="button">' +
+                     (r.img ? '<img src="' + r.img + '" alt="">'
+                            : '<span class="ncs-chip-ic">' + ic('search') + '</span>') +
+                     '<span>' + esc(r.q) + '</span>' +
+                   '</button>';
+          }).join('') +
+        '</div>' +
+      '</div>';
+    el('ncsClearAll').onclick = function(){
+      recentSave([]); paintRecents(); toast('Recent searches cleared');
+    };
+    Array.prototype.forEach.call(box.querySelectorAll('.ncs-chip'), function(c){
+      c.onclick = function(){
+        el('ncsInput').value = c.dataset.q;
+        state.q = c.dataset.q.toLowerCase();
+        el('ncsClearQ').style.display = 'flex';
+        el('ncsInput').blur();
+        paint();
+      };
+    });
+  }
+
+  /* ----------------------------------------------------- filter chips */
+  function paintFilters(){
+    var box = el('ncsFilterBox');
+    var catLabel  = state.cat === 'all' ? 'Categories' : catName(state.cat);
+    var sortLabel = 'Sort';
+    LIST.forEach(function(s){ if(s.key === state.sort && s.key !== 'rel') sortLabel = s.label; });
+    box.className = 'ncs-filters';
+    box.innerHTML =
+      '<button class="ncs-f" id="ncsFCat" type="button">'  + ic('grid')  + '<span>' + esc(catLabel)  + '</span>' + ic('caret') + '</button>' +
+      '<button class="ncs-f" id="ncsFSort" type="button">' + ic('sort')  + '<span>' + esc(sortLabel) + '</span>' + ic('caret') + '</button>' +
+      '<button class="ncs-f' + (state.cheap ? ' on' : '') + '" id="ncsFCheap" type="button">' + ic('rupee') + '<span>Under \u20B9299</span></button>' +
+      ((state.cat !== 'all' || state.sort !== 'rel' || state.cheap)
+        ? '<button class="ncs-f on" id="ncsFReset" type="button">Clear</button>' : '');
+    if(el('ncsFCat'))  el('ncsFCat').onclick  = sheetCategories;
+    if(el('ncsFSort')) el('ncsFSort').onclick = sheetSort;
+    el('ncsFCheap').onclick = function(){ state.cheap = !state.cheap; paint(); };
+    if(el('ncsFReset')) el('ncsFReset').onclick = function(){ state.cat='all'; state.sort='rel'; state.cheap=false; paint(); };
+  }
+
+  /* ------------------------------------------------- generic bottom sheet */
+  function openSheet(title, inner, after){
+    var d = document.createElement('div');
+    d.className = 'ncp';
+    d.innerHTML = '<div class="ncp-card"><h3>' + esc(title) + '</h3>' +
+                  (inner || '') + '</div>';
+    document.body.appendChild(d);
+    d.onclick = function(e){ if(e.target === d) shut(); };
+    function shut(){ d.classList.remove('open'); setTimeout(function(){ d.remove(); }, 200); }
+    if(after) after(d, shut);
+    requestAnimationFrame(function(){ d.classList.add('open'); });
+  }
+  function sheetCategories(){
+    var rows = '<div class="ncs-list">' +
+      '<div class="ncs-opt' + (state.cat === 'all' ? '' : '') + '" data-cat="all"><span>All categories</span>' +
+        (state.cat === 'all' ? ic('check') : '') + '</div>' +
+      cats().map(function(c){
+        return '<div class="ncs-opt" data-cat="' + c.id + '"><span>' + esc(c.name) + '</span>' +
+               (state.cat === c.id ? ic('check') : '') + '</div>';
+      }).join('') + '</div>';
+    openSheet('Shop by category', rows, function(d, shut){
+      Array.prototype.forEach.call(d.querySelectorAll('.ncs-opt'), function(o){
+        o.onclick = function(){ state.cat = o.dataset.cat; shut(); paint(); };
+      });
+    });
+  }
+  function sheetSort(){
+    var rows = '<div class="ncs-list">' + LIST.map(function(s){
+      return '<div class="ncs-opt" data-sort="' + s.key + '"><span>' + esc(s.label) + '</span>' +
+             (state.sort === s.key ? ic('check') : '') + '</div>';
+    }).join('') + '</div>';
+    openSheet('Sort by', rows, function(d, shut){
+      Array.prototype.forEach.call(d.querySelectorAll('.ncs-opt'), function(o){
+        o.onclick = function(){ state.sort = o.dataset.sort; shut(); paint(); };
+      });
+    });
+  }
+
+  /* --------------------------------------------------------- the results */
+  function paint(){
+    paintRecents();
+    paintFilters();
+    var grid = el('ncsGrid');
+    var q = el('ncsInput') ? el('ncsInput').value.trim() : '';
+
+    if(state.photo) return;   // the photo search owns the grid right now
+
+    var ps = filterList();
+    state.lastHit = ps.length ? ps[0].img : '';
+    var head = '';
+    if(q){
+      head = ps.length
+        ? '<p class="ncs-note">' + ic('search') + ps.length + ' result' + (ps.length === 1 ? '' : 's') + ' for \u201C' + esc(q) + '\u201D</p>'
+        : '';
+    } else {
+      head = '<p class="ncs-note">' + ic('sparkle') + 'Popular right now</p>';
+    }
+    render(grid, ps, head, q);
+  }
+  function render(grid, ps, head, q){
+    if(head) grid.innerHTML = head + '<div class="product-grid" id="ncsGridInner"></div>';
+    var inner = el('ncsGridInner');
+    if(!inner) return;
+    if(ps && ps.length){
+      inner.innerHTML = ps.map(function(p){ return productCardHTML(p); }).join('');
+      bindProductCardEvents(inner);
+      staggerCards();
+    } else if(ps){
+      grid.innerHTML = head +
+        '<div class="ncs-hint">' + ic('search') +
+          '<h4>' + (q ? 'Nothing matched \u201C' + esc(q) + '\u201D' : 'No products here yet') + '</h4>' +
+          '<p>' + (q ? 'Try a shorter word, or clear the filters below.' : 'Add products in the admin panel and they will show up here.') + '</p>' +
+        '</div>';
+    }
+  }
+
+  /* ============================================================
+     voice search
+     ============================================================ */
+  var voiceRec = null, voiceUI = null;
+
+  function voiceSheet(){
+    if(voiceUI) return voiceUI;
+    var d = document.createElement('div');
+    d.className = 'ncv';
+    d.innerHTML =
+      '<div class="ncv-card">' +
+        '<div class="ncv-mic" id="ncvMic">' + ic('mic') + '</div>' +
+        '<div class="ncv-heard" id="ncvHeard">Listening\u2026</div>' +
+        '<p id="ncvHint">Say what you are looking for</p>' +
+        '<div class="ncv-acts" style="margin-top:18px;">' +
+          '<button class="nc-btn ghost" id="ncvCancel" type="button">Cancel</button>' +
+          '<button class="nc-btn solid" id="ncvDone" type="button">Search</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(d);
+    d.onclick = function(e){ if(e.target === d) stopVoice(); };
+    el('ncvCancel').onclick = stopVoice;
+    el('ncvDone').onclick = function(){
+      var t = (el('ncvHeard').textContent || '').trim();
+      stopVoice();
+      if(t && t !== 'Listening\u2026') acceptVoice(t); else toast('Nothing was heard yet.');
+    };
+    voiceUI = d;
+    return d;
+  }
+  function stopVoice(){
+    if(voiceRec){ try{ voiceRec.abort(); }catch(e){} voiceRec = null; }
+    var m = el('ncsMic'); if(m) m.classList.remove('rec');
+    if(voiceUI){ voiceUI.classList.remove('open'); }
+  }
+  function acceptVoice(txt){
+    buildPanel();
+    if(!el('ncsPanel').classList.contains('open')) open('');
+    el('ncsInput').value = txt;
+    state.q = txt.trim().toLowerCase();
+    state.photo = ''; paintThumb('');
+    el('ncsClearQ').style.display = 'flex';
+    recentAdd(txt.trim());
+    paint();
+    toast('Searching \u201C' + txt + '\u201D');
+  }
+
+  function voiceStart(){
+    if(!window.isSecureContext){
+      toast('Voice search needs a secure (https) connection.');
+      return;
+    }
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if(!SR){
+      toast('This browser has no voice search. Please type instead.');
+      return;
+    }
+    if(voiceRec){ try{ voiceRec.abort(); }catch(e){} voiceRec = null; }
+
+    var d = voiceSheet();
+    d.classList.add('open');
+    el('ncvHeard').textContent = 'Listening\u2026';
+    el('ncvHint').textContent = 'Say what you are looking for';
+
+    var r = new SR();
+    voiceRec = r;
+    r.lang = 'en-IN';
+    r.interimResults = true;
+    r.maxAlternatives = 1;
+    r.continuous = false;
+
+    r.onstart = function(){
+      d.classList.add('on');
+      var m = el('ncsMic'); if(m) m.classList.add('rec');
+    };
+    r.onresult = function(e){
+      var txt = '';
+      for(var i = e.resultIndex; i < e.results.length; i++){
+        txt += e.results[i][0].transcript;
+      }
+      txt = txt.trim();
+      if(txt) el('ncvHeard').textContent = txt;
+      if(e.results[e.results.length - 1].isFinal && txt){
+        stopVoice();
+        acceptVoice(txt);
+      }
+    };
+    r.onerror = function(e){
+      var code = (e && e.error) || '';
+      stopVoice();
+      if(code === 'no-speech')        toast('I did not catch that. Please try again.');
+      else if(code === 'not-allowed' || code === 'service-not-allowed')
+                                      toast('Microphone is blocked. Allow mic access for this site, then try again.');
+      else if(code === 'audio-capture') toast('No microphone was found on this device.');
+      else if(code === 'network')     toast('Voice search needs an internet connection.');
+      else if(code === 'aborted')     { /* the owner closed it */ }
+      else                            toast('Voice search failed. Please type instead.');
+    };
+    r.onend = function(){
+      var m = el('ncsMic'); if(m) m.classList.remove('rec');
+      d.classList.remove('on');
+    };
+    try{ r.start(); }
+    catch(err){
+      stopVoice();
+      toast('The microphone is busy. Please try again.');
+    }
+  }
+
+  /* ============================================================
+     photo search — camera or an uploaded picture
+     ============================================================ */
+  function pickPhoto(mode){
+    var inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = 'image/*';
+    if(mode === 'camera') inp.setAttribute('capture', 'environment');
+    inp.style.display = 'none';
+    document.body.appendChild(inp);
+    inp.addEventListener('change', function(){
+      var f = inp.files && inp.files[0];
+      document.body.removeChild(inp);
+      if(!f) return;
+      if(!/^image\//.test(f.type)){ toast('Please choose a picture file'); return; }
+      var fr = new FileReader();
+      fr.onload  = function(){ visualSearch(fr.result); };
+      fr.onerror = function(){ toast('That picture could not be read.'); };
+      fr.readAsDataURL(f);
+    });
+    inp.click();
+  }
+  function photoSheet(){
+    openSheet('Search by photo',
+      '<p style="margin-bottom:4px;">Find things that look like your picture.</p>' +
+      '<button class="ncp-opt" id="ncpCam" type="button">' +
+        '<span class="ncp-ic">' + ic('camera') + '</span>' +
+        '<span><b>Take a photo</b><span>Use the camera right now</span></span></button>' +
+      '<button class="ncp-opt" id="ncpUp" type="button">' +
+        '<span class="ncp-ic">' + ic('gallery') + '</span>' +
+        '<span><b>Upload a photo</b><span>Pick one from your gallery</span></span></button>',
+      function(d){
+        el('ncpCam').onclick = function(){ d.classList.remove('open');
+          setTimeout(function(){ d.remove(); pickPhoto('camera'); }, 180); };
+        el('ncpUp').onclick  = function(){ d.classList.remove('open');
+          setTimeout(function(){ d.remove(); pickPhoto('upload'); }, 180); };
+      });
+  }
+
+  function visualSearch(dataUrl){
+    buildPanel();
+    if(!el('ncsPanel').classList.contains('open')) open('');
+    state.photo = dataUrl;
+    state.q = '';
+    el('ncsInput').value = '';
+    el('ncsClearQ').style.display = 'none';
+    paintThumb(dataUrl);
+    el('ncsRecentsBox').innerHTML = '';
+    paintFilters();
+    el('ncsGrid').innerHTML =
+      '<div class="ncs-hint">' + ic('camera') +
+        '<h4>Matching your photo\u2026</h4>' +
+        '<p>Comparing it with the pictures in your catalogue.</p>' +
+      '</div>';
+    var im = new Image();
+    im.onload = function(){
+      var qc = dominant(im);
+      if(!qc){ showVisual(null, [], dataUrl, 'I could not read the colours in that picture.'); return; }
+      scoreAll(qc, dataUrl);
+    };
+    im.onerror = function(){ showVisual(null, [], dataUrl, 'That picture could not be opened.'); };
+    im.src = dataUrl;
+  }
+
+  function scoreAll(qc, dataUrl){
+    var ps = prods().slice();
+    if(!ps.length){ showVisual(qc, [], dataUrl, 'There are no products in the catalogue yet.'); return; }
+    var found = [], pending = ps.length;
+    function step(){
+      if(--pending > 0) return;
+      found.sort(function(a, b){ return a.d - b.d; });
+      var near = found.filter(function(x){ return x.d < 118; });
+      if(near.length < 4) near = found.slice(0, Math.min(8, found.length));
+      showVisual(qc, near, dataUrl, '');
+    }
+    ps.forEach(function(p){
+      if(!p.img){ step(); return; }
+      var im = new Image();
+      im.onload  = function(){ var c = dominant(im); if(c) found.push({ p:p, d:dist(qc, c) }); step(); };
+      im.onerror = step;
+      im.src = p.img;
+    });
+  }
+
+  function showVisual(qc, list, dataUrl, note){
+    var grid = el('ncsGrid');
+    var head =
+      '<div class="ncs-qphoto">' +
+        '<img src="' + dataUrl + '" alt="">' +
+        '<div><b>Selected photo</b><span>' +
+          (note ? esc(note) : 'Closest colours we have') +
+        '</span></div>' +
+      '</div>' +
+      (qc ? '<p class="ncs-note"><span class="ncs-swatch" style="background:' + rgb(qc) + '"></span>' +
+            'Matched on the main colour of your photo</p>' : '');
+    if(!list.length){
+      grid.innerHTML = head +
+        '<div class="ncs-hint">' + ic('search') +
+          '<h4>No close matches</h4>' +
+          '<p>Nothing in the catalogue has a similar colour. Try another photo, or clear it and type a search.</p>' +
+        '</div>';
+      return;
+    }
+    grid.innerHTML = head + '<div class="product-grid" id="ncsGridInner"></div>';
+    var inner = el('ncsGridInner');
+    inner.innerHTML = list.map(function(x){ return productCardHTML(x.p); }).join('');
+    bindProductCardEvents(inner);
+    staggerCards();
+  }
+
+  /* ============================================================
+     wire the storefront search bar to the new screen
+     ============================================================ */
+  function claimHome(){
+    var mb = el('micBtn'), cb = el('camBtn');
+    // replaced, not added, so the older handler cannot also fire
+    if(mb) mb.onclick = function(){ open(''); setTimeout(voiceStart, 300); };
+    if(cb) cb.onclick = function(){ photoSheet(); };
+
+    var si = el('searchInput');
+    if(si && !si.dataset.ncsWired){
+      si.dataset.ncsWired = '1';
+      si.setAttribute('readonly', 'readonly');
+      si.addEventListener('focus', function(){ try{ this.blur(); }catch(e){} open(''); });
+      si.addEventListener('click', function(e){ e.preventDefault(); open(''); });
+    }
+    var bar = el('searchBar');
+    if(bar && !bar.dataset.ncsWired){
+      bar.dataset.ncsWired = '1';
+      bar.addEventListener('click', function(e){
+        if(e.target.closest('button')) return;   // mic and camera have their own jobs
+        open('');
+      });
+    }
+  }
+  [0, 320, 1200, 2600].forEach(function(t){ setTimeout(claimHome, t); });
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(claimHome, 60); });
+  } else {
+    setTimeout(claimHome, 60);
+  }
+
+  window.ncSearchOpen = open;    // so other screens can jump straight in
+  window.ncSearchClose = close;
+})();
+</script>
+
 </body>
 </html>
