@@ -9424,6 +9424,24 @@ function renderAdminSettings(shell){
 .mq-vip-in{ border-radius:8px; }
 
 .mq-fcard{ padding:0; }
+.mq-fcard:not([data-mqcat]){ cursor:default; }
+
+/* a category the shop has not filled in yet */
+.mq-fcard-media.is-empty{
+  display:flex; align-items:center; justify-content:center;
+  background: radial-gradient(125% 155% at 50% -15%, #C41E43 0%, #8A0A28 55%, #5A0416 100%);
+  box-shadow: inset 0 0 28px rgba(48,0,10,.58);
+}
+.mq-fcard-name{
+  font-family:var(--mq-font); font-size:17px; font-weight:800;
+  letter-spacing:1.2px; text-transform:uppercase; text-align:center;
+  line-height:1.16; padding:0 14px;
+  background: linear-gradient(180deg,#FFFBDF 0%,#FFE9A2 28%,#F3C24B 52%,#B8810F 74%,#F7DC8A 100%);
+  -webkit-background-clip:text; background-clip:text;
+  color:transparent; -webkit-text-fill-color:transparent;
+  filter: drop-shadow(0 1px 0 rgba(60,8,0,.55)) drop-shadow(0 2px 4px rgba(60,8,0,.4));
+}
+.mq-fcard-strip.muted{ color:#9AA0A8; font-size:11.5px; letter-spacing:1.4px; }
 
 .mq-seeall-row{ display:flex; justify-content:center; padding:2px 0 2px; }
 .mq-seeall{
@@ -9697,13 +9715,20 @@ function renderAdminSettings(shell){
 
   /* ------------------------------------------------------ featured brands */
   function featuredHTML(){
+    /* EVERY category is considered, including ones the shop has not filled in
+       yet. Skipping empty categories meant a category could never appear here,
+       which is why Women's Wear never showed while Men's Ware did. */
     var rows = cats().map(function(c){
       var ps = prods().filter(function(p){ return p.category === c.id; });
-      if(!ps.length) return null;
-      var best = top(ps, 1)[0];
-      return { name: c.name, img: c.img || best.img, off: off(best),
-               pid: best.id, cid: c.id };
-    }).filter(Boolean).sort(function(a, b){ return b.off - a.off; });
+      var best = ps.length ? top(ps, 1)[0] : null;
+      return { name: c.name, img: c.img || (best ? best.img : ''),
+               off: best ? off(best) : 0, pid: best ? best.id : '',
+               cid: c.id, n: ps.length };
+    }).filter(function(x){ return x.name; })
+      .sort(function(a, b){
+        /* categories that actually hold something come first, then by discount */
+        return ((b.n > 0 ? 1 : 0) - (a.n > 0 ? 1 : 0)) || (b.off - a.off);
+      });
 
     var two = rows.slice(0, 2);
     if(!two.length) return '';
@@ -9711,15 +9736,22 @@ function renderAdminSettings(shell){
     /* A brand card should open that brand's range, and it must be tappable -
        these were the only cards on the page with no link on them. */
     var cards = two.map(function(x){
-      return '<div class="mq-fcard" data-mqcat="' + esc(x.cid) + '">' + ornCard(
-        '<div class="mq-fcard-media">' +
-          '<img src="' + x.img + '" alt="" loading="lazy">' +
+      var empty = !x.n;
+      /* With nothing to photograph, the card becomes a velvet plate with the
+         category name in gold - it still reads as part of the set rather than
+         looking like a broken image. */
+      var media = x.img
+        ? '<img src="' + x.img + '" alt="" loading="lazy">' +
           '<div class="mq-fcard-copy">' +
             '<span>' + (x.off ? 'Upgrade Now' : 'Fresh Picks') + '</span>' +
             '<b>' + (x.off ? ('UP TO ' + x.off + '% OFF') : 'SHOP NOW') + '</b>' +
-          '</div>' +
-        '</div>' +
-        '<div class="mq-fcard-strip">' + esc(x.name) + '</div>'
+          '</div>'
+        : '<span class="mq-fcard-name">' + esc(x.name) + '</span>';
+      return '<div class="mq-fcard"' + (empty ? '' : ' data-mqcat="' + esc(x.cid) + '"') + '>' + ornCard(
+        '<div class="mq-fcard-media' + (x.img ? '' : ' is-empty') + '">' + media + '</div>' +
+        '<div class="mq-fcard-strip' + (empty ? ' muted' : '') + '">' +
+          (empty ? 'Coming Soon' : esc(x.name)) +
+        '</div>'
       ) + '</div>';
     }).join('');
 
