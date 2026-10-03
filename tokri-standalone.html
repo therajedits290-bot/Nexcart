@@ -7149,6 +7149,11 @@ function renderAdminSettings(shell){
           <p class="form-hint">Photos you add are shrunk automatically, so they stay small. A video cannot be shrunk &mdash; use a link for video.</p>`; })()}
       </div>
       <div class="od-section">
+        <h4>Add many products at once</h4>
+        <p class="form-hint">Got a spreadsheet? Bring the whole catalogue in one go. Pictures must be <b>links</b> (https://&hellip;), not files &mdash; the app has about 4.9 MB of storage, which is roughly 35 uploaded photos.</p>
+        <button class="btn btn-primary btn-block" id="ncBulkBtn">${icon('upload')} Import products from a spreadsheet</button>
+      </div>
+      <div class="od-section">
         <h4>Data</h4>
         <button class="btn btn-danger-outline btn-block" id="resetDataBtn">${icon('refresh')} Reset Demo Data</button>
       </div>
@@ -9973,6 +9978,602 @@ function renderAdminSettings(shell){
       if(t && t.scrollIntoView) t.scrollIntoView({ behavior:'smooth', block:'start' });
     }
   });
+})();
+</script>
+
+<!-- ============================================================
+     NEXCART bulk import  (v26)
+     Load a whole catalogue from a spreadsheet. The owner needs this
+     for 1000+ products, which is impossible to type in one at a time.
+     ============================================================ -->
+<style>
+.nci{
+  position:fixed; inset:0; z-index:700; background:var(--bg);
+  display:flex; flex-direction:column;
+  transform:translateY(100%); transition:transform .24s cubic-bezier(.22,1,.36,1);
+  visibility:hidden;
+}
+.nci.open{ transform:translateY(0); visibility:visible; }
+.nci-top{
+  display:flex; align-items:center; gap:12px; flex-shrink:0;
+  padding:calc(12px + env(safe-area-inset-top)) 16px 12px;
+  background:var(--surface); box-shadow:var(--shadow-1); position:relative; z-index:2;
+}
+.nci-top h2{ font-size:16.5px; font-weight:800; color:var(--ink); flex:1; }
+.nci-x{
+  width:34px; height:34px; border-radius:50%; border:0; flex-shrink:0; cursor:pointer;
+  background:var(--surface-2); color:var(--ink-soft);
+  display:flex; align-items:center; justify-content:center; font-size:20px; line-height:1;
+}
+.nci-body{
+  flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch;
+  padding:16px 16px calc(28px + env(safe-area-inset-bottom));
+}
+.nci-step{
+  background:var(--surface); border-radius:14px; padding:16px;
+  box-shadow:var(--shadow-2); margin-bottom:14px;
+}
+.nci-step h3{
+  font-size:14.5px; font-weight:800; color:var(--ink); margin-bottom:7px;
+  display:flex; align-items:center; gap:8px;
+}
+.nci-step h3 i{
+  width:22px; height:22px; border-radius:50%; flex-shrink:0; font-style:normal;
+  background:var(--brand); color:#fff; font-size:12px; font-weight:800;
+  display:flex; align-items:center; justify-content:center;
+}
+.nci-step p{ font-size:12.5px; line-height:1.55; color:var(--ink-soft); margin-bottom:11px; }
+.nci-step p b{ color:var(--ink); font-weight:800; }
+.nci-cols{
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11.5px;
+  background:var(--surface-2); border-radius:9px; padding:10px 12px;
+  color:var(--ink-soft); margin-bottom:12px; line-height:1.7; word-break:break-word;
+}
+.nci-cols b{ color:var(--brand); font-weight:800; }
+.nci-or{
+  text-align:center; font-size:11.5px; color:var(--ink-faint);
+  margin:13px 0 9px; font-weight:700;
+}
+.nci-paste{
+  width:100%; min-height:104px; resize:vertical; border-radius:10px;
+  border:1px solid var(--line); background:var(--surface-2); color:var(--ink);
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11.5px;
+  padding:11px; line-height:1.6; outline:none; margin-bottom:11px;
+}
+.nci-paste:focus{ border-color:var(--brand); }
+
+/* the report */
+.nci-sum{
+  display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-bottom:13px;
+}
+.nci-tile{
+  background:var(--surface-2); border-radius:10px; padding:11px 12px;
+}
+.nci-tile b{ display:block; font-size:19px; font-weight:800; color:var(--ink); line-height:1.1; }
+.nci-tile span{ display:block; font-size:11px; font-weight:700; color:var(--ink-faint); margin-top:3px; }
+.nci-tile.good b{ color:var(--success); }
+.nci-tile.warn b{ color:#C98A16; }
+.nci-tile.bad b{ color:var(--danger); }
+
+.nci-msg{
+  display:flex; gap:9px; align-items:flex-start; border-radius:10px;
+  padding:11px 12px; font-size:12px; line-height:1.55; margin-bottom:10px;
+}
+.nci-msg.warn{ background:#FFF6E5; color:#8A5A00; }
+.nci-msg.bad{ background:#FFEDEF; color:#A3122C; }
+.nci-msg.ok{ background:#EAF8EF; color:#0A6B33; }
+.nci-msg b{ font-weight:800; }
+.nci-msg .nci-mic{ flex-shrink:0; font-weight:800; }
+
+.nci-errs{
+  max-height:190px; overflow-y:auto; background:var(--surface-2);
+  border-radius:10px; padding:10px 12px; margin-bottom:12px;
+  font-size:11.5px; line-height:1.7; color:var(--ink-soft);
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+.nci-errs div{ padding:2px 0; }
+.nci-errs b{ color:var(--ink); }
+
+.nci-preview{
+  background:var(--surface-2); border-radius:10px; padding:10px 12px;
+  margin-bottom:13px; overflow-x:auto;
+}
+.nci-preview table{ border-collapse:collapse; width:100%; font-size:11px; }
+.nci-preview th, .nci-preview td{
+  text-align:left; padding:5px 8px; white-space:nowrap;
+  border-bottom:1px solid var(--line); color:var(--ink-soft);
+}
+.nci-preview th{ color:var(--ink); font-weight:800; font-size:10.5px; text-transform:uppercase; letter-spacing:.3px; }
+.nci-preview tr:last-child td{ border-bottom:0; }
+
+.nci-choice{ display:flex; gap:9px; margin-bottom:13px; }
+.nci-opt{
+  flex:1; border:1.5px solid var(--line); background:var(--surface); border-radius:11px;
+  padding:12px 11px; cursor:pointer; text-align:left; font-family:inherit;
+}
+.nci-opt.on{ border-color:var(--brand); background:var(--brand-light); }
+.nci-opt b{ display:block; font-size:12.5px; font-weight:800; color:var(--ink); margin-bottom:2px; }
+.nci-opt span{ display:block; font-size:11px; color:var(--ink-faint); line-height:1.45; }
+
+.nci-bar{
+  height:8px; border-radius:5px; background:var(--surface-2); overflow:hidden; margin-bottom:10px;
+}
+.nci-bar i{ display:block; height:100%; background:var(--brand); width:0; transition:width .2s ease; }
+.nci-status{ font-size:12px; font-weight:700; color:var(--ink-soft); text-align:center; }
+</style>
+
+<script id="nexcart-import-v26">
+/* ============================================================
+   NEXCART bulk import  (v26)
+
+   Loads a whole catalogue from a spreadsheet. Written for 1000+
+   products, which cannot be typed in one at a time.
+
+   The one hard rule: pictures must be LINKS. The app keeps its whole
+   catalogue in a box that holds about 4.9 MB, so 1000 uploaded photos
+   (about 130 KB each) would be roughly 130 MB. Links keep the
+   catalogue at a few hundred KB.
+   ============================================================ */
+(function(){
+  'use strict';
+
+  var LIMIT = 4.9 * 1024 * 1024;      // the app's own storage ceiling
+  var state = { parsed: null, mode: 'skip' };
+
+  function esc(s){
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+      return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+    });
+  }
+  function toast(m, i){
+    try{ if(typeof showToast === 'function') showToast(m, i); }catch(e){}
+  }
+  function num(v){
+    var n = parseFloat(String(v == null ? '' : v).replace(/[^0-9.\-]/g, ''));
+    return isNaN(n) ? null : n;
+  }
+  function newId(p){
+    return (p || 'p') + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  }
+
+  /* ---------------------------------------------------------- CSV reader */
+  /* Handles the things a spreadsheet actually produces: quoted fields,
+     commas inside quotes, doubled quotes, CRLF, and a byte-order mark. */
+  function parseCSV(text){
+    var rows = [], row = [], cur = '', q = false, i = 0;
+    text = String(text || '').replace(/^\uFEFF/, '');
+    while(i < text.length){
+      var c = text[i];
+      if(q){
+        if(c === '"'){
+          if(text[i + 1] === '"'){ cur += '"'; i += 2; continue; }
+          q = false; i++; continue;
+        }
+        cur += c; i++; continue;
+      }
+      if(c === '"'){ q = true; i++; continue; }
+      if(c === ','){ row.push(cur); cur = ''; i++; continue; }
+      if(c === ';'){ row.push(cur); cur = ''; i++; continue; }   // some locales
+      if(c === '\r'){ i++; continue; }
+      if(c === '\n'){ row.push(cur); rows.push(row); row = []; cur = ''; i++; continue; }
+      cur += c; i++;
+    }
+    if(cur !== '' || row.length){ row.push(cur); rows.push(row); }
+    return rows.filter(function(r){
+      return r.some(function(x){ return String(x).trim() !== ''; });
+    });
+  }
+
+  /* ------------------------------------------------------ column names */
+  var ALIAS = {
+    name:     ['name','product','product name','productname','title','item','item name'],
+    category: ['category','category name','categories','cat','type','group'],
+    sub:      ['subcategory','sub category','sub-category','subcat','sub','sub group','subgroup'],
+    price:    ['price','selling price','sale price','our price','sp','offer price'],
+    mrp:      ['mrp','list price','original price','max price','strike','compare price'],
+    stock:    ['stock','qty','quantity','inventory','stock quantity','available'],
+    img:      ['image','image url','imageurl','img','picture','photo','image link','image_url','pic'],
+    desc:     ['description','desc','details','about','product description'],
+    brand:    ['brand','brand name','company','label'],
+    rating:   ['rating','stars','star'],
+    ratingCount: ['rating count','ratingcount','reviews','review count','no of reviews']
+  };
+  function mapHeaders(head){
+    var map = {};
+    head.forEach(function(h, idx){
+      var k = String(h || '').trim().toLowerCase().replace(/[_\-]+/g, ' ').replace(/\s+/g, ' ');
+      for(var key in ALIAS){
+        if(ALIAS[key].indexOf(k) >= 0 && !(key in map)){ map[key] = idx; return; }
+      }
+    });
+    return map;
+  }
+
+  /* ------------------------------------------------------ build the rows */
+  function build(text){
+    var rows = parseCSV(text);
+    if(rows.length < 2){
+      return { fatal: 'I could not find any rows. A file needs a first row of column names, then one row per product.' };
+    }
+    var map = mapHeaders(rows[0]);
+    if(!('name' in map) || !('price' in map)){
+      return { fatal: 'The first row must have at least a "name" column and a "price" column. ' +
+                      'Found: ' + rows[0].map(function(h){ return String(h).trim(); }).filter(Boolean).join(', ') };
+    }
+
+    var existing = {};
+    (DB.products || []).forEach(function(p){
+      existing[String(p.name || '').trim().toLowerCase()] = p;
+    });
+    var catByName = {};
+    (DB.categories || []).forEach(function(c){
+      catByName[String(c.name || '').trim().toLowerCase()] = c;
+    });
+
+    var out = [], errors = [], newCats = [], newSubs = [], dups = [], dataImgs = 0;
+
+    rows.slice(1).forEach(function(r, n){
+      var at = n + 2;                                   // the spreadsheet's own row number
+      var get = function(k){ return (k in map) ? String(r[map[k]] == null ? '' : r[map[k]]).trim() : ''; };
+      var name = get('name');
+      if(!name){ errors.push({ at: at, msg: 'no product name' }); return; }
+      var price = num(get('price'));
+      if(price === null || price <= 0){ errors.push({ at: at, msg: 'price is missing or not a number' }); return; }
+      var mrp = num(get('mrp'));
+      if(mrp === null || mrp < price) mrp = price;      // never invent a fake discount
+
+      var catName = get('category');
+      var cat = null;
+      if(catName){
+        var key = catName.toLowerCase();
+        if(catByName[key]) cat = catByName[key];
+        else if(newCats.indexOf(catName) < 0) newCats.push(catName);
+      }
+      var sub = get('sub');
+      var stock = num(get('stock'));
+      if(stock === null || stock < 0) stock = 10;
+      var img = get('img');
+      if(/^data:/i.test(img)) dataImgs++;
+      if(!img) img = (typeof PLACEHOLDER_IMG === 'function') ? PLACEHOLDER_IMG(encodeURIComponent(name).slice(0, 24)) : '';
+
+      var rating = num(get('rating')); if(rating === null) rating = 0;
+      var rc = num(get('ratingCount')); if(rc === null) rc = 0;
+
+      /* Count sub-categories the category does not have yet, so the owner is
+         told they are being created rather than discovering it later. */
+      /* A category that is itself new has no subs yet, so its subs are new too -
+         the first version skipped those and under-reported them. */
+      if(sub && catName){
+        var has = cat ? (cat.subs || []).some(function(y){
+          return String(y.name || '').trim().toLowerCase() === sub.toLowerCase();
+        }) : false;
+        if(!has && newSubs.indexOf(catName + '\u0000' + sub) < 0){
+          newSubs.push(catName + '\u0000' + sub);
+        }
+      }
+
+      var item = {
+        name: name,
+        category: cat ? cat.id : ('__new__' + catName),
+        price: price, mrp: mrp, stock: stock, img: img,
+        desc: get('desc'), brand: get('brand'), sub: sub,
+        rating: rating, ratingCount: rc,
+        _at: at, _catName: catName, _sub: sub
+      };
+      if(existing[name.toLowerCase()]) dups.push(name);
+      out.push(item);
+    });
+
+    return {
+      list: out, errors: errors, newCats: newCats, newSubs: newSubs, dups: dups,
+      dataImgs: dataImgs,
+      newBytes: JSON.stringify(out).length,
+      curBytes: (function(){ try{ return JSON.stringify(DB).length; }catch(e){ return 0; } })()
+    };
+  }
+
+  /* ------------------------------------------------------------ the panel */
+  function panel(){
+    var d = document.getElementById('nciPanel');
+    if(d) return d;
+    d = document.createElement('div');
+    d.className = 'nci';
+    d.id = 'nciPanel';
+    d.innerHTML =
+      '<div class="nci-top"><h2>Add many products</h2>' +
+        '<button class="nci-x" id="nciClose" type="button">&times;</button></div>' +
+      '<div class="nci-body">' +
+        '<div class="nci-step">' +
+          '<h3><i>1</i>Put your products in a spreadsheet</h3>' +
+          '<p>One row per product, and the <b>first row must be the column names</b>. ' +
+             'Save it as <b>CSV</b> from Excel or Google Sheets (File &rsaquo; Download &rsaquo; CSV).</p>' +
+          '<div class="nci-cols"><b>name</b>, category, <b>subcategory</b>, <b>price</b>, mrp, stock, image, description, brand</div>' +
+          '<p>Only <b>name</b> and <b>price</b> are compulsory. Column names can be in any order, ' +
+             'and common alternatives work too (qty, picture, MRP&hellip;).</p>' +
+          '<p><b>subcategory</b> and <b>description</b> are optional but worth filling: the ' +
+             'sub-category becomes one of the picture tiles under the tabs, and new ones are ' +
+             'created for you.</p>' +
+          '<div class="nci-msg warn"><span class="nci-mic">&nbsp;!</span><span>' +
+            '<b>The image column must be a web link</b> (https://&hellip;), not a file. ' +
+            'The app keeps everything in a box of about 4.9 MB, so 1000 uploaded photos ' +
+            'would be roughly 130 MB and cannot fit.</span></div>' +
+          '<button class="btn btn-secondary btn-block" id="nciTemplate" type="button">Download the template</button>' +
+        '</div>' +
+        '<div class="nci-step">' +
+          '<h3><i>2</i>Choose your file</h3>' +
+          '<input type="file" id="nciFile" accept=".csv,.txt,text/csv,text/plain" hidden>' +
+          '<button class="btn btn-primary btn-block" id="nciPick" type="button">Choose the CSV file</button>' +
+          '<p class="nci-or">or paste the rows here</p>' +
+          '<textarea class="nci-paste" id="nciPaste" placeholder="name,category,price,mrp,stock,image"></textarea>' +
+          '<button class="btn btn-secondary btn-block" id="nciCheck" type="button">Check the rows</button>' +
+        '</div>' +
+        '<div id="nciReport"></div>' +
+      '</div>';
+    document.body.appendChild(d);
+
+    document.getElementById('nciClose').onclick = close;
+    document.getElementById('nciTemplate').onclick = template;
+    document.getElementById('nciPick').onclick = function(){ document.getElementById('nciFile').click(); };
+    document.getElementById('nciFile').onchange = function(){
+      var f = this.files && this.files[0];
+      if(!f) return;
+      var rd = new FileReader();
+      rd.onload = function(){ check(String(rd.result || '')); };
+      rd.onerror = function(){ toast('That file could not be read', 'xCircle'); };
+      rd.readAsText(f);
+    };
+    document.getElementById('nciCheck').onclick = function(){
+      check(document.getElementById('nciPaste').value);
+    };
+    return d;
+  }
+  function open(){
+    panel().classList.add('open');
+    document.documentElement.style.overflow = 'hidden';
+  }
+  function close(){
+    var d = document.getElementById('nciPanel');
+    if(!d) return;
+    d.classList.remove('open');
+    document.documentElement.style.overflow = '';
+  }
+
+  /* --------------------------------------------------------- the template */
+  function template(){
+    var rows = [
+      'name,category,subcategory,price,mrp,stock,image,description,brand',
+      '"Women Floral Kurta Set",Women\'s Wear,Kurta Sets,449,999,25,https://picsum.photos/seed/kurta1/400/440,"Cotton blend kurta with palazzo.","Nexcart"',
+      '"Men Slim Fit Shirt",Men\'s Wear,Casual Shirts,399,899,30,https://picsum.photos/seed/shirt1/400/440,"100% cotton, wrinkle resistant.","Nexcart"',
+      '"Wireless Earbuds",Electronics,Audio,799,2499,12,https://picsum.photos/seed/earbuds1/400/440,"24 hour battery, deep bass.","Nexcart"'
+    ].join('\r\n');
+    var b = new Blob([rows], { type: 'text/csv;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(b);
+    a.download = 'nexcart-products-template.csv';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+    toast('Template downloaded', 'checkCircle');
+  }
+
+  /* ------------------------------------------------------------ the report */
+  var rpt = null;
+  function check(text){
+    var p = build(text);
+    rpt = p;
+    var box = document.getElementById('nciReport');
+    if(p.fatal){
+      box.innerHTML = '<div class="nci-step"><div class="nci-msg bad"><span class="nci-mic">&times;</span>' +
+                      '<span><b>Nothing to import.</b> ' + esc(p.fatal) + '</span></div></div>';
+      return;
+    }
+    state.parsed = p;
+
+    var fresh = p.list.length - p.dups.length;
+    var bytes = p.curBytes + p.newBytes;
+    var willBust = bytes > LIMIT;
+    var h = '<div class="nci-step"><h3><i>3</i>Check, then add</h3>';
+
+    h += '<div class="nci-sum">' +
+           '<div class="nci-tile"><b>' + p.list.length + '</b><span>products found</span></div>' +
+           '<div class="nci-tile good"><b>' + fresh + '</b><span>new to add</span></div>' +
+           '<div class="nci-tile' + (p.dups.length ? ' warn' : '') + '"><b>' + p.dups.length + '</b><span>already in your shop</span></div>' +
+           '<div class="nci-tile' + (p.newCats.length ? ' warn' : '') + '"><b>' + p.newCats.length + '</b><span>new categories</span></div>' +
+         '</div>';
+
+    if(p.newCats.length){
+      h += '<div class="nci-msg ok"><span class="nci-mic">+</span><span>These categories will be created for you: <b>' +
+           esc(p.newCats.join(', ')) + '</b></span></div>';
+    }
+    if(p.newSubs.length){
+      var subText = p.newSubs.slice(0, 8).map(function(t){
+        var bits = String(t).split('\u0000');
+        return esc(bits[1]) + ' (in ' + esc(bits[0]) + ')';
+      }).join(', ');
+      h += '<div class="nci-msg ok"><span class="nci-mic">+</span><span>' +
+           '<b>' + p.newSubs.length + ' new sub-categor' + (p.newSubs.length === 1 ? 'y' : 'ies') + '</b> will be added: ' +
+           subText + (p.newSubs.length > 8 ? ' and more' : '') + '</span></div>';
+    }
+    if(p.errors.length){
+      h += '<div class="nci-msg warn"><span class="nci-mic">&nbsp;!</span><span><b>' + p.errors.length +
+           ' row' + (p.errors.length === 1 ? '' : 's') + ' skipped</b> because something was missing. ' +
+           'These rows will not be added.</span></div>';
+      h += '<div class="nci-errs">' + p.errors.slice(0, 40).map(function(e){
+             return '<div><b>Row ' + e.at + '</b> &mdash; ' + esc(e.msg) + '</div>';
+           }).join('') +
+           (p.errors.length > 40 ? '<div>&hellip; and ' + (p.errors.length - 40) + ' more</div>' : '') + '</div>';
+    }
+    if(p.dataImgs > 12){
+      h += '<div class="nci-msg bad"><span class="nci-mic">&nbsp;!</span><span>' +
+           '<b>' + p.dataImgs + ' of these pictures are pasted into the file itself, not links.</b> ' +
+           'That will fill the app&#39;s storage and the save will fail. Use web links ' +
+           '(https://&hellip;) in the image column instead.</span></div>';
+    }
+    h += '<div class="nci-msg ' + (willBust ? 'bad' : 'ok') + '"><span class="nci-mic">' +
+         (willBust ? '&nbsp;!' : '&#10003;') + '</span><span>' +
+         'Your shop would hold about <b>' + (bytes / 1024 / 1024).toFixed(2) + ' MB</b> of the 4.9 MB available' +
+         (willBust ? ' &mdash; that is too much, so some of it will not be saved. Import in smaller batches, or use links for the pictures.' : '.') +
+         '</span></div>';
+
+    /* a peek at the first few rows so the owner can see it read them right */
+    if(p.list.length){
+      var head = ['name', 'category', 'subcategory', 'price', 'mrp', 'stock', 'image'];
+      h += '<div class="nci-preview"><table><tr>' + head.map(function(x){ return '<th>' + x + '</th>'; }).join('') + '</tr>' +
+           p.list.slice(0, 5).map(function(x){
+             return '<tr><td>' + esc(x.name).slice(0, 34) + '</td><td>' + esc(x._catName || '&mdash;') +
+                    '</td><td>' + esc(x._sub || '&mdash;') +
+                    '</td><td>' + x.price + '</td><td>' + x.mrp + '</td><td>' + x.stock +
+                    '</td><td>' + (/^data:/i.test(x.img) ? 'pasted picture' : (x.img ? 'link' : 'none')) + '</td></tr>';
+           }).join('') + '</table>' +
+           (p.list.length > 5 ? '<p style="font-size:11px;color:var(--ink-faint);margin-top:8px;">&hellip; and ' +
+             (p.list.length - 5) + ' more</p>' : '') + '</div>';
+    }
+
+    if(p.dups.length){
+      h += '<p style="font-size:12.5px;font-weight:800;color:var(--ink);margin-bottom:8px;">' +
+           'A product with the same name is already in your shop. What should happen to those?</p>' +
+           '<div class="nci-choice">' +
+             '<button class="nci-opt' + (state.mode === 'skip' ? ' on' : '') + '" data-mode="skip" type="button">' +
+               '<b>Keep mine</b><span>Skip them, add only the new ones</span></button>' +
+             '<button class="nci-opt' + (state.mode === 'update' ? ' on' : '') + '" data-mode="update" type="button">' +
+               '<b>Update them</b><span>Replace the price, stock and picture from the file</span></button>' +
+           '</div>';
+    }
+
+    if(willBust){
+      h += '<button class="btn btn-secondary btn-block" type="button" disabled>' +
+           'Too much to add in one go</button>';
+    } else {
+      h += '<button class="btn btn-primary btn-block" id="nciDo" type="button">Add ' +
+           p.list.length + ' product' + (p.list.length === 1 ? '' : 's') + '</button>';
+    }
+    h += '</div>';
+    box.innerHTML = h;
+
+    if(p.dups.length){
+      Array.prototype.forEach.call(box.querySelectorAll('.nci-opt'), function(o){
+        o.onclick = function(){
+          state.mode = o.dataset.mode;
+          Array.prototype.forEach.call(box.querySelectorAll('.nci-opt'), function(x){ x.classList.remove('on'); });
+          o.classList.add('on');
+        };
+      });
+    }
+    var go = document.getElementById('nciDo');
+    if(go) go.onclick = runImport;
+    box.scrollIntoView({ behavior:'smooth', block:'start' });
+  }
+
+  /* ------------------------------------------------------------- import */
+  function runImport(){
+    var p = state.parsed;
+    if(!p || !p.list.length) return;
+
+    /* categories first, so every product has somewhere to go */
+    var made = {};
+    p.newCats.forEach(function(name){
+      var c = { id: newId('c'), name: name, icon:'grid', emoji:'🛍️', img:'', subs:[] };
+      DB.categories.push(c);
+      made[name] = c.id;
+    });
+    var byName = {};
+    DB.categories.forEach(function(c){ byName[String(c.name).trim().toLowerCase()] = c; });
+
+    var have = {};
+    DB.products.forEach(function(x){ have[String(x.name || '').trim().toLowerCase()] = x; });
+
+    /* The picture row under the tabs is drawn from category.subs, so a
+       sub-category has to exist there or its products would have no tile to
+       open. Add any that the sheet introduces, borrowing the product's picture. */
+    var subAdded = 0;
+    var catById = {};
+    DB.categories.forEach(function(c){ catById[c.id] = c; });
+    function ensureSub(catId, name, img){
+      var c = catById[catId];
+      if(!c || !name) return;
+      if(!Array.isArray(c.subs)) c.subs = [];
+      var hit = c.subs.filter(function(y){
+        return String(y.name || '').trim().toLowerCase() === name.toLowerCase();
+      })[0];
+      if(hit){ if(!hit.img && img) hit.img = img; return; }
+      c.subs.push({ name: name, img: img || '', group: '' });
+      subAdded++;
+    }
+
+    var added = 0, updated = 0, skipped = 0;
+    p.list.forEach(function(x){
+      var catId = x.category.indexOf('__new__') === 0
+                ? (made[x._catName] || (byName[String(x._catName).trim().toLowerCase()] || {}).id || '')
+                : x.category;
+      if(x._sub) ensureSub(catId, x._sub, x.img);
+      var key = x.name.toLowerCase();
+      var prev = have[key];
+      if(prev){
+        if(state.mode === 'update'){
+          prev.price = x.price; prev.mrp = x.mrp; prev.stock = x.stock;
+          if(x.img) prev.img = x.img;
+          if(x.desc) prev.desc = x.desc;
+          if(x.brand) prev.brand = x.brand;
+          if(catId) prev.category = catId;
+          if(x._sub) prev.sub = x._sub;
+          updated++;
+        } else skipped++;
+        return;
+      }
+      var item = {
+        id: newId('p'), name: x.name, category: catId, price: x.price, mrp: x.mrp,
+        stock: x.stock, desc: x.desc || '', img: x.img, sub: x._sub || '',
+        rating: x.rating || 0, ratingCount: x.ratingCount || 0,
+        hasSizes: false, sizes: []
+      };
+      if(x.brand) item.brand = x.brand;
+      DB.products.push(item);
+      have[key] = item;
+      added++;
+    });
+
+    var okSave = true;
+    try{ okSave = (typeof saveDB === 'function') ? (saveDB(DB) !== false) : true; }catch(e){ okSave = false; }
+
+    if(!okSave){
+      toast('Storage is full — the products could not be saved', 'xCircle');
+      return;
+    }
+
+    toast('Added ' + added + (updated ? ', updated ' + updated : '') +
+          (skipped ? ', skipped ' + skipped : '') +
+          (subAdded ? ' + ' + subAdded + ' sub-categories' : ''), 'checkCircle');
+
+    var box = document.getElementById('nciReport');
+    if(box){
+      box.innerHTML = '<div class="nci-step"><div class="nci-msg ok"><span class="nci-mic">&#10003;</span>' +
+        '<span><b>Done.</b> ' + added + ' product' + (added === 1 ? '' : 's') + ' added' +
+        (updated ? ', ' + updated + ' updated' : '') +
+        (skipped ? ', ' + skipped + ' left untouched' : '') +
+        (p.newCats.length ? ', ' + p.newCats.length + ' new categor' + (p.newCats.length === 1 ? 'y' : 'ies') + ' created' : '') +
+        (subAdded ? ', ' + subAdded + ' new sub-categor' + (subAdded === 1 ? 'y' : 'ies') + ' added' : '') +
+        '. Your shop now has <b>' + DB.products.length + ' products</b>.</span></div>' +
+        '<button class="btn btn-secondary btn-block" id="nciAgain" type="button">Import another file</button>' +
+        '<button class="btn btn-primary btn-block" id="nciDone" type="button" style="margin-top:9px;">Finished</button></div>';
+      document.getElementById('nciAgain').onclick = function(){
+        document.getElementById('nciPaste').value = '';
+        document.getElementById('nciReport').innerHTML = '';
+        state.parsed = null;
+        panel().querySelector('.nci-body').scrollTop = 0;
+      };
+      document.getElementById('nciDone').onclick = close;
+    }
+    try{
+      var shell = document.getElementById('adminShell');
+      if(shell && typeof renderAdminSettings === 'function') renderAdminSettings(shell);
+    }catch(e){}
+  }
+
+  /* -------------------------------------------------------- the way in */
+  document.addEventListener('click', function(e){
+    var b = e.target.closest('#ncBulkBtn');
+    if(b){ e.preventDefault(); open(); }
+  });
+
 })();
 </script>
 
