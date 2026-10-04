@@ -16,7 +16,7 @@
    Nothing else about the app changes.
    ============================================================ */
 
-const CACHE = 'nexcart-v26';
+const CACHE = 'nexcart-v27';
 const ASSETS = [
   './',
   './tokri-standalone.html',

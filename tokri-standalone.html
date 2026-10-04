@@ -3891,14 +3891,28 @@ function openSubCategoryProducts(catId, subName){
          missing: the jeans were in the shop, just not under Jeans. */
       const key   = wanted.trim().toLowerCase();
       const loose = key.replace(/s$/, '');
-      const products = DB.products.filter(p=>{
+      let products = DB.products.filter(p=>{   // let: the fallback below reassigns it
         if(p.category !== catId) return false;
-        const sub = String(p.sub || '').trim().toLowerCase();
-        if(sub && (sub === key || sub.replace(/s$/, '') === loose)) return true;
-        const hay = ((p.name || '') + ' ' + (p.cat || '') + ' ' + (p.sub || '')).toLowerCase();
-        return hay.indexOf(loose) !== -1;
-      });
-      main.innerHTML = `<div class="product-grid" id="subProductGrid"></div>`;
+         const sub = String(p.sub || '').trim().toLowerCase();
+         if(sub && (sub === key || sub.replace(/s$/, '') === loose)) return true;
+         const hay = ((p.name || '') + ' ' + (p.cat || '') + ' ' + (p.sub || '')).toLowerCase();
+         return hay.indexOf(loose) !== -1;
+       });
+       /* Last resort before showing an empty page: look across the whole shop.
+          A product can end up filed under a different category than the tile
+          that was tapped - importing into a category that was re-created does
+          it - and "No products found" then reads as "my stock has gone", which
+          is the worst possible thing to show a shop owner. Better to show the
+          jeans that exist than an empty page. */
+       if(!products.length){
+         products = DB.products.filter(p=>{
+           const sub = String(p.sub || '').trim().toLowerCase();
+           if(sub && (sub === key || sub.replace(/s$/, '') === loose)) return true;
+           const hay = ((p.name || '') + ' ' + (p.cat || '') + ' ' + (p.sub || '')).toLowerCase();
+           return hay.indexOf(loose) !== -1;
+         });
+       }
+       main.innerHTML = `<div class="product-grid" id="subProductGrid"></div>`;
       renderProductGrid($('#subProductGrid'), products);
     }, 350);
   });
