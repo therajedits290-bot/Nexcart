@@ -3882,15 +3882,20 @@ function openSubCategoryProducts(catId, subName){
     setTimeout(()=>{
       if(tok !== renderToken) return;
       const wanted = String(subName || '');
-      /* Products now remember the sub-category they were filed under. Ones
-         added before that carry none, so fall back to matching the name -
-         otherwise everything added earlier would vanish from every
-         sub-category. */
-      const loose = wanted.toLowerCase().replace(/s$/, '');
+      /* Match generously, and treat the sub-category and the product name as
+         ALTERNATIVES rather than either/or.
+         The old rule was `if(p.sub) return p.sub === wanted`, so a product
+         whose sub-category was not character-for-character identical -
+         different capitals, a stray space, or a different label such as
+         "Men Jeans" - was hidden, with no fallback to its name. Stock looked
+         missing: the jeans were in the shop, just not under Jeans. */
+      const key   = wanted.trim().toLowerCase();
+      const loose = key.replace(/s$/, '');
       const products = DB.products.filter(p=>{
         if(p.category !== catId) return false;
-        if(p.sub) return String(p.sub) === wanted;
-        const hay = ((p.name || '') + ' ' + (p.cat || '')).toLowerCase();
+        const sub = String(p.sub || '').trim().toLowerCase();
+        if(sub && (sub === key || sub.replace(/s$/, '') === loose)) return true;
+        const hay = ((p.name || '') + ' ' + (p.cat || '') + ' ' + (p.sub || '')).toLowerCase();
         return hay.indexOf(loose) !== -1;
       });
       main.innerHTML = `<div class="product-grid" id="subProductGrid"></div>`;
