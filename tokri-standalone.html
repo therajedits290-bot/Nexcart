@@ -3442,7 +3442,7 @@ function buildHome(main){
     <div class="store-footer" id="adminTapZone">
       <div class="sf-brand" id="footAppName">${appName}</div>
       <div class="sf-line">&copy; 2026 Nexcart &middot; All rights reserved</div>
-      <div class="sf-ver">v6.0</div>
+      <div class="sf-ver">v28</div>
     </div>
   `;
 
@@ -3912,8 +3912,30 @@ function openSubCategoryProducts(catId, subName){
            return hay.indexOf(loose) !== -1;
          });
        }
-       main.innerHTML = `<div class="product-grid" id="subProductGrid"></div>`;
-      renderProductGrid($('#subProductGrid'), products);
+        if(products.length){
+          main.innerHTML = `<div class="product-grid" id="subProductGrid"></div>`;
+          renderProductGrid($('#subProductGrid'), products);
+        } else {
+          /* An empty page used to say only "No products found", which tells the
+             owner nothing at all - is the shop empty, is the category empty, or
+             is it just this sub-category? Say which, and offer a way out. */
+          const inCat = DB.products.filter(q=>q.category === catId).length;
+          const total = DB.products.length;
+          const catRec = (DB.categories || []).filter(c=>c.id === catId)[0];
+          const catNm  = (catRec && catRec.name) || 'this category';
+          main.innerHTML =
+            '<div class="empty-state">' + icon('search') +
+              '<h3>Nothing in &ldquo;' + wanted + '&rdquo; yet</h3>' +
+              '<p>' + (inCat
+                ? ('&ldquo;' + catNm + '&rdquo; holds ' + inCat + (inCat === 1 ? ' product' : ' products') +
+                   ', but none of them are in this sub-category.')
+                : ('&ldquo;' + catNm + '&rdquo; has no products in it at all.')) +
+                ' Your whole shop holds ' + total + (total === 1 ? ' product' : ' products') + '.</p>' +
+              (inCat ? '<button class="btn btn-primary" id="subShowAll">Show all ' + inCat + ' in ' + catNm + '</button>' : '') +
+            '</div>';
+          const sa = document.getElementById('subShowAll');
+          if(sa) sa.onclick = ()=> openCategoryProducts(catId);
+        }
     }, 350);
   });
 }
@@ -5055,7 +5077,7 @@ function renderProfilePage(main){
     <div class="store-footer" id="adminTapZone">
       <div class="sf-brand" id="footAppName">${(typeof ncBrandName === 'function') ? ncBrandName() : 'Nexcart'}</div>
       <div class="sf-line">&copy; 2026 Nexcart &middot; All rights reserved</div>
-      <div class="sf-ver">v4.0</div>
+      <div class="sf-ver">v28</div>
     </div>
   `;
   updateInstallRow();
