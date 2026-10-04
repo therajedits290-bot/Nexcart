@@ -3374,7 +3374,7 @@ function buildHome(main){
     <div class="mtabs" id="mtabs">
       <div class="mtabs-scroll" id="mtabsScroll">
         <button class="mtab active" data-cat="all">All</button>
-        ${cats.slice(0,5).map(c=>`<button class="mtab" data-cat="${c.id}">${c.name}</button>`).join('')}
+         ${cats.map(c=>`<button class="mtab" data-cat="${c.id}">${c.name}</button>`).join('')}
         <span class="mtabs-ink" id="mtabsInk"></span>
       </div>
       <button class="mtabs-grid" id="mtabsGrid" aria-label="All categories">${icon('grid')}</button>
@@ -7918,17 +7918,22 @@ function renderAdminSettings(shell){
         });
       });
     }
-    // Put the sub-categories that actually have products first, so the first
-    // tiles the owner taps are never empty. The rest still appear after them.
+    /* Only offer a tile this category can actually fill.
+       The list above names twelve sub-categories, but a young shop stocks
+       two or three of them, so tapping "Jeans" on a category with no jeans
+       opened a page saying "No products found" - a dead end that looks
+       broken. Tiles the owner created by hand (cat.subs, handled above) are
+       never filtered: those were deliberate, even before stock arrives. */
     function hasProducts(n){
       var s = String(n).toLowerCase().replace(/s$/, '');
       return prods.some(function(p){
+        /* a product filed under this sub-category counts even when its name
+           never says the word - "Slim Fit Denim" is still a Jean */
+        if(p.sub && String(p.sub).toLowerCase() === String(n).toLowerCase()) return true;
         return String(p.name || '').toLowerCase().indexOf(s) !== -1;
       });
     }
-    var matching = names.filter(hasProducts);
-    var rest     = names.filter(function(n){ return !hasProducts(n); });
-    names = matching.concat(rest);
+    names = names.filter(hasProducts);
 
     return names.slice(0, 14).map(function(n){ return { name: n, img: imgFor(n) }; });
   };
@@ -10386,12 +10391,20 @@ function renderAdminSettings(shell){
     panel().classList.add('open');
     document.documentElement.style.overflow = 'hidden';
   }
-  function close(){
-    var d = document.getElementById('nciPanel');
-    if(!d) return;
-    d.classList.remove('open');
-    document.documentElement.style.overflow = '';
-  }
+   function close(){
+     var d = document.getElementById('nciPanel');
+     if(!d) return;
+     d.classList.remove('open');
+     document.documentElement.style.overflow = '';
+     /* Redraw the shop behind the panel. An import can introduce a whole new
+        category (Men's Wear, say), and its tab belongs in the strip straight
+        away - the owner should not have to reload to find their own stock. */
+     try{
+       if(typeof renderTab === 'function'){
+         renderTab((typeof currentTab === 'string' && currentTab) ? currentTab : 'home');
+       }
+     }catch(e){}
+   }
 
   /* ------------------------------------------------- dead picture handling */
   /* A link that does not load used to spill the whole product name across the
