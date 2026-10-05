@@ -3442,7 +3442,7 @@ function buildHome(main){
     <div class="store-footer" id="adminTapZone">
       <div class="sf-brand" id="footAppName">${appName}</div>
       <div class="sf-line">&copy; 2026 Nexcart &middot; All rights reserved</div>
-      <div class="sf-ver">v28</div>
+      <div class="sf-ver">v29</div>
     </div>
   `;
 
@@ -3889,29 +3889,34 @@ function openSubCategoryProducts(catId, subName){
          different capitals, a stray space, or a different label such as
          "Men Jeans" - was hidden, with no fallback to its name. Stock looked
          missing: the jeans were in the shop, just not under Jeans. */
-      const key   = wanted.trim().toLowerCase();
-      const loose = key.replace(/s$/, '');
-      let products = DB.products.filter(p=>{   // let: the fallback below reassigns it
-        if(p.category !== catId) return false;
-         const sub = String(p.sub || '').trim().toLowerCase();
-         if(sub && (sub === key || sub.replace(/s$/, '') === loose)) return true;
-         const hay = ((p.name || '') + ' ' + (p.cat || '') + ' ' + (p.sub || '')).toLowerCase();
-         return hay.indexOf(loose) !== -1;
-       });
-       /* Last resort before showing an empty page: look across the whole shop.
-          A product can end up filed under a different category than the tile
-          that was tapped - importing into a category that was re-created does
-          it - and "No products found" then reads as "my stock has gone", which
-          is the worst possible thing to show a shop owner. Better to show the
-          jeans that exist than an empty page. */
-       if(!products.length){
-         products = DB.products.filter(p=>{
-           const sub = String(p.sub || '').trim().toLowerCase();
-           if(sub && (sub === key || sub.replace(/s$/, '') === loose)) return true;
-           const hay = ((p.name || '') + ' ' + (p.cat || '') + ' ' + (p.sub || '')).toLowerCase();
-           return hay.indexOf(loose) !== -1;
-         });
-       }
+       const key   = wanted.trim().toLowerCase();
+       const loose = key.replace(/s$/, '');
+       /* Also compare on letters+digits alone, so "T-shirt", "T shirt" and
+          "Tshirt" are one sub-category. The name is checked both as written
+          and flattened, or a hyphen would hide the match. */
+       const flat  = (t)=> String(t == null ? '' : t).toLowerCase().replace(/[^a-z0-9]/g, '');
+       const keyF  = flat(key);
+       const looseF = keyF.replace(/s$/, '');
+        /* Everything that belongs here, wherever it was filed.
+           A shop easily ends up with two tiles for the same thing - one made by
+           hand, one created by an import - and then the stock looks missing
+           because it is filed under the other one. The owner reported exactly
+           that: 19 t-shirts added, and a T-shirt page still showing one old
+           item. So match across the whole shop, and simply show this
+           category's own products first. */
+        const matches = (p)=>{
+          const sub  = String(p.sub || '').trim().toLowerCase();
+          const subF = flat(sub);
+          if(sub && (sub === key || subF === keyF || sub.replace(/s$/, '') === loose || subF.replace(/s$/, '') === looseF)) return true;
+          const hay  = ((p.name || '') + ' ' + (p.cat || '') + ' ' + (p.sub || '')).toLowerCase();
+          if(hay.indexOf(loose) !== -1) return true;
+          return flat(hay).indexOf(looseF) !== -1;
+        };
+        const products = DB.products
+          .map((p, i)=>({ p: p, own: (p.category === catId) ? 0 : 1, i: i }))
+          .filter(x=> matches(x.p))
+          .sort((a, b)=> (a.own - b.own) || (a.i - b.i))
+          .map(x=> x.p);
         if(products.length){
           main.innerHTML = `<div class="product-grid" id="subProductGrid"></div>`;
           renderProductGrid($('#subProductGrid'), products);
@@ -5077,7 +5082,7 @@ function renderProfilePage(main){
     <div class="store-footer" id="adminTapZone">
       <div class="sf-brand" id="footAppName">${(typeof ncBrandName === 'function') ? ncBrandName() : 'Nexcart'}</div>
       <div class="sf-line">&copy; 2026 Nexcart &middot; All rights reserved</div>
-      <div class="sf-ver">v28</div>
+      <div class="sf-ver">v29</div>
     </div>
   `;
   updateInstallRow();
@@ -7193,6 +7198,8 @@ function renderAdminSettings(shell){
         <h4>Add many products at once</h4>
         <p class="form-hint">Got a spreadsheet? Bring the whole catalogue in one go. Pictures must be <b>links</b> (https://&hellip;), not files &mdash; the app has about 4.9 MB of storage, which is roughly 35 uploaded photos.</p>
         <button class="btn btn-primary btn-block" id="ncBulkBtn">${icon('upload')} Import products from a spreadsheet</button>
+        <button class="btn btn-secondary btn-block" id="ncMergeCatsBtn" style="margin-top:10px;">${icon('grid')} Merge duplicate categories</button>
+        <p class="form-hint" style="margin-top:8px;">Two categories whose names differ only in punctuation &mdash; <b>Men's Wear</b> and <b>Mens Wear</b> &mdash; should be one. This moves their products into the first one and removes the extra.</p>
       </div>
       <div class="od-section">
         <h4>Data</h4>
@@ -10179,6 +10186,49 @@ function renderAdminSettings(shell){
   /* The same options the product form offers, plus anything numeric. */
   var state = { parsed: null, mode: 'skip' };
 
+  /* Two names that differ only in punctuation ARE the same name.
+     "Men's Wear" and "Mens Wear" used to count as different, so a spreadsheet
+     that spelled it slightly differently quietly created a SECOND category of
+     the same name, and the stock vanished into the copy. Compare on letters
+     and digits alone. */
+  function ncKey(s){
+    return String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
+
+  /* Fold categories whose names differ only in punctuation into the first one
+     and drop the leftovers. Products move, sub-categories are kept, so nothing
+     is lost - the shop just stops showing the same category twice. */
+  function ncMergeDupCats(){
+    var groups = {}, report = { groups: 0, merged: 0, moved: 0, subs: 0 };
+    DB.categories.forEach(function(c){
+      var k = ncKey(c.name);
+      if(!k) return;
+      (groups[k] = groups[k] || []).push(c);
+    });
+    Object.keys(groups).forEach(function(k){
+      var g = groups[k];
+      if(g.length < 2) return;
+      report.groups++;
+      var keep = g[0];
+      if(!Array.isArray(keep.subs)) keep.subs = [];
+      g.slice(1).forEach(function(dup){
+        DB.products.forEach(function(p){
+          if(p.category === dup.id){ p.category = keep.id; report.moved++; }
+        });
+        (dup.subs || []).forEach(function(sb){
+          var hit = keep.subs.filter(function(y){ return ncKey(y.name) === ncKey(sb.name); })[0];
+          if(hit){ if(!hit.img && sb.img) hit.img = sb.img; }
+          else { keep.subs.push(sb); report.subs++; }
+        });
+        DB.categories = DB.categories.filter(function(c){ return c.id !== dup.id; });
+        report.merged++;
+      });
+    });
+    if(report.merged) saveDB(DB);
+    return report;
+  }
+  window.ncMergeDupCats = ncMergeDupCats;      // used by the admin button
+
   var LETTER_SIZES = ['XS','S','M','L','XL','XXL','XXXL','FREE','FREE SIZE','ONESIZE','ONE SIZE'];
   var NUM_SIZES = ['26','28','30','32','34','36','38','40','42','44','46','48','50'];
 
@@ -10286,9 +10336,11 @@ function renderAdminSettings(shell){
     (DB.products || []).forEach(function(p){
       existing[String(p.name || '').trim().toLowerCase()] = p;
     });
+    /* Names are compared with ncKey, defined at the top of this module. */
     var catByName = {};
     (DB.categories || []).forEach(function(c){
-      catByName[String(c.name || '').trim().toLowerCase()] = c;
+      var k = ncKey(c.name);
+      if(k && !(k in catByName)) catByName[k] = c;
     });
 
     var out = [], errors = [], newCats = [], newSubs = [], dups = [], dataImgs = 0, badSizes = [];
@@ -10307,9 +10359,9 @@ function renderAdminSettings(shell){
       var catName = get('category');
       var cat = null;
       if(catName){
-        var key = catName.toLowerCase();
+        var key = ncKey(catName);
         if(catByName[key]) cat = catByName[key];
-        else if(newCats.indexOf(catName) < 0) newCats.push(catName);
+        else if(!newCats.some(function(n){ return ncKey(n) === key; })) newCats.push(catName);
       }
       var sub = get('sub');
       var sizes = parseSizes(get('sizes'));
@@ -10723,10 +10775,13 @@ function renderAdminSettings(shell){
     p.newCats.forEach(function(name){
       var c = { id: newId('c'), name: name, icon:'grid', emoji:'🛍️', img:'', subs:[] };
       DB.categories.push(c);
-      made[name] = c.id;
+      made[ncKey(name)] = c.id;
     });
     var byName = {};
-    DB.categories.forEach(function(c){ byName[String(c.name).trim().toLowerCase()] = c; });
+    DB.categories.forEach(function(c){
+      var k = ncKey(c.name);
+      if(k && !(k in byName)) byName[k] = c;          // the original wins
+    });
 
     var have = {};
     DB.products.forEach(function(x){ have[String(x.name || '').trim().toLowerCase()] = x; });
@@ -10742,7 +10797,7 @@ function renderAdminSettings(shell){
       if(!c || !name) return;
       if(!Array.isArray(c.subs)) c.subs = [];
       var hit = c.subs.filter(function(y){
-        return String(y.name || '').trim().toLowerCase() === name.toLowerCase();
+        return ncKey(y.name) === ncKey(name);
       })[0];
       if(hit){ if(!hit.img && img) hit.img = img; return; }
       c.subs.push({ name: name, img: img || '', group: '' });
@@ -10752,7 +10807,7 @@ function renderAdminSettings(shell){
     var added = 0, updated = 0, skipped = 0;
     p.list.forEach(function(x){
       var catId = x.category.indexOf('__new__') === 0
-                ? (made[x._catName] || (byName[String(x._catName).trim().toLowerCase()] || {}).id || '')
+                ? (made[ncKey(x._catName)] || (byName[ncKey(x._catName)] || {}).id || '')
                 : x.category;
       if(x._sub) ensureSub(catId, x._sub, x.img);
       var key = x.name.toLowerCase();
@@ -10823,7 +10878,18 @@ function renderAdminSettings(shell){
   /* -------------------------------------------------------- the way in */
   document.addEventListener('click', function(e){
     var b = e.target.closest('#ncBulkBtn');
-    if(b){ e.preventDefault(); open(); }
+    if(b){ e.preventDefault(); open(); return; }
+    var m = e.target.closest('#ncMergeCatsBtn');
+    if(m){
+      e.preventDefault();
+      var rep = ncMergeDupCats();
+      var msg = rep.groups
+        ? ('Merged ' + rep.merged + ' duplicate categor' + (rep.merged === 1 ? 'y' : 'ies') +
+           ', moved ' + rep.moved + ' product' + (rep.moved === 1 ? '' : 's') + '.')
+        : 'No duplicate categories found - nothing to merge.';
+      try{ renderAdminSettings(document.getElementById('adminShell')); }catch(err){}
+      if(typeof toast === 'function') toast(msg); else alert(msg);
+    }
   });
 
 })();
