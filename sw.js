@@ -14,9 +14,12 @@
        Future updates therefore appear by themselves.
      - Only successful responses are cached.
    Nothing else about the app changes.
+   v30 (2026-10-06) - pink rose-gold storefront re-skin. CACHE is
+   bumped again so an installed app drops the v29 cache and picks up
+   the new design instead of serving the old one.
    ============================================================ */
 
-const CACHE = 'nexcart-v29';
+const CACHE = 'nexcart-v30';
 const ASSETS = [
   './',
   './tokri-standalone.html',
