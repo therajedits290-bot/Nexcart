@@ -17,9 +17,11 @@
    v30 (2026-10-06) - pink rose-gold storefront re-skin. CACHE is
    bumped again so an installed app drops the v29 cache and picks up
    the new design instead of serving the old one.
+   v31 (2026-10-06) - category-tile ring switched from gold to pink
+   (owner's pick). CACHE bumped again.
    ============================================================ */
 
-const CACHE = 'nexcart-v30';
+const CACHE = 'nexcart-v31';
 const ASSETS = [
   './',
   './tokri-standalone.html',

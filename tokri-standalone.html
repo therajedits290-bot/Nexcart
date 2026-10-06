@@ -3442,7 +3442,7 @@ function buildHome(main){
     <div class="store-footer" id="adminTapZone">
       <div class="sf-brand" id="footAppName">${appName}</div>
       <div class="sf-line">&copy; 2026 Nexcart &middot; All rights reserved</div>
-      <div class="sf-ver">v30</div>
+      <div class="sf-ver">v31</div>
     </div>
   `;
 
@@ -5082,7 +5082,7 @@ function renderProfilePage(main){
     <div class="store-footer" id="adminTapZone">
       <div class="sf-brand" id="footAppName">${(typeof ncBrandName === 'function') ? ncBrandName() : 'Nexcart'}</div>
       <div class="sf-line">&copy; 2026 Nexcart &middot; All rights reserved</div>
-      <div class="sf-ver">v30</div>
+      <div class="sf-ver">v31</div>
     </div>
   `;
   updateInstallRow();
@@ -10895,9 +10895,9 @@ function renderAdminSettings(shell){
 })();
 </script>
 
-<style id="nexcart-theme-v30">
+<style id="nexcart-theme-v31">
 /* ============================================================
-   NEXCART v30 — PINK ROSE-GOLD THEME
+   NEXCART v31 — PINK ROSE-GOLD THEME
    ------------------------------------------------------------
    The owner liked the "golden + gradient" storefront treatment and
    asked for the same language in pink. This layer takes that shape:
@@ -10907,6 +10907,9 @@ function renderAdminSettings(shell){
      - the pink accent replaces the leftover orange (--accent)
      - the GOLD stays gold (plaques, bead frames, bulb strings, the
        "Featured Brands" lettering) — that is the part they liked
+
+   v31: the category-tile ring is now PINK, not gold. The owner picked
+   that from four rendered options (gold / rose gold / pink / thin line).
 
    Light mode only. The dark theme keeps its own palette, untouched.
    Values are the shop's own, not copied from anyone's stylesheet.
@@ -10974,9 +10977,11 @@ html:not([data-theme="dark"]) .subcat-wrap{
   border-bottom:1px solid var(--hairline);
 }
 html:not([data-theme="dark"]) .subcat-img{
-  background:linear-gradient(148deg,#FFF8CC 0%, #F7D570 26%, #D79B1E 54%, #FFF3C4 78%, #E9BB4C 100%);
+  /* v31: the owner picked this from four rendered options — the gold
+     ring became a pink one. The gold ornaments elsewhere stay gold. */
+  background:linear-gradient(148deg,#FFD9E8 0%, #FF8FBC 26%, #E4185B 60%, #FFB3D2 100%);
   padding:2px;
-  box-shadow:0 3px 9px rgba(180,80,40,.20), 0 0 0 1px rgba(214,155,30,.55);
+  box-shadow:0 3px 9px rgba(200,20,90,.18), 0 0 0 1px rgba(228,24,91,.42);
 }
 html:not([data-theme="dark"]) .subcat-img img{ border-radius:11px; }
 html:not([data-theme="dark"]) .subcat-name{ color:var(--rose-800); }
