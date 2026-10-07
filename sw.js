@@ -36,9 +36,11 @@
    v37 (2026-10-07) - the template "have this reviewed" notices removed
    and the Privacy Policy / Return & Refund Policy / Terms rewritten in
    full, plus an in-app "Delete my account" route. CACHE bumped again.
+   v38 (2026-10-07) - support email set to the owner's real address in
+   LEGAL and on both public legal pages. CACHE bumped again.
    ============================================================ */
 
-const CACHE = 'nexcart-v37';
+const CACHE = 'nexcart-v38';
 const ASSETS = [
   './',
   './tokri-standalone.html',
