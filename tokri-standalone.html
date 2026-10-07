@@ -3442,7 +3442,7 @@ function buildHome(main){
     <div class="store-footer" id="adminTapZone">
       <div class="sf-brand" id="footAppName">${appName}</div>
       <div class="sf-line">&copy; 2026 Nexcart &middot; All rights reserved</div>
-      <div class="sf-ver">v35</div>
+      <div class="sf-ver">v36</div>
     </div>
   `;
 
@@ -5082,7 +5082,7 @@ function renderProfilePage(main){
     <div class="store-footer" id="adminTapZone">
       <div class="sf-brand" id="footAppName">${(typeof ncBrandName === 'function') ? ncBrandName() : 'Nexcart'}</div>
       <div class="sf-line">&copy; 2026 Nexcart &middot; All rights reserved</div>
-      <div class="sf-ver">v35</div>
+      <div class="sf-ver">v36</div>
     </div>
   `;
   updateInstallRow();
@@ -11182,6 +11182,67 @@ html:not([data-theme="dark"]) .splash-title{
 }
 html:not([data-theme="dark"]) .splash-tagline{ color:#B8114F; opacity:1; }
 html:not([data-theme="dark"]) .splash-loader span{ background:#FF3F6C; box-shadow:none; }
+</style>
+
+<style id="nexcart-theme-v36">
+/* ============================================================
+   NEXCART v36 — Categories page: make the theme VISIBLE
+   ------------------------------------------------------------
+   The v32 pass was deployed but could not be seen. It moved the
+   sidebar from grey to an almost-white pink (#FFF0F7), drew 2px
+   rings and shifted the headings by a shade — so the page still
+   read as plain white. This pass turns the volume up to match the
+   Home page.
+   ============================================================ */
+
+/* page + panel: a real pink gradient, not a hint */
+html:not([data-theme="dark"]) .app-shell{
+  background:linear-gradient(180deg,#FFD9E8 0px, #FFE9F2 300px, #FFF6FA 640px, #FFFFFF 1000px);
+}
+html:not([data-theme="dark"]) .catpage-panel{
+  background:linear-gradient(180deg,#FFEDF5 0%, #FFF8FB 320px, #FFFFFF 640px);
+}
+
+/* sidebar: clearly pink, with a rose-gold rail on the active item */
+html:not([data-theme="dark"]) .catpage-side{
+  background:linear-gradient(180deg,#FFD2E4 0%, #FFE6F0 60%, #FFF1F7 100%);
+  border-right:1px solid #F0BFD4;
+}
+html:not([data-theme="dark"]) .catpage-item.on{
+  background:#FFFFFF;
+  box-shadow:0 3px 12px rgba(200,20,90,.16);
+}
+html:not([data-theme="dark"]) .catpage-item.on::before{
+  width:4px; border-radius:0 4px 4px 0;
+  background:linear-gradient(180deg,#F7D570 0%, #F04781 52%, #B8114F 100%);
+}
+html:not([data-theme="dark"]) .catpage-item.on span{ color:#B8114F; font-weight:800; }
+
+/* circular photos: a thicker rose-gold ring you cannot miss */
+html:not([data-theme="dark"]) .cat-tile-round img,
+html:not([data-theme="dark"]) .cat-tile-round .ctl-emoji,
+html:not([data-theme="dark"]) .cat-tile-round .ctl-icon{
+  padding:3px;
+  background:linear-gradient(148deg,#FFD9E8 0%, #F7D570 33%, #D79B1E 60%, #FF9FC4 100%);
+  box-shadow:0 5px 16px rgba(190,90,40,.28);
+}
+html:not([data-theme="dark"]) .cat-tile-round span{ color:#B8114F; font-weight:700; }
+
+/* headings: rose, with a bold rose-gold bar */
+html:not([data-theme="dark"]) .catpage-h,
+html:not([data-theme="dark"]) .sub-group-h{ color:#B8114F; font-weight:800; }
+html:not([data-theme="dark"]) .catpage-h::before,
+html:not([data-theme="dark"]) .sub-group-h::before{
+  width:5px; height:17px; border-radius:3px;
+  background:linear-gradient(180deg,#F7D570 0%, #F04781 55%, #B8114F 100%);
+}
+
+/* product tiles: white card with a visible rose edge */
+html:not([data-theme="dark"]) .catpage-grid:not(.sub-grid) .cat-tile-lg{
+  background:#fff;
+  box-shadow:0 3px 12px rgba(200,20,90,.12), 0 0 0 1px rgba(240,180,205,.95);
+}
+html:not([data-theme="dark"]) .catpage-grid:not(.sub-grid) .cat-tile-lg span{ color:#8A0A3C; }
 </style>
 
 </body>

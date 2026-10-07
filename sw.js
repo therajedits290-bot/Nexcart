@@ -30,9 +30,12 @@
    v35 (2026-10-06) - back to a WHITE launch/splash field, with the
    icon rounded (icon-192/512 now have transparent corners). CACHE
    bumped again.
+   v36 (2026-10-07) - the v32 Categories-page theming was deployed but
+   too faint to see; this pass makes it clearly visible. CACHE bumped
+   again.
    ============================================================ */
 
-const CACHE = 'nexcart-v35';
+const CACHE = 'nexcart-v36';
 const ASSETS = [
   './',
   './tokri-standalone.html',
