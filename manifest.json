@@ -3,6 +3,8 @@
   "short_name": "Nexcart",
   "description": "Sasta shopping, full paisa vasool. Cash on Delivery available across India.",
   "start_url": "./tokri-standalone.html",
+  "scope": "/Nexcart/",
+  "id": "/Nexcart/",
   "display": "standalone",
   "theme_color": "#FF3F6C",
   "background_color": "#FFFFFF",

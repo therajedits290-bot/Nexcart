@@ -48,9 +48,12 @@
    request; admin is reached only by the hidden footer trigger, whose
    long-press is now 10s. Its files are dropped from the precache list.
    CACHE bumped again.
+   v42 (2026-10-08) - manifest.json gains an explicit id and scope (needed
+   for a reliable full-screen TWA), and the unused Google demo-account
+   chooser is deleted. CACHE bumped again.
    ============================================================ */
 
-const CACHE = 'nexcart-v41';
+const CACHE = 'nexcart-v42';
 const ASSETS = [
   './',
   './tokri-standalone.html',
