@@ -3442,7 +3442,7 @@ function buildHome(main){
     <div class="store-footer" id="adminTapZone">
       <div class="sf-brand" id="footAppName">${appName}</div>
       <div class="sf-line">&copy; 2026 Nexcart &middot; All rights reserved</div>
-      <div class="sf-ver">v39</div>
+      <div class="sf-ver">v41</div>
     </div>
   `;
 
@@ -5087,7 +5087,7 @@ function renderProfilePage(main){
     <div class="store-footer" id="adminTapZone">
       <div class="sf-brand" id="footAppName">${(typeof ncBrandName === 'function') ? ncBrandName() : 'Nexcart'}</div>
       <div class="sf-line">&copy; 2026 Nexcart &middot; All rights reserved</div>
-      <div class="sf-ver">v39</div>
+      <div class="sf-ver">v41</div>
     </div>
   `;
   updateInstallRow();
@@ -5501,12 +5501,12 @@ function policyContent(type){
 // Three ways in, because a hidden gesture that silently fails is worse
 // than no gesture at all:
 //   1. tap the footer version line 25x (window resets 3s after the last tap)
-//   2. press and hold the same footer line for 2.5s
+//   2. press and hold the same footer line for 10s
 //   3. open the file with #admin on the end of the URL
 // ============================================================
 const ADMIN_TAPS_NEEDED   = 25;
 const ADMIN_TAP_WINDOW_MS = 3000;
-const ADMIN_HOLD_MS       = 2500;
+const ADMIN_HOLD_MS       = 10000;
 const ADMIN_TAP_SELECTOR  = '#adminTapZone';
 const ADMIN_PIN_DEFAULT   = '1234';
 
@@ -6169,6 +6169,8 @@ function renderAdminDashboard(shell){
       <div class="admin-stat-card">${icon('bell')}<div class="admin-stat-value">${lowStock.length}</div><div class="admin-stat-label">Low Stock${outOfStock?` · ${outOfStock} out`:''}</div></div>
     </div>
 
+    <div id="ncBackupCard" class="policy-note" style="margin:0 16px 16px;">${icon('shield')}<span>Checking cloud backup&hellip;</span></div>
+
     ${lowStockBlock}
 
     <div class="section"><span class="section-title">Quick Actions</span></div>
@@ -6186,6 +6188,50 @@ function renderAdminDashboard(shell){
   bindAdminNav();
   $$('[data-goto]', shell).forEach(el=> el.addEventListener('click', ()=> renderAdminTab(el.dataset.goto)));
   $$('[data-restock]', shell).forEach(el=> el.addEventListener('click', ()=> openProductForm(el.dataset.restock)));
+  checkCloudBackup();
+}
+
+/* Cloud backup warning.
+   The public /api/bootstrap endpoint needs no key, so we can look at the
+   server's copy and tell the owner when their whole shop exists only on this
+   phone. Losing a phone should never mean losing the catalogue. */
+async function checkCloudBackup(){
+  const el = $('#ncBackupCard'); if(!el) return;
+  const localCount = (DB.products || []).length;
+  const base = (typeof window.ncBases === 'function') ? window.ncBases() : '';
+
+  if(!base){
+    el.innerHTML = icon('info') + '<span>Cloud backup is off — no server is configured for this build.</span>';
+    return;
+  }
+
+  let serverCount = null;
+  try{
+    const res = await fetch(base + '/api/bootstrap', { cache: 'no-store' });
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const d = await res.json();
+    serverCount = Array.isArray(d.products) ? d.products.length : 0;
+  }catch(e){
+    el.innerHTML = icon('info') + '<span>The server could not be reached, so the backup status is unknown. Your shop keeps working offline.</span>';
+    return;
+  }
+
+  if(localCount > 0 && serverCount === 0){
+    el.innerHTML = icon('shield') + '<span><b>Your shop is not backed up.</b> All ' + localCount +
+      ' products exist only on this phone. Open <b>Settings &rarr; Cloud sync</b>, save your sync key, then tap <b>Upload this shop to the server</b>.</span>';
+    return;
+  }
+  if(serverCount > 0 && localCount === 0){
+    el.innerHTML = icon('download') + '<span>The server holds <b>' + serverCount +
+      ' products</b> and this device has none. Use <b>Settings &rarr; Cloud sync &rarr; Pull the catalogue from the server</b>.</span>';
+    return;
+  }
+  if(serverCount > 0){
+    el.innerHTML = icon('checkCircle') + '<span>Backed up — the server holds <b>' + serverCount +
+      ' products</b>, so the catalogue can be restored on another device.</span>';
+    return;
+  }
+  el.innerHTML = icon('info') + '<span>Nothing to back up yet. Add a product, then upload it from <b>Settings &rarr; Cloud sync</b>.</span>';
 }
 
 // ============================================================

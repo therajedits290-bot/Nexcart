@@ -41,9 +41,16 @@
    v39 (2026-10-07) - standalone Admin app (admin.html + its own
    manifest and icon) and a Cloud-sync section in admin Settings.
    CACHE bumped again.
+   v40 (2026-10-07) - admin dashboard now reports whether the shop is
+   backed up to the server, and warns when it exists only on the phone.
+   CACHE bumped again.
+   v41 (2026-10-07) - the separate Admin app is withdrawn at the owner's
+   request; admin is reached only by the hidden footer trigger, whose
+   long-press is now 10s. Its files are dropped from the precache list.
+   CACHE bumped again.
    ============================================================ */
 
-const CACHE = 'nexcart-v39';
+const CACHE = 'nexcart-v41';
 const ASSETS = [
   './',
   './tokri-standalone.html',
@@ -51,13 +58,6 @@ const ASSETS = [
   './icon-192.png',
   './icon-512.png',
   './icon-maskable-512.png',
-  /* the standalone Admin app. Without these an offline launch of
-     admin.html falls through to the shop page instead of the panel. */
-  './admin.html',
-  './admin-manifest.json',
-  './admin-icon-192.png',
-  './admin-icon-512.png',
-  './admin-icon-maskable-512.png',
   './privacy.html',
   './delete-account.html'
 ];
