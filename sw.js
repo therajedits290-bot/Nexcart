@@ -38,16 +38,28 @@
    full, plus an in-app "Delete my account" route. CACHE bumped again.
    v38 (2026-10-07) - support email set to the owner's real address in
    LEGAL and on both public legal pages. CACHE bumped again.
+   v39 (2026-10-07) - standalone Admin app (admin.html + its own
+   manifest and icon) and a Cloud-sync section in admin Settings.
+   CACHE bumped again.
    ============================================================ */
 
-const CACHE = 'nexcart-v38';
+const CACHE = 'nexcart-v39';
 const ASSETS = [
   './',
   './tokri-standalone.html',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
-  './icon-maskable-512.png'
+  './icon-maskable-512.png',
+  /* the standalone Admin app. Without these an offline launch of
+     admin.html falls through to the shop page instead of the panel. */
+  './admin.html',
+  './admin-manifest.json',
+  './admin-icon-192.png',
+  './admin-icon-512.png',
+  './admin-icon-maskable-512.png',
+  './privacy.html',
+  './delete-account.html'
 ];
 
 /* install: fetch fresh copies (cache:'reload' bypasses the HTTP cache) */

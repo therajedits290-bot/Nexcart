@@ -3442,7 +3442,7 @@ function buildHome(main){
     <div class="store-footer" id="adminTapZone">
       <div class="sf-brand" id="footAppName">${appName}</div>
       <div class="sf-line">&copy; 2026 Nexcart &middot; All rights reserved</div>
-      <div class="sf-ver">v38</div>
+      <div class="sf-ver">v39</div>
     </div>
   `;
 
@@ -5087,7 +5087,7 @@ function renderProfilePage(main){
     <div class="store-footer" id="adminTapZone">
       <div class="sf-brand" id="footAppName">${(typeof ncBrandName === 'function') ? ncBrandName() : 'Nexcart'}</div>
       <div class="sf-line">&copy; 2026 Nexcart &middot; All rights reserved</div>
-      <div class="sf-ver">v38</div>
+      <div class="sf-ver">v39</div>
     </div>
   `;
   updateInstallRow();
@@ -7330,6 +7330,15 @@ function renderAdminSettings(shell){
         <button class="btn btn-secondary btn-block" id="saveDeliveryBtn">Save Delivery Estimate</button>
       </div>
       <div class="od-section">
+        <h4>Cloud sync &amp; the separate Admin app</h4>
+        <p class="form-hint">Your shop lives on this device. The copy on your server is what lets the standalone <b>Nexcart Admin</b> app &mdash; or a laptop, or a second phone &mdash; open the same catalogue.</p>
+        <div class="form-group"><label class="form-label">Sync key (ADMIN_KEY)</label><input class="form-input" id="ncKeyInput" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Paste your ADMIN_KEY" value="${(typeof window.ncGetKey === 'function' ? (window.ncGetKey() || '') : '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}"></div>
+        <button class="btn btn-secondary btn-block" id="ncSaveKeyBtn">Save key on this device</button>
+        <button class="btn btn-primary btn-block" id="ncPushBtn" style="margin-top:10px;">${icon('upload')} Upload this shop to the server</button>
+        <button class="btn btn-secondary btn-block" id="ncPullBtn" style="margin-top:10px;">${icon('refresh')} Pull the catalogue from the server</button>
+        <p class="form-hint" id="ncSyncState"></p>
+      </div>
+      <div class="od-section">
         <h4>Backups</h4>
         <p class="form-hint">A copy of your shop is saved by itself whenever it changes. If products or categories ever go missing, put them back here.</p>
         <div id="snapList"><p class="form-hint">Checking&hellip;</p></div>
@@ -7366,6 +7375,34 @@ function renderAdminSettings(shell){
      showToast('Admin PIN updated ('+val.length+' digits)', 'checkCircle');
      $('#newPinInput').value = '';
    });
+  /* ---- cloud sync: save the key, push, pull ---- */
+  const syncStateEl = $('#ncSyncState');
+  const setSyncState = (txt)=>{ if(syncStateEl) syncStateEl.innerHTML = txt; };
+  (function(){
+    const base = (typeof window.ncBases === 'function') ? window.ncBases() : '';
+    const hasKey = (typeof window.ncGetKey === 'function') && !!window.ncGetKey();
+    setSyncState(base
+      ? ('Server: <b>' + String(base).replace(/^https?:\/\//,'') + '</b>' + (hasKey ? ' &middot; key saved on this device' : ' &middot; no key saved on this device yet'))
+      : 'No server configured &mdash; sync is off.');
+  })();
+  $('#ncSaveKeyBtn').addEventListener('click', ()=>{
+    const v = ($('#ncKeyInput').value || '').trim();
+    if(!v){ showToast('Paste the ADMIN_KEY first'); return; }
+    if(typeof window.ncSetKey !== 'function'){ showToast('Sync is not available in this build'); return; }
+    window.ncSetKey(v);
+    showToast('Sync key saved on this device', 'checkCircle');
+    setSyncState('Key saved. Now use &ldquo;Upload this shop to the server&rdquo; to publish this device&rsquo;s catalogue.');
+  });
+  $('#ncPushBtn').addEventListener('click', async ()=>{
+    if(typeof window.ncPush !== 'function'){ showToast('Sync is not available in this build'); return; }
+    if(typeof window.ncGetKey !== 'function' || !window.ncGetKey()){ showToast('Save your ADMIN_KEY first'); return; }
+    try{ await window.ncPush(); }catch(e){ showToast('Upload failed: ' + ((e && e.message) || e)); }
+  });
+  $('#ncPullBtn').addEventListener('click', async ()=>{
+    if(typeof window.ncPull !== 'function'){ showToast('Sync is not available in this build'); return; }
+    try{ await window.ncPull(); showToast('Pulled from the server', 'checkCircle'); renderAdminSettings(shell); }
+    catch(e){ showToast('Pull failed: ' + ((e && e.message) || e)); }
+  });
   $('#onlineToggle').addEventListener('click', ()=>{
     DB.settings.onlinePaymentEnabled = !DB.settings.onlinePaymentEnabled;
     persist();
@@ -7779,6 +7816,16 @@ function renderAdminSettings(shell){
       pushCatalog();
     }
   }
+
+  /* ---------- 4b. expose the sync helpers ----------
+     The admin Settings screen lives in a different script scope, so hand
+     it the four things it needs to drive sync from a proper form instead
+     of the "saved sync key was rejected" prompt. */
+  window.ncBases  = function () { return BASE; };
+  window.ncGetKey = getKey;
+  window.ncSetKey = setKey;
+  window.ncPush   = pushCatalog;
+  window.ncPull   = pullCatalog;
 
   /* ---------- 5. install hooks ---------- */
 

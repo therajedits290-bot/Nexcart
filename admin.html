@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nexcart Admin</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="manifest" href="admin-manifest.json">
+<meta name="theme-color" content="#6E0526">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Nexcart Admin">
+<link rel="apple-touch-icon" href="admin-icon-192.png">
+<link rel="icon" href="admin-icon-192.png">
+<style>
+  html,body{margin:0;padding:0;height:100%;background:#6E0526;overflow:hidden}
+  #boot{
+    position:fixed;inset:0;z-index:2;display:flex;align-items:center;justify-content:center;
+    flex-direction:column;gap:16px;
+    background:radial-gradient(120% 78% at 50% 26%,#A00E48 0%,#6E0526 44%,#45021A 100%);
+    color:#F7D570;font:800 15px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    letter-spacing:4px;text-transform:uppercase;
+  }
+  #boot small{
+    font-weight:500;letter-spacing:.2px;text-transform:none;color:#FFC9DE;font-size:12.5px;
+  }
+  #boot i{
+    width:9px;height:9px;border-radius:50%;background:#F7D570;display:block;
+    animation:ncPulse 1.15s ease-in-out infinite;
+  }
+  @keyframes ncPulse{0%,100%{opacity:.35;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}
+  #adm{position:fixed;inset:0;width:100%;height:100%;border:0;background:#fff;z-index:1}
+</style>
+</head>
+<body>
+  <div id="boot"><i></i>Nexcart Admin<small>Opening the panel&hellip;</small></div>
+  <iframe id="adm" src="tokri-standalone.html#admin" title="Nexcart admin panel" allow="clipboard-write"></iframe>
+  <script>
+    /* The panel is the shop app opened straight into its admin screen, so the
+       two always behave identically and there is no second copy to maintain.
+       Same origin means it reads the same shop data this device already has. */
+    var f = document.getElementById('adm'), b = document.getElementById('boot');
+    function reveal(){ if(b) b.style.display = 'none'; }
+    f.addEventListener('load', function(){ setTimeout(reveal, 140); });
+    /* Never leave the cover sitting on top of the panel. */
+    setTimeout(reveal, 6000);
+  </script>
+</body>
+</html>
