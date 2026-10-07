@@ -3442,7 +3442,7 @@ function buildHome(main){
     <div class="store-footer" id="adminTapZone">
       <div class="sf-brand" id="footAppName">${appName}</div>
       <div class="sf-line">&copy; 2026 Nexcart &middot; All rights reserved</div>
-      <div class="sf-ver">v31</div>
+      <div class="sf-ver">v35</div>
     </div>
   `;
 
@@ -5082,7 +5082,7 @@ function renderProfilePage(main){
     <div class="store-footer" id="adminTapZone">
       <div class="sf-brand" id="footAppName">${(typeof ncBrandName === 'function') ? ncBrandName() : 'Nexcart'}</div>
       <div class="sf-line">&copy; 2026 Nexcart &middot; All rights reserved</div>
-      <div class="sf-ver">v31</div>
+      <div class="sf-ver">v35</div>
     </div>
   `;
   updateInstallRow();
@@ -11060,6 +11060,128 @@ html:not([data-theme="dark"]) .bs-brand{ border-color:#F0CFDD; }
 /* ---------------------------------------------- 13. footer + bottom nav */
 html:not([data-theme="dark"]) .store-footer{ border-top:1px solid var(--hairline); }
 html:not([data-theme="dark"]) .bottom-nav{ border-top:1px solid var(--hairline); }
+</style>
+
+<style id="nexcart-theme-v32">
+/* ============================================================
+   NEXCART v32 — the OTHER tabs, brought up to the Home page
+   ------------------------------------------------------------
+   Home was re-skinned in v30/v31; Categories / Cart / Orders /
+   Profile were still plain white, so they did not match.
+
+     - the app shell now carries the same soft pink wash as Home,
+       so every tab is tinted instead of flat white
+     - Categories page: pink sidebar, ROSE-GOLD ring around the
+       circular sub-category photos, rose-gold rule before every
+       heading, white product tiles with a rose edge
+     - Profile header: the same pink gradient as the top bar
+
+   Light mode only. Values are the shop's own.
+   ============================================================ */
+
+/* -- shell wash: every tab sits on the same tint as Home -- */
+html:not([data-theme="dark"]) .app-shell{
+  background: linear-gradient(180deg,#FFE7F1 0px, #FFF4F9 300px, #FFFFFF 700px);
+}
+
+/* ---------------------------------------------- 1. categories page */
+html:not([data-theme="dark"]) .catpage{ background:transparent; }
+
+html:not([data-theme="dark"]) .catpage-side{
+  background:linear-gradient(180deg,#FFF0F7 0%, #FFF8FB 55%, #FFFFFF 100%);
+  border-right:1px solid var(--hairline);
+}
+html:not([data-theme="dark"]) .catpage-item.on{
+  background:#fff;
+  border-left-color:transparent;
+  position:relative;
+  box-shadow:0 2px 10px rgba(200,20,90,.10);
+}
+html:not([data-theme="dark"]) .catpage-item.on::before{
+  content:''; position:absolute; left:0; top:7px; bottom:7px; width:3px;
+  border-radius:0 3px 3px 0;
+  background:linear-gradient(180deg,#F7D570 0%, #FF6FA5 52%, #D6114F 100%);
+}
+html:not([data-theme="dark"]) .catpage-item .cpi-img{
+  background:linear-gradient(148deg,#FFD9E8 0%, #F7D570 34%, #D79B1E 62%, #FF9FC4 100%);
+  padding:2px;
+  box-shadow:0 2px 8px rgba(190,90,40,.18);
+}
+html:not([data-theme="dark"]) .catpage-item .cpi-img img{ border-radius:9px; }
+html:not([data-theme="dark"]) .catpage-item span,
+html:not([data-theme="dark"]) .catpage-item.on span{ color:var(--rose-800); }
+html:not([data-theme="dark"]) .catpage-item.on span{ font-weight:800; }
+
+/* rose-gold rule before both heading styles on this page */
+html:not([data-theme="dark"]) .catpage-h,
+html:not([data-theme="dark"]) .sub-group-h{
+  color:var(--rose-800);
+  display:flex; align-items:center; gap:8px;
+}
+html:not([data-theme="dark"]) .catpage-h::before,
+html:not([data-theme="dark"]) .sub-group-h::before{
+  content:''; flex:none; width:4px; height:15px; border-radius:3px;
+  background:linear-gradient(180deg,#F7D570 0%, #FF6FA5 55%, #D6114F 100%);
+}
+
+/* circular sub-category photos get the rose-gold ring */
+html:not([data-theme="dark"]) .cat-tile-round img,
+html:not([data-theme="dark"]) .cat-tile-round .ctl-emoji,
+html:not([data-theme="dark"]) .cat-tile-round .ctl-icon{
+  padding:2px;
+  background:linear-gradient(148deg,#FFD9E8 0%, #F7D570 34%, #D79B1E 62%, #FF9FC4 100%);
+  box-shadow:0 3px 10px rgba(190,90,40,.20);
+}
+html:not([data-theme="dark"]) .cat-tile-round span{ color:var(--rose-800); }
+
+/* product tiles on this page: white card with a rose edge */
+html:not([data-theme="dark"]) .catpage-grid:not(.sub-grid) .cat-tile-lg{
+  background:#fff;
+  box-shadow:0 2px 9px rgba(200,20,90,.09), 0 0 0 1px rgba(240,207,221,.95);
+}
+
+/* ---------------------------------------------- 2. profile header */
+html:not([data-theme="dark"]) .profile-header{
+  background:linear-gradient(130deg,#FF7FAE 0%, #F04781 45%, #B8114F 100%);
+  box-shadow:0 10px 24px rgba(190,16,74,.20);
+}
+</style>
+
+<style id="nexcart-theme-v35">
+/* ============================================================
+   NEXCART v35 — splash / launch screen, WHITE + rounded icon
+   ------------------------------------------------------------
+   The owner's pick: a plain white field with the icon sitting on
+   it as a rounded tile.
+
+     1. manifest.json background_color is #FFFFFF. It was #FF3F6C,
+        which was the same pink as the icon and made the icon vanish.
+     2. icon-192.png and icon-512.png now carry their own rounded
+        corners (transparent outside a 22% radius), so the icon
+        shows as a rounded tile instead of a hard square.
+     3. the in-app splash is white to match the launch screen, with
+        the mark on a rounded pink tile and the wordmark in deep
+        rose, so the two screens flow into each other.
+
+   Light mode only. Splash-with-a-photo (.has-media) is untouched.
+   ============================================================ */
+
+html:not([data-theme="dark"]) .splash:not(.has-media){ background:#FFFFFF; }
+/* no sparkle dust on a white field */
+html:not([data-theme="dark"]) .splash:not(.has-media)::before{ content:none; }
+
+/* the mark sits on a rounded pink tile, matching the app icon */
+html:not([data-theme="dark"]) .splash-logo-wrap{
+  background:linear-gradient(150deg,#FF7FAE 0%, #F63088 52%, #C2185B 100%);
+  box-shadow:0 12px 30px rgba(200,20,90,.26), inset 0 0 0 1px rgba(255,255,255,.35);
+}
+html:not([data-theme="dark"]) .splash-inner{ color:#8A0A3C; }
+html:not([data-theme="dark"]) .splash-title{
+  font-size:26px; font-weight:800; letter-spacing:5px; text-transform:uppercase;
+  color:#8A0A3C;
+}
+html:not([data-theme="dark"]) .splash-tagline{ color:#B8114F; opacity:1; }
+html:not([data-theme="dark"]) .splash-loader span{ background:#FF3F6C; box-shadow:none; }
 </style>
 
 </body>

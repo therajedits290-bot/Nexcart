@@ -19,9 +19,20 @@
    the new design instead of serving the old one.
    v31 (2026-10-06) - category-tile ring switched from gold to pink
    (owner's pick). CACHE bumped again.
+   v32 (2026-10-06) - Categories / Cart / Orders / Profile tabs themed
+   to match Home. CACHE bumped again.
+   v33 (2026-10-06) - splash screen rebuilt, and manifest.json
+   background_color changed for the installed-app launch screen.
+   CACHE bumped again.
+   v34 (2026-10-06) - splash + launch screen moved to DEEP WINE
+   (#6E0526), the owner's pick from four rendered options. CACHE
+   bumped again.
+   v35 (2026-10-06) - back to a WHITE launch/splash field, with the
+   icon rounded (icon-192/512 now have transparent corners). CACHE
+   bumped again.
    ============================================================ */
 
-const CACHE = 'nexcart-v31';
+const CACHE = 'nexcart-v35';
 const ASSETS = [
   './',
   './tokri-standalone.html',
