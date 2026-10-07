@@ -33,9 +33,12 @@
    v36 (2026-10-07) - the v32 Categories-page theming was deployed but
    too faint to see; this pass makes it clearly visible. CACHE bumped
    again.
+   v37 (2026-10-07) - the template "have this reviewed" notices removed
+   and the Privacy Policy / Return & Refund Policy / Terms rewritten in
+   full, plus an in-app "Delete my account" route. CACHE bumped again.
    ============================================================ */
 
-const CACHE = 'nexcart-v36';
+const CACHE = 'nexcart-v37';
 const ASSETS = [
   './',
   './tokri-standalone.html',

@@ -3442,7 +3442,7 @@ function buildHome(main){
     <div class="store-footer" id="adminTapZone">
       <div class="sf-brand" id="footAppName">${appName}</div>
       <div class="sf-line">&copy; 2026 Nexcart &middot; All rights reserved</div>
-      <div class="sf-ver">v36</div>
+      <div class="sf-ver">v37</div>
     </div>
   `;
 
@@ -5066,6 +5066,11 @@ function renderProfilePage(main){
         <div class="profile-menu-text">Terms &amp; Conditions</div>
         ${icon('chevronRight','chev')}
       </div>
+      <div class="profile-menu-item" data-act="delete-account">
+        <div class="profile-menu-icon">${icon('trash')}</div>
+        <div class="profile-menu-text">Delete my account</div>
+        ${icon('chevronRight','chev')}
+      </div>
       <div class="profile-menu-item" data-act="support">
         <div class="profile-menu-icon">${icon('headset')}</div>
         <div class="profile-menu-text">Help &amp; Support</div>
@@ -5082,7 +5087,7 @@ function renderProfilePage(main){
     <div class="store-footer" id="adminTapZone">
       <div class="sf-brand" id="footAppName">${(typeof ncBrandName === 'function') ? ncBrandName() : 'Nexcart'}</div>
       <div class="sf-line">&copy; 2026 Nexcart &middot; All rights reserved</div>
-      <div class="sf-ver">v36</div>
+      <div class="sf-ver">v37</div>
     </div>
   `;
   updateInstallRow();
@@ -5098,6 +5103,7 @@ function renderProfilePage(main){
       else if(act==='privacy') openPolicyPage('privacy');
       else if(act==='return-policy') openPolicyPage('return');
       else if(act==='terms') openPolicyPage('terms');
+      else if(act==='delete-account') openPolicyPage('delete');
       else if(act==='support') openSupportPage();
       else if(act==='logout') confirmAction('Logout?','You will need to enter your phone number again to log back in.', doLogout);
     });
@@ -5271,7 +5277,7 @@ function openSupportPage(){
     main.innerHTML = `
       <div class="policy-page">
         <div class="od-section">
-          <div class="trust-row">${icon('headset')}<span>Chat with us: support@tokri.app</span></div>
+          <div class="trust-row">${icon('headset')}<span>Chat with us: ${LEGAL.email}</span></div>
           <div class="trust-row">${icon('clock')}<span>Mon–Sat, 9 AM – 8 PM</span></div>
         </div>
         <h3>Frequently Asked</h3>
@@ -5286,62 +5292,204 @@ function openSupportPage(){
 // POLICY PAGES
 // ============================================================
 function openPolicyPage(type){
-  const titles = { privacy:'Privacy Policy', return:'Return & Refund Policy', terms:'Terms & Conditions' };
+  const titles = { privacy:'Privacy Policy', return:'Return & Refund Policy', terms:'Terms & Conditions', delete:'Delete my account' };
   pushView(titles[type], (main)=>{
     main.innerHTML = policyContent(type);
   });
 }
+/* ------------------------------------------------------------
+   Your legal details live here, in one place. Every policy page
+   below reads from LEGAL, so you edit them once and they all update.
+   ------------------------------------------------------------ */
+const LEGAL = {
+  entity:  'Nexcart',
+  email:   'gunaraj88@gmail.com',
+  address: 'Tamil Nadu, India',
+  updated: '7 October 2026',
+  /* where the public privacy / account-deletion pages live — the two
+     URLs you paste into the Play Console listing */
+  site:    'https://therajedits290-bot.github.io/Nexcart'
+};
+
 function policyContent(type){
   const appName = DB.branding.appName;
   const days = DB.settings.returnWindowDays;
-  const flag = `<div class="policy-flag">${icon('info')}<p>This is a drafted template to help you launch. Please have it reviewed by a legal professional before publishing — Play Store/App Store require an accurate, reviewed privacy policy.</p></div>`;
+  const L = LEGAL;
+  const mail = `<a href="mailto:${L.email}">${L.email}</a>`;
+  const foot = `<div class="policy-highlight"><b>Last updated:</b> ${L.updated}</div>`;
 
   if(type === 'privacy'){
     return `<div class="policy-page">
-      ${flag}
-      <h3>1. Information We Collect</h3>
-      <p>We collect information you provide directly (name, phone, email, delivery address) and information generated through your use of ${appName}, such as order history and app activity.</p>
-      <h3>2. How We Use Your Information</h3>
-      <ul><li>Process and deliver your orders</li><li>Provide order tracking and customer support</li><li>Improve our products and services</li><li>Send order-related notifications</li></ul>
-      <h3>3. Payment Information</h3>
-      <p>${appName} currently supports Cash on Delivery only. No card or bank details are collected or stored by us at this time. Online payment methods will be introduced in a future update, at which point this policy will be revised to describe our PCI-compliant payment partner.</p>
-      <h3>4. Data Sharing</h3>
-      <p>We do not sell your personal data. Information is shared only with delivery partners to fulfil your orders, and with service providers who help us operate the app.</p>
-      <h3>5. Data Retention &amp; Security</h3>
-      <p>We retain your data as long as your account is active and apply reasonable technical safeguards to protect it from unauthorized access.</p>
-      <h3>6. Your Rights</h3>
-      <p>You may request access, correction, or deletion of your personal data by contacting support@tokri.app.</p>
-      <div class="policy-highlight"><b>Last updated:</b> template — insert live date before publishing.</div>
+      <p>This policy explains what ${appName} collects, why we collect it, and the choices you have. It covers the ${appName} mobile app and website.</p>
+
+      <h3>1. Who we are</h3>
+      <p>${appName} is operated by ${L.entity}, ${L.address}. For any privacy question, or to exercise a right set out below, write to ${mail}.</p>
+
+      <h3>2. Information we collect</h3>
+      <p><b>Account details.</b> When you create an account we collect your name, mobile number and a password. If you sign in with Google we receive your name, email address and Google account identifier instead.</p>
+      <p><b>Order and delivery details.</b> The name, mobile number and delivery address (with city, state and PIN code) you enter at checkout, plus the items ordered, the amount and the order status.</p>
+      <p><b>Refund details — only if you ask for a refund.</b> The UPI ID you give us, or your account holder name, bank account number, IFSC code and bank name. We use these only to pay the refund.</p>
+      <p><b>Your activity in the app.</b> Cart, wishlist, saved addresses, recently viewed items and order history. These live on your device and, for account holders, on our servers.</p>
+      <p><b>Basic technical data.</b> As with any website, our servers receive your IP address and basic device and browser information when the app talks to them.</p>
+
+      <h3>3. What we do NOT collect</h3>
+      <ul>
+        <li>We never ask for or store card numbers, CVV, UPI PIN or net-banking passwords — payment is Cash on Delivery.</li>
+        <li>We do not read your SMS. There is no OTP; we send nothing by SMS.</li>
+        <li>We do not access your contacts, photos, camera, microphone or precise location.</li>
+      </ul>
+
+      <h3>4. How we use your information</h3>
+      <ul>
+        <li>To create and secure your account and keep you signed in</li>
+        <li>To accept, pack, ship and deliver your orders, and to show you tracking</li>
+        <li>To process cancellations, returns and refunds</li>
+        <li>To answer your support questions</li>
+        <li>To keep catalogue, stock and pricing accurate</li>
+        <li>To detect and prevent fraud and misuse</li>
+        <li>To meet our legal and tax obligations</li>
+      </ul>
+
+      <h3>5. Who we share it with</h3>
+      <p>We do not sell your personal data, and we do not share it for advertising.</p>
+      <ul>
+        <li><b>Delivery partners</b> — your name, address and phone number, so your order can reach you.</li>
+        <li><b>Our hosting provider</b> — the service that stores your account and orders for us.</li>
+        <li><b>Google</b> — only if you choose "Continue with Google", to verify your sign-in.</li>
+        <li><b>Image delivery network</b> — product photos are served from a content delivery network, which sees your IP address.</li>
+        <li><b>Law enforcement</b> — where we are legally required to disclose.</li>
+      </ul>
+
+      <h3>6. How long we keep it, and how we protect it</h3>
+      <p>We keep your account data while your account is open. Order and refund records are kept longer where tax and accounting law requires it. Data held on your phone (cart, wishlist, cached images) stays until you clear the app's data or uninstall the app.</p>
+      <p>All traffic between the app and our servers uses HTTPS. Access to customer data inside our systems is limited to the people who need it to run the store.</p>
+
+      <h3>7. Your choices and rights</h3>
+      <p>You can view and correct your name and addresses in the app at any time. You may also ask us to:</p>
+      <ul>
+        <li><b>Show</b> you the personal data we hold about you</li>
+        <li><b>Correct</b> anything that is inaccurate</li>
+        <li><b>Delete</b> your account and personal data</li>
+        <li><b>Withdraw</b> a consent you gave us earlier</li>
+      </ul>
+      <p><b>Deleting your account.</b> Write to ${mail} from the mobile number registered to your account, or use the deletion request page at <a href="${L.site}/delete-account.html">${L.site}/delete-account.html</a>. We act on verified requests within 30 days. We may keep order and tax records for as long as the law requires, and we will tell you when we do.</p>
+
+      <h3>8. Children</h3>
+      <p>${appName} is meant for adults and is not directed at children. We do not knowingly collect personal data from anyone under 18. If you believe a child has given us their data, contact ${mail} and we will delete it.</p>
+
+      <h3>9. Cookies and local storage</h3>
+      <p>We do not use advertising cookies or third-party tracking. The app stores a small amount of data on your device — cart, wishlist, saved addresses, your sign-in token and a cache of product images — so that it opens quickly and works on a weak signal. Clearing the app's data removes all of it.</p>
+
+      <h3>10. Changes to this policy</h3>
+      <p>If we change how we handle your data we will update this page and the "last updated" date. Important changes will be shown in the app.</p>
+
+      <h3>11. Contact</h3>
+      <p>${L.entity}<br>${L.address}<br>Email: ${mail}</p>
+      ${foot}
     </div>`;
   }
+
   if(type === 'return'){
     return `<div class="policy-page">
-      ${flag}
-      <h3>Cancellation Policy</h3>
-      <p>Orders can be cancelled free of charge <b>only before they are shipped</b>. Once an order status changes to "Shipped," it can no longer be cancelled through the app.</p>
-      <h3>Return Policy</h3>
-      <p>Returns are accepted <b>within ${days} days of delivery</b>. After ${days} days, the return option will no longer be available on the order.</p>
+      <h3>1. Cancelling an order</h3>
+      <p>You can cancel free of charge <b>any time before the order is shipped</b>. Once the status changes to "Shipped" it can no longer be cancelled from the app — contact us and we will help where we can.</p>
+
+      <h3>2. Return window</h3>
+      <p>You may request a return <b>within ${days} days of delivery</b>. After that the Return option disappears from the order.</p>
       <ul>
-        <li>Item must be unused, unwashed, and in original packaging</li>
-        <li>Go to Orders → select the order → tap "Return Order"</li>
-        <li>Our pickup partner will collect the item from your address</li>
+        <li>The item must be unused, unwashed and in its original packaging with tags intact</li>
+        <li>Go to <b>Orders → open the order → Return Order</b> and choose Refund or Exchange</li>
+        <li>Our pickup partner collects the item from your address</li>
       </ul>
-      <h3>Refunds</h3>
-      <p>Since payments are Cash on Delivery, approved refunds are processed to your bank account or store wallet within 5–7 business days after the returned item passes quality check.</p>
-      <div class="policy-highlight"><b>Quick rule:</b> Cancel before "Shipped" · Return within ${days} days after "Delivered".</div>
+
+      <h3>3. Damaged, defective or wrong item</h3>
+      <p>Tell us within ${days} days of delivery with a photo of the item. We arrange a free pickup and send a replacement or a full refund, including any shipping you paid.</p>
+
+      <h3>4. What cannot be returned</h3>
+      <ul>
+        <li>Items marked non-returnable on the product page</li>
+        <li>Innerwear, cosmetics and personal-care items once opened, for hygiene reasons</li>
+        <li>Items returned without their original packaging or accessories</li>
+      </ul>
+
+      <h3>5. Refunds</h3>
+      <p>Because orders are paid by Cash on Delivery, an approved refund is paid to you by UPI or bank transfer, using the refund details you provide. We process it within <b>5–7 business days</b> of the returned item passing quality check. You will see the status on the order in the app.</p>
+
+      <h3>6. Contact</h3>
+      <p>Questions about a return or refund? Write to ${mail} with your order number.</p>
+      ${foot}
     </div>`;
   }
+
+  if(type === 'delete'){
+    const subject = encodeURIComponent('Delete my ' + appName + ' account');
+    const body = encodeURIComponent('Please delete my ' + appName + ' account and all personal data you hold.\n\nRegistered mobile number:\nName on the account:\n\nI understand this cannot be undone.');
+    return `<div class="policy-page">
+      <p>You can ask us to delete your ${appName} account and the personal data we hold about you at any time. You do not need to give a reason.</p>
+
+      <h3>1. How to request deletion</h3>
+      <p>Email us from the mobile number registered to your account. The button below opens your mail app with everything we need already filled in.</p>
+      <p><a class="btn btn-primary btn-block" href="mailto:${L.email}?subject=${subject}&amp;body=${body}">Request account deletion</a></p>
+      <p>Or write to ${mail} with the subject “Delete my ${appName} account”. We check the request against the registered mobile number and complete deletion <b>within 30 days</b>. You get a confirmation when it is done.</p>
+
+      <h3>2. What we delete</h3>
+      <ul>
+        <li>Your account: name, mobile number and password</li>
+        <li>If you signed in with Google, the Google name, email and identifier we stored</li>
+        <li>Your saved delivery addresses</li>
+        <li>Your cart and wishlist on our servers</li>
+        <li>Any refund details you gave us — UPI ID, or bank account holder name, account number and IFSC</li>
+      </ul>
+
+      <h3>3. What we may keep, and why</h3>
+      <p>Invoices and order records may be kept for the period Indian tax and accounting law requires, and records needed to resolve an open return, refund or complaint are kept until it is closed. We tell you which of these applies when we confirm your deletion.</p>
+
+      <h3>4. Clearing data on your own phone</h3>
+      <p>You can remove everything the app stored on your device at any time: <b>Android Settings → Apps → ${appName} → Storage → Clear data</b>, or uninstall the app. That clears your local cart, wishlist, saved addresses and the cached product images.</p>
+
+      <h3>5. Prefer to just log out?</h3>
+      <p>You do not need to delete your account to stop using the app. Use <b>Profile → Logout</b>, and delete the account later if you want to.</p>
+      ${foot}
+    </div>`;
+  }
+
   return `<div class="policy-page">
-    ${flag}
-    <h3>1. Acceptance of Terms</h3>
-    <p>By using ${appName}, you agree to these Terms &amp; Conditions and our Privacy Policy.</p>
-    <h3>2. Orders &amp; Payment</h3>
-    <p>All orders are currently fulfilled via Cash on Delivery. Prices are shown in INR and inclusive of applicable taxes unless stated otherwise.</p>
-    <h3>3. Cancellations &amp; Returns</h3>
-    <p>Governed by our Return &amp; Refund Policy — cancellation before shipping, returns within ${days} days of delivery.</p>
-    <h3>4. Limitation of Liability</h3>
-    <p>${appName} is not liable for delays caused by circumstances beyond our reasonable control (e.g. weather, courier disruptions).</p>
-    <div class="policy-highlight">Template draft — please have this reviewed before publishing to app stores.</div>
+    <h3>1. Acceptance of these terms</h3>
+    <p>By downloading, browsing or ordering through ${appName} you agree to these Terms &amp; Conditions and to our Privacy Policy.</p>
+
+    <h3>2. Who may use the app</h3>
+    <p>You must be at least 18 years old and able to enter into a binding contract. You are responsible for keeping your account password confidential and for everything done through your account.</p>
+
+    <h3>3. Products, prices and availability</h3>
+    <p>Prices are shown in Indian Rupees (₹) and include applicable taxes unless stated otherwise. We try to describe and photograph every product accurately, but colours can vary slightly by screen. We may change prices, or withdraw an item, at any time before your order is accepted. If an item turns out to be unavailable or is listed at an obviously wrong price, we will contact you and you may cancel the order at no cost.</p>
+
+    <h3>4. Orders and payment</h3>
+    <p>Orders are currently fulfilled by <b>Cash on Delivery</b> only. Placing an order is an offer to buy; the contract forms when we confirm it. Please keep the exact amount ready at delivery.</p>
+
+    <h3>5. Delivery</h3>
+    <p>We deliver across India through third-party courier partners. The delivery estimate shown at checkout is an estimate, not a guarantee, and can move because of weather, courier delays or an incorrect address. Please give a complete address with a reachable mobile number.</p>
+
+    <h3>6. Cancellations, returns and refunds</h3>
+    <p>These are governed by our Return &amp; Refund Policy: cancellation before the order ships, returns within ${days} days of delivery, and refunds by UPI or bank transfer within 5–7 business days of a passed quality check.</p>
+
+    <h3>7. Acceptable use</h3>
+    <p>Do not misuse the app — in particular, do not place fake or bulk orders with no intention to pay, attempt to break into accounts or systems, scrape the catalogue, or upload anything unlawful. We may suspend or close an account that does this.</p>
+
+    <h3>8. Our content</h3>
+    <p>The ${appName} name, logo, app design and product descriptions belong to us or our suppliers and may not be copied or reused without permission.</p>
+
+    <h3>9. Limitation of liability</h3>
+    <p>To the extent the law allows, our liability for any claim relating to an order is limited to the amount you paid for that order. We are not liable for delays or failures caused by events beyond our reasonable control, such as weather, strikes or courier disruption. Nothing here limits rights you have under the Consumer Protection Act, 2019.</p>
+
+    <h3>10. Governing law</h3>
+    <p>These terms are governed by the laws of India, and the courts of ${L.address} have jurisdiction.</p>
+
+    <h3>11. Changes to these terms</h3>
+    <p>We may update these terms; the version shown in the app when you order is the one that applies. The "last updated" date tells you when they last changed.</p>
+
+    <h3>12. Contact</h3>
+    <p>${L.entity}<br>${L.address}<br>Email: ${mail}</p>
+    ${foot}
   </div>`;
 }
 
