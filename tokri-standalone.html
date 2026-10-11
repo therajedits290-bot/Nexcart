@@ -2180,7 +2180,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v47-11oct';</script>
+const APP_BUILD = 'v48-11oct';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -3932,15 +3932,25 @@ function openSubCategoryProducts(catId, subName){
           const sub  = String(p.sub || '').trim().toLowerCase();
           const subF = flat(sub);
           if(sub && (sub === key || subF === keyF || sub.replace(/s$/, '') === loose || subF.replace(/s$/, '') === looseF)) return true;
-          const hay  = ((p.name || '') + ' ' + (p.cat || '') + ' ' + (p.sub || '')).toLowerCase();
-          if(hay.indexOf(loose) !== -1) return true;
-          return flat(hay).indexOf(looseF) !== -1;
+          /* An item with NO sub-category still falls back to its own name, so
+             stock that was never filed can be found under the right tile. */
+          if(!sub){
+            const hay = ((p.name || '') + ' ' + (p.cat || '')).toLowerCase();
+            if(hay.indexOf(loose) !== -1) return true;
+            return flat(hay).indexOf(looseF) !== -1;
+          }
+          return false;
         };
-        const products = DB.products
-          .map((p, i)=>({ p: p, own: (p.category === catId) ? 0 : 1, i: i }))
-          .filter(x=> matches(x.p))
-          .sort((a, b)=> (a.own - b.own) || (a.i - b.i))
-          .map(x=> x.p);
+        /* A category page now shows ITS OWN products only.
+           The shop-wide search that used to run here was the reason a "Shirts"
+           tile listed t-shirts (the word "shirt" sits inside "t-shirt") and why
+           men's jeans appeared under the women's tile. Sorting the wrong items
+           last was not enough - customers still saw them.
+           A category with no products at all still searches the whole shop, so
+           an unfiled item is never invisible. */
+        const ownProducts = DB.products.filter(p=> p.category === catId);
+        const scope = ownProducts.length ? ownProducts : DB.products;
+        const products = scope.filter(matches);
         if(products.length){
           main.innerHTML = `<div class="product-grid" id="subProductGrid"></div>`;
           renderProductGrid($('#subProductGrid'), products);

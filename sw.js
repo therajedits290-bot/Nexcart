@@ -53,12 +53,15 @@
    chooser is deleted. CACHE bumped again.
    v46 (2026-10-11) - customers are now recorded on the server, so the
    owner's Customers page lists every tester. CACHE bumped again.
+   v48 (2026-10-11) - a category page lists its own products only; the
+   shop-wide search made a Shirts tile include t-shirts and showed men's
+   items under a women's tile. CACHE bumped again.
    v47 (2026-10-11) - a new version now takes over on a single reopen
    (the page reloads itself once when the new worker activates), and a
    customer row can be removed from the list. CACHE bumped again.
    ============================================================ */
 
-const CACHE = 'nexcart-v47';
+const CACHE = 'nexcart-v48';
 const ASSETS = [
   './',
   './tokri-standalone.html',
