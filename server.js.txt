@@ -138,7 +138,36 @@ function sameSecret(a, b) {
   return A.length === B.length && crypto.timingSafeEqual(A, B);
 }
 function publicUser(u) {
-  return { id: u.id, name: u.name, phone: u.phone, email: u.email || '', provider: u.provider };
+  return { id: u.id, name: u.name, phone: u.phone, email: u.email || '',
+           provider: u.provider, createdAt: u.createdAt || 0 };
+}
+
+/* Remember a customer, however they reached the shop: a device that reports its
+   saved profile, an account created here, or a plain order. Matches on the
+   phone number first, then the email, so the same person is never listed twice.
+   Password material is never stored by this path. */
+function recordCustomer(info) {
+  const name = String((info && info.name) || '').trim().slice(0, 80);
+  const phone = digits((info && info.phone) || '');
+  const email = String((info && info.email) || '').trim().toLowerCase().slice(0, 200);
+  if (!phone && !email) return null;
+  db.users = db.users || [];
+  let user = phone.length === 10 ? db.users.find((u) => u.phone === phone) : null;
+  if (!user && email) user = db.users.find((u) => (u.email || '').toLowerCase() === email);
+  if (!user) {
+    user = { id: newId('USR'), name: name || 'Customer',
+             phone: phone.length === 10 ? phone : '', email,
+             provider: String((info && info.provider) || 'app').slice(0, 20),
+             createdAt: Date.now() };
+    db.users.push(user);
+  } else {
+    if (name && (!user.name || user.name === 'Customer')) user.name = name;
+    if (phone.length === 10 && !user.phone) user.phone = phone;
+    if (email && !user.email) user.email = email;
+    if (!user.createdAt) user.createdAt = Date.now();
+  }
+  save();
+  return user;
 }
 function issueToken(user) {
   const token = rnd(32);
@@ -299,6 +328,18 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { googleClientId: GOOGLE_CLIENT_ID, accounts: true });
 
   /* ---------------- accounts ---------------- */
+
+  /* A customer's phone reports the profile it has saved locally. Older builds
+     kept accounts on the device only, so those people never reached the server
+     and the owner's Customers page stayed empty. Safe to call on every launch:
+     the same person is matched and updated, never duplicated. */
+  if (p === '/api/customer/sync' && req.method === 'POST') {
+    const b = await readBody(req);
+    if (b.__tooBig) return send(res, 413, { error: 'Request too large' });
+    const user = recordCustomer(b);
+    if (!user) return send(res, 400, { error: 'A name, phone or email is required' });
+    return send(res, 200, { ok: true, user: publicUser(user) });
+  }
 
   if (p === '/api/auth/signup' && req.method === 'POST') {
     const b = await readBody(req);
@@ -477,6 +518,12 @@ const server = http.createServer(async (req, res) => {
     const phone = digits(b.customerPhone || (user && user.phone) || '');
     if (name.length < 2) return send(res, 400, { error: 'Name is required' });
     if (phone.length < 10) return send(res, 400, { error: 'Valid phone is required' });
+    /* An order is proof of a customer, even with no account: record them so the
+       Customers page shows real buyers, not just sign-ups. */
+    if (user) { recordCustomer({ name, phone, email: user.email, provider: user.provider }); }
+    else {
+      recordCustomer({ name, phone, email: String(b.customerEmail || ''), provider: 'order' });
+    }
     const items = [];
     let subtotal = 0;
     for (const line of (Array.isArray(b.items) ? b.items : [])) {

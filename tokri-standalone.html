@@ -2180,7 +2180,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v45-11oct';</script>
+const APP_BUILD = 'v46-11oct';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -7666,6 +7666,27 @@ function renderAdminSettings(shell){
   function setToken(t) {
     try { t ? localStorage.setItem(TOKEN_STORE, t) : localStorage.removeItem(TOKEN_STORE); } catch (e) {}
   }
+  /* Tell the server who this customer is, so the owner's admin panel lists
+     everyone who uses the shop. Earlier builds kept accounts on the phone only,
+     which is why signed-up testers never appeared on the Customers page. This
+     runs on every launch and after a login, and the server matches on phone or
+     email so nobody is listed twice. Silently ignored when offline. */
+  function reportCustomerProfile() {
+    try {
+      var D = db(); if (!D || !D.user) return;
+      var u = D.user;
+      var name = String(u.name || '').trim();
+      var phone = String(u.phone || '').replace(/\D/g, '');
+      if (phone.length > 10) phone = phone.slice(-10);
+      var email = String(u.email || '').trim();
+      if (!name && !phone && !email) return;
+      if (!phone && !email) return;
+      api('/api/customer/sync', { method: 'POST', body: {
+        name: name, phone: phone, email: email, provider: u.provider || 'app'
+      } }).catch(function () {});
+    } catch (e) {}
+  }
+
   function applyUser(u) {
     var D = db(); if (!D || !u) return;
     if (u.name)  D.user.name  = u.name;
@@ -8230,6 +8251,7 @@ function renderAdminSettings(shell){
     flushQueue();
     startPolling();
     startCustomerPolling();
+    reportCustomerProfile();
   }
 
   // Public surface, handy for debugging or a custom admin button.
@@ -8240,6 +8262,7 @@ function renderAdminSettings(shell){
     return api(path, { method: 'POST', body: body || {} }).then(function (d) {
       if (d && d.token) setToken(d.token);
       if (d && d.user)  applyUser(d.user);
+      if (d && d.user)  reportCustomerProfile();
       return d;
     });
   }
@@ -8251,6 +8274,7 @@ function renderAdminSettings(shell){
     pollOrders: pollOrders,
     setKey: setKey,
     getKey: getKey,
+    reportCustomer: reportCustomerProfile,
 
     signedIn: function () { return !!getToken(); },
     logout: function () {

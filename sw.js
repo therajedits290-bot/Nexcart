@@ -51,9 +51,11 @@
    v42 (2026-10-08) - manifest.json gains an explicit id and scope (needed
    for a reliable full-screen TWA), and the unused Google demo-account
    chooser is deleted. CACHE bumped again.
+   v46 (2026-10-11) - customers are now recorded on the server, so the
+   owner's Customers page lists every tester. CACHE bumped again.
    ============================================================ */
 
-const CACHE = 'nexcart-v42';
+const CACHE = 'nexcart-v46';
 const ASSETS = [
   './',
   './tokri-standalone.html',
