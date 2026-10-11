@@ -53,6 +53,12 @@
    chooser is deleted. CACHE bumped again.
    v46 (2026-10-11) - customers are now recorded on the server, so the
    owner's Customers page lists every tester. CACHE bumped again.
+   v51 (2026-10-11) - splash + login brought into the theme. Both were already
+   indigo, but the app mark they show was still the old pink artwork (two inlined
+   PNGs: NEX_LOGO and --nex-mark). Both are recoloured to the indigo brand ramp,
+   white glyph and transparency preserved. Also: launcher icons (icon-192.png,
+   icon-512.png, apple-touch-icon) live in the repo, not in this file - see
+   README-UPLOAD.txt. CACHE bumped.
    v50 (2026-10-11) - INDIGO BAZAAR theme: the owner picked option B from three
    rendered directions. Deep indigo (#3B2BD9) + marigold (#FF8A1E), Poppins
    headings embedded for offline use, chunkier cards, marigold savings badges,
@@ -69,7 +75,7 @@
    customer row can be removed from the list. CACHE bumped again.
    ============================================================ */
 
-const CACHE = 'nexcart-v50';
+const CACHE = 'nexcart-v51';
 const ASSETS = [
   './',
   './tokri-standalone.html',
