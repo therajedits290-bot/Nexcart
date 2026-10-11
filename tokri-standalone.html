@@ -2492,55 +2492,21 @@ function defaultDB(){
       { id:'cp3', code:'NEW50',  type:'flat',    value:50,  minOrder:299,  maxDiscount:50,  active:true, desc:'₹50 off for new customers above ₹299' },
       { id:'cp4', code:'BIG20',  type:'percent', value:20,  minOrder:1499, maxDiscount:500, active:true, desc:'20% off on orders above ₹1,499' },
     ],
+    /* A real shop starts empty: no fake customer, no fake address. The
+       checkout asks the customer to add their own before the first order. */
     user: {
-      name: 'Riya Sharma',
-      phone: '+91 98765 43210',
-      email: 'riya.sharma@example.com',
-      addresses: [
-        { id:'a1', label:'Home', line:'204, Sunrise Apartments, MG Road', city:'Bengaluru', state:'Karnataka', pincode:'560001', isDefault:true }
-      ],
+      name: '',
+      phone: '',
+      email: '',
+      addresses: [],
     },
     categories: SAMPLE_CATEGORIES,
     products: SAMPLE_PRODUCTS.map(p=> Object.assign({}, p, { reviews: (SAMPLE_REVIEWS[p.id] || []).slice() })),
-    wishlist: ['p3','p7'],
-    cart: [
-      { productId:'p1', qty:1 },
-      { productId:'p3', qty:2 },
-    ],
-    orders: [
-      {
-        id:'TKR10234', placedAt: now - 1000*60*60*24*6, status:'Delivered',
-        deliveredAt: now - 1000*60*60*24*1,
-        currentCity: 'Bengaluru, KA', address: 'Bengaluru, Karnataka 560001',
-        items:[ { productId:'p5', qty:1, price:1299 } ],
-        total: 1299, payment:'COD',
-        timeline:[
-          { stage:'Placed', at: now - 1000*60*60*24*6, city:'Mumbai, MH' },
-          { stage:'Shipped', at: now - 1000*60*60*24*4, city:'Nashik, MH' },
-          { stage:'Out for Delivery', at: now - 1000*60*60*24*1.3, city:'Bengaluru, KA' },
-          { stage:'Delivered', at: now - 1000*60*60*24*1, city:'Bengaluru, KA' },
-        ],
-      },
-      {
-        id:'TKR10235', placedAt: now - 1000*60*60*24*2, status:'Shipped',
-        currentCity: 'Indore, MP', address: 'Bengaluru, Karnataka 560001',
-        items:[ { productId:'p9', qty:2, price:199 }, { productId:'p11', qty:1, price:449 } ],
-        total: 847, payment:'COD',
-        timeline:[
-          { stage:'Placed', at: now - 1000*60*60*24*2, city:'Mumbai, MH' },
-          { stage:'Shipped', at: now - 1000*60*60*10, city:'Indore, MP' },
-        ],
-      },
-      {
-        id:'TKR10236', placedAt: now - 1000*60*60*3, status:'Placed',
-        currentCity: 'Mumbai, MH', address: 'Bengaluru, Karnataka 560001',
-        items:[ { productId:'p4', qty:1, price:1199 } ],
-        total: 1199, payment:'COD',
-        timeline:[
-          { stage:'Placed', at: now - 1000*60*60*3, city:'Mumbai, MH' },
-        ],
-      },
-    ],
+    wishlist: [],
+    cart: [],
+    /* No demo orders. A customer must never open the Orders tab and see a
+       fake parcel with someone else's tracking. */
+    orders: [],
     nextOrderNum: 10237,
   };
 }
@@ -2574,8 +2540,44 @@ function migrateDB(db){
   (db.orders||[]).forEach(o=>{
     if(o.reviewed === undefined) o.reviewed = false;
   });
+
+  /* ---- clear out the demo pack that older installs still carry ----
+     Three fake orders (and the fake customer they belonged to) used to be
+     seeded into every phone, so a real customer opened the Orders tab and saw
+     a parcel that was never theirs. Only untouched demo values are removed —
+     anything the owner or a customer has really entered keeps working. */
+  const DEMO_ORDER_IDS = ['TKR10234','TKR10235','TKR10236'];
+  if(Array.isArray(db.orders)){
+    db.orders = db.orders.filter(o=> !(o && DEMO_ORDER_IDS.indexOf(String(o.id)) !== -1));
+  }
+  if(db.user && db.user.name === 'Riya Sharma' &&
+     String(db.user.phone||'').replace(/\D/g,'').slice(-10) === '9876543210'){
+    db.user.name = '';
+    db.user.phone = '';
+    if(db.user.email === 'riya.sharma@example.com') db.user.email = '';
+  }
+  if(db.user && Array.isArray(db.user.addresses)){
+    db.user.addresses = db.user.addresses.filter(a=> !(a && a.id === 'a1' && /Sunrise Apartments/.test(String(a.line||''))));
+  }
+  const demoProduct = {};
+  (typeof SAMPLE_PRODUCTS !== 'undefined' ? SAMPLE_PRODUCTS : []).forEach(p=>{ demoProduct[p.id] = true; });
+  if(Array.isArray(db.cart)) db.cart = db.cart.filter(i=> i && !demoProduct[i.productId]);
+  if(Array.isArray(db.wishlist)) db.wishlist = db.wishlist.filter(id=> !demoProduct[id]);
+
+  /* Older orders predate live tracking: give each one a private key so the
+     server can report its status back to this phone. */
+  (db.orders||[]).forEach(o=>{
+    if(!o.trackKey) o.trackKey = ncNewTrackKey();
+  });
+
   saveDB(db);
   return db;
+}
+/* A short, unguessable key that links one order on this phone to its copy on
+   the server. Unlike the order number it cannot be guessed from another
+   customer's, so status lookups stay private. */
+function ncNewTrackKey(){
+  return 'tk' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
 }
 /* ---------- How we stop a stale copy on the server wiping this phone ----------
    Every device downloads the shop from the server when it opens. That is right
@@ -4506,10 +4508,14 @@ function placeOrder(grand, addr){
 
     const order = {
       id: 'TKR' + (DB.nextOrderNum++),
+      /* Private link to this order's copy on the server, so the owner's status
+         change can find it again and tell this customer. */
+      trackKey: ncNewTrackKey(),
       placedAt: now,
       status: 'Placed',
       customerName: DB.user.name,
       customerPhone: DB.user.phone,
+      customerEmail: DB.user.email || '',
       currentCity: cityStr,
       address: addrStr,
       addressObj: addr,
@@ -6823,8 +6829,10 @@ function renderAdminOrders(shell){
       </div>
       <!-- Row 2: Customer -->
       <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:2px;">${custLine}</div>
-      <!-- Row 3: Address -->
-      <div style="font-size:12px;color:var(--ink-soft);margin-bottom:4px;">${(o.address||o.currentCity||'').replace(/\n/g,' · ')}</div>
+       <!-- Row 2b: customer email -->
+       ${o.customerEmail ? `<div class="g-email" style="margin-bottom:4px;">${o.customerEmail}</div>` : ''}
+       <!-- Row 3: Address -->
+       <div style="font-size:12px;color:var(--ink-soft);margin-bottom:4px;">${(o.address||o.currentCity||'').replace(/\n/g,' · ')}</div>
       <!-- Row 4: Items text only -->
       <div style="font-size:12px;color:var(--ink-soft);margin-bottom:4px;">${o.items.map(i=>{ const p=getProduct(i.productId); return p?`${p.name} ×${i.qty}`:''; }).join(' · ')}</div>
       <!-- Row 5: Total + date -->
@@ -6868,7 +6876,17 @@ function renderAdminOrders(shell){
       if(newStatus==='Delivered') order.deliveredAt = order.deliveredAt || Date.now();
       order.timeline.push({ stage: newStatus, at: Date.now(), city: newCity });
       persist();
-      showToast(`#${oid} updated → ${newStatus}`, 'checkCircle');
+      /* Send the change to the server too. Without this the customer's phone
+         has nothing to fetch and would sit on "Placed" for ever. */
+      if (typeof window.ncUpdateOrder === 'function') {
+        window.ncUpdateOrder(order).then((ok)=>{
+          showToast(ok ? `#${oid} updated → ${newStatus} · customer notified`
+                       : `#${oid} updated here · could not reach the server`,
+                    ok ? 'checkCircle' : 'warn');
+        });
+      } else {
+        showToast(`#${oid} updated → ${newStatus}`, 'checkCircle');
+      }
       // Refresh the last-update line
       renderAdminOrders(shell);
     });
@@ -7694,6 +7712,54 @@ function renderAdminSettings(shell){
         }
         if (typeof persist === 'function') persist();
       }
+
+      /* ---- 1b. the rest of the admin panel ----
+         Branding (shop name, logo, opening screen), the offer banners, the
+         announcement ticker, the coupon codes, the theme and the shipping
+         rules are shop-wide too: the owner changes them once, and every
+         customer device must show the same shop. Each is adopted only when the
+         server actually sends it — so an empty server never blanks out what
+         this phone already has. The screen is redrawn only when something
+         really changed, otherwise a 15-second background poll would keep
+         interrupting whatever the customer is doing. */
+      var cfgBefore = JSON.stringify([D.branding, D.banners, D.announcements, D.coupons,
+                                      D.settings && D.settings.theme,
+                                      D.settings && D.settings.freeShipThreshold,
+                                      D.settings && D.settings.shippingFee,
+                                      D.settings && D.settings.onlinePaymentEnabled]);
+      if (d.branding && typeof d.branding === 'object') {
+        D.branding = Object.assign({}, D.branding || {}, d.branding);
+      }
+      if (Array.isArray(d.banners) && d.banners.length) D.banners = d.banners;
+      if (Array.isArray(d.announcements) && d.announcements.length) D.announcements = d.announcements;
+      if (Array.isArray(d.coupons) && d.coupons.length) D.coupons = d.coupons;
+      if (d.settings) {
+        D.settings = D.settings || {};
+        if (d.settings.theme === 'light' || d.settings.theme === 'dark') {
+          D.settings.theme = d.settings.theme;
+        }
+        if (typeof d.settings.onlinePaymentEnabled === 'boolean') {
+          D.settings.onlinePaymentEnabled = d.settings.onlinePaymentEnabled;
+        }
+        var cfgNum = function (v, lo, hi) {
+          var n = parseInt(v, 10);
+          return (isFinite(n) && n >= lo && n <= hi) ? n : null;
+        };
+        var shipT = cfgNum(d.settings.freeShipThreshold, 0, 100000);
+        if (shipT !== null) D.settings.freeShipThreshold = shipT;
+        var shipF = cfgNum(d.settings.shippingFee, 0, 10000);
+        if (shipF !== null) D.settings.shippingFee = shipF;
+      }
+      var cfgAfter = JSON.stringify([D.branding, D.banners, D.announcements, D.coupons,
+                                     D.settings && D.settings.theme,
+                                     D.settings && D.settings.freeShipThreshold,
+                                     D.settings && D.settings.shippingFee,
+                                     D.settings && D.settings.onlinePaymentEnabled]);
+      if (cfgBefore !== cfgAfter) {
+        if (typeof persist === 'function') persist();
+        try { if (typeof applyBranding === 'function') applyBranding(); } catch (e) {}
+        try { if (typeof renderTab === 'function') renderTab(currentTab); } catch (e) {}
+      }
       if (Array.isArray(d.products) && d.products.length) {
         /* Never let an older copy on the server wipe what this phone has.
            The owner's own edits win unless the server is genuinely newer.
@@ -7759,14 +7825,25 @@ function renderAdminSettings(shell){
            change applies to every device, not only the phone that made it.
            That includes the delivery estimate, so a customer always sees the
            dates the owner actually promised. */
-        settings: {
+        /* The whole admin-panel configuration travels with the catalogue, so
+           anything the owner changes shows on every phone, customers included:
+           the shop name, logo and opening screen (branding), the offer banners,
+           the announcement ticker, the coupon codes, the theme and the shop
+           rules. */
+        branding: D.branding || null,
+        banners: D.banners || [],
+        announcements: D.announcements || [],
+        coupons: D.coupons || [],
+        settings: Object.assign({}, D.settings || {}, {
           adminPin: (D.settings && D.settings.adminPin) || '',
           deliveryMinDays: D.settings && D.settings.deliveryMinDays,
           deliveryMaxDays: D.settings && D.settings.deliveryMaxDays,
           returnWindowDays: D.settings && D.settings.returnWindowDays,
           freeShipThreshold: D.settings && D.settings.freeShipThreshold,
-          shippingFee: D.settings && D.settings.shippingFee
-        }
+          shippingFee: D.settings && D.settings.shippingFee,
+          theme: (D.settings && D.settings.theme) || 'light',
+          onlinePaymentEnabled: !!(D.settings && D.settings.onlinePaymentEnabled)
+        })
       }
     }).then(function (r) {
       lastCatalogHash = catalogHash();
@@ -7789,6 +7866,13 @@ function renderAdminSettings(shell){
       body: {
         customerName:  order.customerName || (D.user && D.user.name) || '',
         customerPhone: order.customerPhone || (D.user && D.user.phone) || '',
+        /* The customer's email travels with the order so the owner can see it
+           in the admin panel and write to them about the delivery. */
+        customerEmail: order.customerEmail || (D.user && D.user.email) || '',
+        /* Private key of this order on this phone. The owner's status change is
+           matched back to it, which is how the customer gets the update. */
+        trackKey:      order.trackKey || '',
+        clientOrderId: order.id || '',
         address:       String(order.address || '').replace(/\n/g, ', '),
         items:         items,
         delivery:      Number(order.deliveryFee) || 0,
@@ -7814,6 +7898,71 @@ function renderAdminSettings(shell){
     // dropped connection can never silently lose a customer's order.
     try { localStorage.setItem('nc_order_queue', '[]'); } catch (e) {}
     q.forEach(function (entry) { submitOrder(entry.order); });
+  }
+
+  /* ---------- 3b. the owner's status change goes up to the server ----------
+     This is what makes "Push Update" reach the buyer: the customer's phone asks
+     the server for its own order's status (below), and the server only knows
+     about the change because this call told it. */
+  window.ncUpdateOrder = function (order) {
+    if (!order || !order.id || !getKey() || !BASE) return Promise.resolve(false);
+    return api('/api/orders/' + encodeURIComponent(order.id), {
+      method: 'PATCH', admin: true,
+      body: {
+        status:         order.status,
+        currentCity:    order.currentCity || '',
+        trackingId:     order.trackingId || '',
+        trackingDetail: order.trackingDetail || '',
+        deliveredAt:    Number(order.deliveredAt) || 0,
+        timeline:       order.timeline || []
+      }
+    }).then(function () { return true; }).catch(function () { return false; });
+  };
+
+  /* ---------- 3c. customer: my orders update themselves ----------
+     The buyer's phone keeps its own copy of the order it placed; the server
+     keeps the copy the owner updates. The phone asks about its own orders using
+     the private trackKey (never the order number), and anything that has moved
+     is written onto the local order — so "Shipped" or "Out for Delivery"
+     appears on the customer's phone by itself, with a small toast. The answer
+     contains no names, phones or addresses. */
+  var lastTrackCheck = 0;
+  function pollMyOrders() {
+    var D = db(); if (!D || !BASE) return;
+    var now = Date.now();
+    if (now - lastTrackCheck < 20000) return;
+    var mine = (D.orders || []).filter(function (o) { return o && o.trackKey; });
+    if (!mine.length) return;
+    lastTrackCheck = now;
+    var keys = mine.slice(0, 40).map(function (o) { return o.trackKey; });
+    api('/api/track', { method: 'POST', body: { keys: keys } }).then(function (res) {
+      var list = (res && res.orders) || [];
+      if (!list.length) return;
+      var byKey = {};
+      list.forEach(function (r) { if (r && r.key) byKey[r.key] = r; });
+      var changed = 0;
+      mine.forEach(function (o) {
+        var r = byKey[o.trackKey];
+        if (!r) return;
+        var moved = (r.status && r.status !== o.status) ||
+                    (r.currentCity && r.currentCity !== o.currentCity) ||
+                    (r.trackingId && r.trackingId !== o.trackingId) ||
+                    (r.deliveredAt && r.deliveredAt !== o.deliveredAt);
+        if (!moved) return;
+        if (r.status) o.status = r.status;
+        if (r.currentCity) o.currentCity = r.currentCity;
+        if (r.trackingId) o.trackingId = r.trackingId;
+        if (r.trackingDetail) o.trackingDetail = r.trackingDetail;
+        if (r.deliveredAt) o.deliveredAt = r.deliveredAt;
+        if (Array.isArray(r.timeline) && r.timeline.length) o.timeline = r.timeline;
+        changed++;
+        toast('Order #' + o.id + ' is now ' + (r.status || o.status), 'package');
+      });
+      if (changed) {
+        if (typeof persist === 'function') persist();
+        try { if (typeof renderTab === 'function' && currentTab === 'orders') renderTab('orders'); } catch (e) {}
+      }
+    }).catch(function () { /* offline — the local copy stays as it is */ });
   }
 
   /* ---------- 4. admin: poll for new orders ---------- */
@@ -7969,6 +8118,14 @@ function renderAdminSettings(shell){
     }, POLL_MS);
   }
 
+  /* Customers are not signed into the admin panel, so they need their own
+     timer: this is the one that keeps their order status fresh. */
+  function startCustomerPolling() {
+    if (window.__ncCustPoll) return;
+    window.__ncCustPoll = window.setInterval(pollMyOrders, 30000);
+    window.setTimeout(pollMyOrders, 5000);
+  }
+
   function boot() {
     if (!BASE) return;               // switched off — do nothing at all
     wrapPlaceOrder();
@@ -7976,6 +8133,7 @@ function renderAdminSettings(shell){
     pullCatalog();
     flushQueue();
     startPolling();
+    startCustomerPolling();
   }
 
   // Public surface, handy for debugging or a custom admin button.

@@ -48,7 +48,7 @@ const LOCK_MS = 15 * 60 * 1000;
 /* Request size limits. A catalogue carries the photos, so it needs room;
    everything a customer can post stays small. */
 const BODY_PUBLIC = 200000;      // ~200 KB — orders, sign-up, sign-in
-const BODY_ADMIN = 12000000;     // ~12 MB — the shop catalogue with its photos
+const BODY_ADMIN = 24000000;     // ~24 MB — catalogue, photos, logo and splash
 
 let db = { products: [], categories: [], orders: [], users: [],
            sessions: [], fails: {}, settings: {}, updatedAt: 0, catalogUpdatedAt: 0 };
@@ -254,6 +254,10 @@ async function init() {
   db.sessions = db.sessions || [];
   db.fails = db.fails || {};
   db.settings = db.settings || {};
+  db.banners = db.banners || [];
+  db.announcements = db.announcements || [];
+  db.coupons = db.coupons || [];
+  if (!db.branding || typeof db.branding !== 'object') db.branding = null;
   db.updatedAt = Number(db.updatedAt) || 0;
   db.catalogUpdatedAt = Number(db.catalogUpdatedAt) || 0;
 
@@ -272,11 +276,19 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { ok: true, products: db.products.length, orders: db.orders.length,
                             users: db.users.length, storage: storage });
 
+  /* Everything a phone needs in order to show the same shop the owner sees:
+     the catalogue, the categories, and the whole admin-panel configuration —
+     branding (name, logo, opening screen), offer banners, the announcement
+     ticker, coupon codes and the shop rules. */
   if (p === '/api/bootstrap')
     return send(res, 200, {
       products: db.products,
       categories: db.categories,
       settings: db.settings,
+      branding: db.branding || null,
+      banners: db.banners || [],
+      announcements: db.announcements || [],
+      coupons: db.coupons || [],
       updatedAt: db.updatedAt,
       catalogUpdatedAt: Number(db.catalogUpdatedAt) || Number(db.updatedAt) || 0
     });
@@ -384,7 +396,7 @@ const server = http.createServer(async (req, res) => {
     const b = await readBody(req, BODY_ADMIN);
     if (b.__tooBig) {
       return send(res, 413, {
-        error: 'Catalogue too large for the server (over 12 MB). Remove a few product photos and upload again.'
+        error: 'Catalogue too large for the server (over 24 MB). Remove a few product photos and upload again.'
       });
     }
     if (Array.isArray(b.products)) db.products = b.products;
@@ -419,7 +431,26 @@ const server = http.createServer(async (req, res) => {
       if (fs2 !== null) db.settings.freeShipThreshold = fs2;
       const sf = num(b.settings.shippingFee, 0, 10000);
       if (sf !== null) db.settings.shippingFee = sf;
+      if (b.settings.theme === 'light' || b.settings.theme === 'dark') {
+        db.settings.theme = b.settings.theme;
+      }
+      if (typeof b.settings.onlinePaymentEnabled === 'boolean') {
+        db.settings.onlinePaymentEnabled = b.settings.onlinePaymentEnabled;
+      }
     }
+
+    /* Everything else the owner can change in the admin panel. These are shown
+       to customers, so they have to travel too: the shop name, logo and opening
+       screen (branding), the offer banners, the announcement ticker and the
+       coupon codes. Each is only replaced when the phone actually sent it, so
+       an older app can never blank out a newer shop. */
+    if (b.branding && typeof b.branding === 'object' && !Array.isArray(b.branding)) {
+      db.branding = b.branding;
+    }
+    if (Array.isArray(b.banners)) db.banners = b.banners;
+    if (Array.isArray(b.announcements)) db.announcements = b.announcements;
+    if (Array.isArray(b.coupons)) db.coupons = b.coupons;
+
     db.updatedAt = Date.now();
 
     /* Wait for the database before answering. If it refuses the write, say so:
@@ -464,8 +495,16 @@ const server = http.createServer(async (req, res) => {
     const order = {
       id: newId('ORD'), placedAt: Date.now(), status: 'Placed',
       userId: user ? user.id : '', customerName: name, customerPhone: phone,
+      /* The customer's email, so the owner can see it in the admin panel. */
+      customerEmail: String(b.customerEmail || (user && user.email) || '').slice(0, 200),
+      /* The order's copy on the customer's phone: 'clientOrderId' is its number
+         there, 'trackKey' is the private key it uses to ask for updates. */
+      clientOrderId: String(b.clientOrderId || '').slice(0, 60),
+      trackKey: String(b.trackKey || '').slice(0, 80),
+      updatedAt: Date.now(),
       address: String(b.address || '').trim(), items, subtotal, delivery,
       total: serverTotal, payment: 'Cash on Delivery',
+      timeline: [{ stage: 'Placed', at: Date.now(), city: '' }],
       claimedTotal: claimed, priceMismatch: claimed !== null && claimed !== serverTotal
     };
     db.orders.unshift(order);
@@ -485,6 +524,33 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { orders: db.orders.filter((o) => o.placedAt > since), serverTime: Date.now() });
   }
 
+  /* The customer's phone asks about its OWN orders. It sends only the private
+     trackKeys it was given when those orders were placed, so nobody can look up
+     someone else's order, and the answer carries no personal details — just
+     where the parcel is. This is what makes the status appear on the buyer's
+     phone by itself after the owner presses "Push Update". */
+  if (p === '/api/track' && req.method === 'POST') {
+    const b = await readBody(req);
+    if (b.__tooBig) return send(res, 413, { error: 'Request too large' });
+    const keys = (Array.isArray(b.keys) ? b.keys : [])
+      .map((k) => String(k || '').slice(0, 80)).filter(Boolean).slice(0, 50);
+    if (!keys.length) return send(res, 200, { orders: [] });
+    const want = new Set(keys);
+    const out = db.orders
+      .filter((o) => o && o.trackKey && want.has(o.trackKey))
+      .map((o) => ({
+        key: o.trackKey,
+        status: o.status,
+        currentCity: o.currentCity || '',
+        trackingId: o.trackingId || '',
+        trackingDetail: o.trackingDetail || '',
+        deliveredAt: o.deliveredAt || 0,
+        timeline: Array.isArray(o.timeline) ? o.timeline : [],
+        updatedAt: o.updatedAt || o.placedAt || 0
+      }));
+    return send(res, 200, { orders: out, serverTime: Date.now() });
+  }
+
   const m = p.match(/^\/api\/orders\/([A-Za-z0-9]+)$/);
   if (m && req.method === 'PATCH') {
     if (!isAdmin(req)) return send(res, 401, { error: 'unauthorised' });
@@ -492,7 +558,15 @@ const server = http.createServer(async (req, res) => {
     if (b.__tooBig) return send(res, 413, { error: 'Request too large' });
     const order = db.orders.find((o) => o.id === m[1]);
     if (!order) return send(res, 404, { error: 'Order not found' });
-    if (b.status) order.status = String(b.status);
+    /* The owner can move the parcel: status, city, courier and the timeline the
+       customer sees when they track the order. */
+    if (b.status) order.status = String(b.status).slice(0, 40);
+    if (b.currentCity !== undefined) order.currentCity = String(b.currentCity).slice(0, 120);
+    if (b.trackingId !== undefined) order.trackingId = String(b.trackingId).slice(0, 80);
+    if (b.trackingDetail !== undefined) order.trackingDetail = String(b.trackingDetail).slice(0, 80);
+    if (Number(b.deliveredAt)) order.deliveredAt = Number(b.deliveredAt);
+    if (Array.isArray(b.timeline) && b.timeline.length) order.timeline = b.timeline.slice(-30);
+    order.updatedAt = Date.now();
     save();
     return send(res, 200, { ok: true, order });
   }
