@@ -53,6 +53,11 @@
    chooser is deleted. CACHE bumped again.
    v46 (2026-10-11) - customers are now recorded on the server, so the
    owner's Customers page lists every tester. CACHE bumped again.
+   v50 (2026-10-11) - INDIGO BAZAAR theme: the owner picked option B from three
+   rendered directions. Deep indigo (#3B2BD9) + marigold (#FF8A1E), Poppins
+   headings embedded for offline use, chunkier cards, marigold savings badges,
+   indigo CTAs, a 3-cell trust strip on the cart, and the older rose/gold
+   marketing shell recoloured to the same palette. CACHE bumped.
    v49 (2026-10-11) - a product can carry up to four photos: the importer reads
    image, image 2, image 3 and image 4, and the product page shows the extra
    ones as tap-to-swap thumbnails. CACHE bumped again.
@@ -64,7 +69,7 @@
    customer row can be removed from the list. CACHE bumped again.
    ============================================================ */
 
-const CACHE = 'nexcart-v49';
+const CACHE = 'nexcart-v50';
 const ASSETS = [
   './',
   './tokri-standalone.html',
