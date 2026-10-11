@@ -53,6 +53,9 @@
    chooser is deleted. CACHE bumped again.
    v46 (2026-10-11) - customers are now recorded on the server, so the
    owner's Customers page lists every tester. CACHE bumped again.
+   v49 (2026-10-11) - a product can carry up to four photos: the importer reads
+   image, image 2, image 3 and image 4, and the product page shows the extra
+   ones as tap-to-swap thumbnails. CACHE bumped again.
    v48 (2026-10-11) - a category page lists its own products only; the
    shop-wide search made a Shirts tile include t-shirts and showed men's
    items under a women's tile. CACHE bumped again.
@@ -61,7 +64,7 @@
    customer row can be removed from the list. CACHE bumped again.
    ============================================================ */
 
-const CACHE = 'nexcart-v48';
+const CACHE = 'nexcart-v49';
 const ASSETS = [
   './',
   './tokri-standalone.html',

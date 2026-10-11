@@ -401,6 +401,12 @@ img{ max-width:100%; display:block; }
 /* ============= Product detail ============= */
 .pd-gallery{ width:100%; aspect-ratio:1/1; background: var(--line); }
 .pd-gallery img{ width:100%; height:100%; object-fit:cover; }
+/* Extra photos of the same product, shown under the main picture. */
+.pd-thumbs{ display:flex; gap:8px; padding:10px 16px 0; overflow-x:auto; }
+.pd-thumb{ flex:0 0 auto; width:62px; height:62px; padding:0; border-radius:10px; overflow:hidden;
+  border:2px solid var(--line); background:var(--surface); cursor:pointer; }
+.pd-thumb.on{ border-color: var(--brand); }
+.pd-thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
 .pd-body{ padding:18px 16px 100px; }
 .pd-title{ font-size:16px; font-weight:600; line-height:1.4; margin-bottom:8px; color: var(--ink); }
 .pd-price-row{ display:flex; align-items:baseline; gap:10px; margin-bottom:10px; }
@@ -2180,7 +2186,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v48-11oct';</script>
+const APP_BUILD = 'v49-11oct';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -3984,14 +3990,39 @@ function openProductDetail(pid){
   if(!p) return;
   pushView(p.name.slice(0,20)+'…', (main)=> buildProductDetail(main, p));
 }
+/* Tapping a small photo swaps the big one. */
+function bindPdGallery(p){
+  const mainImg = document.getElementById('pdMainImg');
+  const wrap = document.getElementById('pdThumbs');
+  if(!mainImg || !wrap) return;
+  wrap.querySelectorAll('[data-thumb]').forEach(function(b){
+    b.addEventListener('click', function(){
+      const list = [p.img].concat((p.imgs || []).filter(u=> u && u !== p.img)).filter(Boolean);
+      const src = list[Number(b.dataset.thumb)];
+      if(!src) return;
+      mainImg.src = src;
+      wrap.querySelectorAll('.pd-thumb').forEach(function(x){ x.classList.remove('on'); });
+      b.classList.add('on');
+    });
+  });
+}
 function buildProductDetail(main, p){
   const off = Math.round((1 - p.price/p.mrp)*100);
   const wished = DB.wishlist.includes(p.id);
   const rating = productRating(p);
   const revs = productReviews(p);
   const bd = ratingBreakdown(p);
+  /* Every photo this product has, the main one first. Older products have only
+     one, so the gallery simply does not appear for them. */
+  const gallery = [p.img].concat((p.imgs || []).filter(u=> u && u !== p.img)).filter(Boolean);
   main.innerHTML = `
-    <div class="pd-gallery"><img src="${p.img}" alt="${p.name}"></div>
+    <div class="pd-gallery" id="pdGallery">
+      <img id="pdMainImg" src="${gallery[0]||''}" alt="${p.name}">
+    </div>
+    ${gallery.length > 1 ? `
+    <div class="pd-thumbs" id="pdThumbs">
+      ${gallery.map((u,i)=>`<button class="pd-thumb ${i===0?'on':''}" data-thumb="${i}" type="button"><img src="${u}" alt=""></button>`).join('')}
+    </div>` : ''}
     <div class="pd-body">
       <div class="pd-title">${p.name}</div>
       <div class="pd-rating-row">
@@ -4103,6 +4134,7 @@ function buildProductDetail(main, p){
     addToCart(p.id);
     viewStack=[]; switchTab('cart');
   });
+  bindPdGallery(p);
 }
 function addToCart(pid, qty=1){
   const existing = DB.cart.find(i=>i.productId===pid);
@@ -10879,7 +10911,14 @@ function renderAdminSettings(shell){
     price:    ['price','selling price','sale price','our price','sp','offer price'],
     mrp:      ['mrp','list price','original price','max price','strike','compare price'],
     stock:    ['stock','qty','quantity','inventory','stock quantity','available'],
-    img:      ['image','image url','imageurl','img','picture','photo','image link','image_url','pic'],
+    img:      ['image','image url','imageurl','img','picture','photo','image link','image_url','pic',
+               'image 1','picture 1','photo 1'],
+    /* Extra photos for the same product. The first one ('image') is the one
+       shown on cards and in the cart; these fill the gallery on the product
+       page. Up to four in total. */
+    img2:     ['image 2','image2','image 2 url','image url2','image url 2','imageurl2','img2','picture 2','photo 2','second image'],
+    img3:     ['image 3','image3','image 3 url','image url3','image url 3','imageurl3','img3','picture 3','photo 3','third image'],
+    img4:     ['image 4','image4','image 4 url','image url4','image url 4','imageurl4','img4','picture 4','photo 4','fourth image'],
     desc:     ['description','desc','details','about','product description'],
     brand:    ['brand','brand name','company','label'],
     rating:   ['rating','stars','star'],
@@ -10951,6 +10990,13 @@ function renderAdminSettings(shell){
       var img = resolveImg(rawImg, base);
       if(/^data:/i.test(img)) dataImgs++;
       if(!img) img = (typeof PLACEHOLDER_IMG === 'function') ? PLACEHOLDER_IMG(encodeURIComponent(name).slice(0, 24)) : '';
+      /* The rest of the product's photos. Same picture twice is stored once. */
+      var imgs = [img];
+      ['img2','img3','img4'].forEach(function(k){
+        var extra = resolveImg(get(k), base);
+        if(/^data:/i.test(extra)) dataImgs++;
+        if(extra && imgs.indexOf(extra) < 0) imgs.push(extra);
+      });
 
       var rating = num(get('rating')); if(rating === null) rating = 0;
       var rc = num(get('ratingCount')); if(rc === null) rc = 0;
@@ -10972,6 +11018,7 @@ function renderAdminSettings(shell){
         name: name,
         category: cat ? cat.id : ('__new__' + catName),
         price: price, mrp: mrp, stock: stock, img: img,
+        imgs: imgs.length > 1 ? imgs : [],
         desc: get('desc'), brand: get('brand'), sub: sub,
         sizes: sizes, hasSizes: sizes.length > 0,
         rating: rating, ratingCount: rc,
@@ -11392,6 +11439,7 @@ function renderAdminSettings(shell){
         if(state.mode === 'update'){
           prev.price = x.price; prev.mrp = x.mrp; prev.stock = x.stock;
           if(x.img) prev.img = x.img;
+          if(x.imgs && x.imgs.length > 1) prev.imgs = x.imgs;
           if(x.desc) prev.desc = x.desc;
           if(x.brand) prev.brand = x.brand;
           if(catId) prev.category = catId;
@@ -11404,7 +11452,9 @@ function renderAdminSettings(shell){
       }
       var item = {
         id: newId('p'), name: x.name, category: catId, price: x.price, mrp: x.mrp,
-        stock: x.stock, desc: x.desc || '', img: x.img, sub: x._sub || '',
+        stock: x.stock, desc: x.desc || '', img: x.img,
+        imgs: (x.imgs && x.imgs.length > 1) ? x.imgs : [],
+        sub: x._sub || '',
         rating: x.rating || 0, ratingCount: x.ratingCount || 0,
         hasSizes: !!x.hasSizes, sizes: x.sizes || []
       };
