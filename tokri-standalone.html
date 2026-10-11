@@ -2186,7 +2186,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v52-11oct';</script>
+const APP_BUILD = 'v53-11oct';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -7947,7 +7947,26 @@ function renderAdminSettings(shell){
            this phone's copy, so the server heals by itself. */
         var notSmaller   = serverCount >= localCount;
         var clearlyNewer = serverStamp > localStamp;
-        var takeServer   = !hasLocal || clearlyNewer || (serverStamp >= localStamp && notSmaller);
+        /* ---- v53 FIX: a brand-new install never picked up the shop's catalogue
+           A phone with no data starts from the built-in demo catalogue, and that
+           fresh copy is stamped with "now" when it is created. That stamp makes
+           the demo data look NEWER than the real catalogue on the server, so
+           takeServer stayed false and the device kept showing the dummy
+           products (and their random placeholder photos) forever - on every new
+           phone, and for every customer. Detect that untouched demo catalogue
+           and let the server win regardless of timestamps. A real catalogue
+           never matches this test, because its products carry real images
+           instead of the placeholder ones. */
+        var isUntouchedDemo = false;
+        try {
+          var list = D.products || [];
+          isUntouchedDemo = list.length > 0 && list.every(function (pr) {
+            return /^p\d+$/.test(String(pr.id)) &&
+                   String(pr.img || '').indexOf('picsum.photos') >= 0;
+          }) && (D.categories || []).every(function (c) { return /^c\d+$/.test(String(c.id)); });
+        } catch (e) { isUntouchedDemo = false; }
+        var takeServer   = !hasLocal || clearlyNewer || (serverStamp >= localStamp && notSmaller) ||
+                           isUntouchedDemo;
         if (takeServer) {
           D.products   = d.products;
           D.categories = Array.isArray(d.categories) && d.categories.length ? d.categories : D.categories;
