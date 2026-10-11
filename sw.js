@@ -53,9 +53,12 @@
    chooser is deleted. CACHE bumped again.
    v46 (2026-10-11) - customers are now recorded on the server, so the
    owner's Customers page lists every tester. CACHE bumped again.
+   v47 (2026-10-11) - a new version now takes over on a single reopen
+   (the page reloads itself once when the new worker activates), and a
+   customer row can be removed from the list. CACHE bumped again.
    ============================================================ */
 
-const CACHE = 'nexcart-v46';
+const CACHE = 'nexcart-v47';
 const ASSETS = [
   './',
   './tokri-standalone.html',

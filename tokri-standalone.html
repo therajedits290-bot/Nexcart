@@ -2180,7 +2180,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v46-11oct';</script>
+const APP_BUILD = 'v47-11oct';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -5923,8 +5923,27 @@ function registerServiceWorker(){
   if(!('serviceWorker' in navigator)) return;
   // Service workers need https:// or http://localhost — silently skip on file://
   if(location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return;
+  /* When a new version installs, the page already on screen is still the OLD
+     file, so a phone needed two launches before an update showed up (it looked
+     like the testers "never updated"). Reloading once, the moment the new
+     worker takes over, makes a single reopen enough. */
+  try{
+    let alreadyReloaded = false;
+    try{ alreadyReloaded = sessionStorage.getItem('ncSwReloaded') === '1'; }catch(e){}
+    navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+      if(alreadyReloaded) return;
+      alreadyReloaded = true;
+      try{ sessionStorage.setItem('ncSwReloaded','1'); }catch(e){}
+      location.reload();
+    });
+  }catch(e){}
+
   window.addEventListener('load', ()=>{
-    navigator.serviceWorker.register('sw.js').catch(()=>{ /* offline/install just unavailable */ });
+    navigator.serviceWorker.register('sw.js').then(reg=>{
+      /* Ask for the newest sw.js right away instead of waiting for the
+         browser's own schedule. */
+      try{ if(reg && reg.update) reg.update(); }catch(e){}
+    }).catch(()=>{ /* offline/install just unavailable */ });
   });
 }
 
@@ -6768,6 +6787,7 @@ function buildCustomerIndex(extra){
     if(!key) return;
     if(!map.has(key)) map.set(key, { key, name:'Customer', phone:'', email:'', orders:[], spend:0, last:0, signedUp:true });
     const c = map.get(key);
+    if(u.id && !c.serverId) c.serverId = u.id;
     if(u.name && (c.name==='Customer' || !c.name)) c.name = u.name;
     if(!c.phone && u.phone) c.phone = u.phone;
     if(!c.email && u.email) c.email = u.email;
@@ -6811,6 +6831,7 @@ function renderAdminCustomers(shell){
         <div class="ali-sub">${c.phone || 'No phone'}${c.email ? ' · ' + c.email : ''} · ${c.orders.length ? c.orders.length + ' order' + (c.orders.length===1?'':'s') + ' · ' + formatMoney(c.spend) + ' spent' : 'signed up, no order yet'}</div>
       </div>
       <div class="admin-list-actions">
+        ${c.serverId ? `<button class="admin-icon-action" data-custdel="${c.serverId}" title="Remove from this list">${icon('trash')}</button>` : ''}
         <button class="admin-icon-action" data-custview="${c.key}">${icon('chevronRight')}</button>
       </div>
     </div>`).join('');
@@ -6818,6 +6839,23 @@ function renderAdminCustomers(shell){
   $$('[data-custview]', list).forEach(b=> b.addEventListener('click', ()=>{
     const c = customers.find(x=>x.key===b.dataset.custview);
     if(c) customerDetailSheet(c);
+  }));
+
+  /* Removing a row is for test accounts and mistakes. Orders are never touched:
+     they are the shop's records. */
+  $$('[data-custdel]', list).forEach(b=> b.addEventListener('click', ()=>{
+    const id = b.dataset.custdel;
+    const c = customers.find(x=>x.serverId===id);
+    confirmAction('Remove this customer?',
+      ((c && c.name) || 'This person') + ' is taken off the Customers list. Their orders stay in Orders.',
+      ()=>{
+        if(!(window.NC && NC.removeCustomer)){ showToast('Update the app to use this','alert'); return; }
+        NC.removeCustomer({ id: id }).then(()=>{
+          ncServerCustomers = ncServerCustomers.filter(u=>u.id!==id);
+          showToast('Customer removed','checkCircle');
+          ncRepaintAdmin();
+        }).catch(()=> showToast('Could not remove — check your connection','alert'));
+      });
   }));
 
   /* Everyone who has signed in on any phone — the server knows them even when
@@ -8252,6 +8290,17 @@ function renderAdminSettings(shell){
     startPolling();
     startCustomerPolling();
     reportCustomerProfile();
+
+    /* A phone that keeps the app open in the background never runs the launch
+       code again, so the profile is re-sent whenever the app comes forward.
+       At most once every five minutes. */
+    var lastReport = Date.now();
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState !== 'visible') return;
+      if (Date.now() - lastReport < 300000) return;
+      lastReport = Date.now();
+      reportCustomerProfile();
+    });
   }
 
   // Public surface, handy for debugging or a custom admin button.
@@ -8275,6 +8324,9 @@ function renderAdminSettings(shell){
     setKey: setKey,
     getKey: getKey,
     reportCustomer: reportCustomerProfile,
+    removeCustomer: function (payload) {
+      return api('/api/admin/user/remove', { method: 'POST', admin: true, body: payload || {} });
+    },
 
     signedIn: function () { return !!getToken(); },
     logout: function () {

@@ -146,14 +146,66 @@ function publicUser(u) {
    saved profile, an account created here, or a plain order. Matches on the
    phone number first, then the email, so the same person is never listed twice.
    Password material is never stored by this path. */
+/* The same person can reach the shop twice: once with a phone number and once
+   with a Google email. Merge those two records into one, keeping the older id
+   and moving any orders and sessions across, so the owner's list shows a person
+   once — not two half-filled rows. */
+function mergeCustomer(keep, drop) {
+  if (!keep || !drop || keep === drop) return keep;
+  if (!keep.phone && drop.phone) keep.phone = drop.phone;
+  if (!keep.email && drop.email) keep.email = drop.email;
+  if ((!keep.name || keep.name === 'Customer') && drop.name) keep.name = drop.name;
+  const a = keep.createdAt || Date.now(), b2 = drop.createdAt || Date.now();
+  keep.createdAt = Math.min(a, b2);
+  (db.orders || []).forEach((o) => { if (o.userId === drop.id) o.userId = keep.id; });
+  (db.sessions || []).forEach((x) => { if (x.userId === drop.id) x.userId = keep.id; });
+  db.users = db.users.filter((u) => u !== drop);
+  return keep;
+}
+
+/* Housekeeping: collapse any records that share a phone number or an email.
+   Runs on its own, so duplicates created by older builds disappear as soon as
+   the owner opens the Customers page. */
+function dedupeUsers() {
+  db.users = db.users || [];
+  let merged = 0;
+  let again = true;
+  while (again) {
+    again = false;
+    for (let i = 0; i < db.users.length && !again; i++) {
+      for (let j = i + 1; j < db.users.length; j++) {
+        const a = db.users[i], b2 = db.users[j];
+        if (!a || !b2) continue;
+        const samePhone = a.phone && b2.phone && a.phone === b2.phone;
+        const sameEmail = a.email && b2.email &&
+                          String(a.email).toLowerCase() === String(b2.email).toLowerCase();
+        if (samePhone || sameEmail) {
+          const keep = (a.createdAt || 0) <= (b2.createdAt || 0) ? a : b2;
+          mergeCustomer(keep, keep === a ? b2 : a);   /* removes the other row */
+          merged++;
+          again = true;   /* the list changed — scan it again from the top */
+          break;
+        }
+      }
+    }
+  }
+  if (merged) save();
+  return merged;
+}
+
 function recordCustomer(info) {
   const name = String((info && info.name) || '').trim().slice(0, 80);
   const phone = digits((info && info.phone) || '');
   const email = String((info && info.email) || '').trim().toLowerCase().slice(0, 200);
   if (!phone && !email) return null;
   db.users = db.users || [];
-  let user = phone.length === 10 ? db.users.find((u) => u.phone === phone) : null;
-  if (!user && email) user = db.users.find((u) => (u.email || '').toLowerCase() === email);
+  const byPhone = phone.length === 10 ? db.users.find((u) => u.phone === phone) : null;
+  const byEmail = email ? db.users.find((u) => (u.email || '').toLowerCase() === email) : null;
+  let user = byPhone || byEmail || null;
+  if (byPhone && byEmail && byPhone !== byEmail) {
+    const keep = (byPhone.createdAt || 0) <= (byEmail.createdAt || 0) ? byPhone : byEmail;
+    user = mergeCustomer(keep, keep === byPhone ? byEmail : byPhone);
+  }
   if (!user) {
     user = { id: newId('USR'), name: name || 'Customer',
              phone: phone.length === 10 ? phone : '', email,
@@ -570,6 +622,9 @@ const server = http.createServer(async (req, res) => {
      with testers but no orders looks completely empty. No password material
      ever leaves this endpoint. */
   if (p === '/api/admin/users' && req.method === 'GET') {
+    /* Merge any duplicate rows first, so the owner never sees the same person
+       listed twice. */
+    dedupeUsers();
     if (!isAdmin(req)) return send(res, 401, { error: 'unauthorised' });
     const byUser = {};
     db.orders.forEach((o) => {
@@ -588,6 +643,25 @@ const server = http.createServer(async (req, res) => {
       };
     }).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     return send(res, 200, { users, total: users.length });
+  }
+
+  /* Remove a customer row — for test accounts and mistakes. Orders are kept:
+     they are the shop's records, and the row can be rebuilt from them. */
+  if (p === '/api/admin/user/remove' && req.method === 'POST') {
+    if (!isAdmin(req)) return send(res, 401, { error: 'unauthorised' });
+    const b = await readBody(req);
+    if (b.__tooBig) return send(res, 413, { error: 'Request too large' });
+    const id = String(b.id || '').trim();
+    const phone = digits(b.phone || '');
+    const email = String(b.email || '').trim().toLowerCase();
+    const before = (db.users || []).length;
+    db.users = (db.users || []).filter((u) =>
+      !(id && u.id === id) &&
+      !(phone.length === 10 && u.phone === phone) &&
+      !(email && (u.email || '').toLowerCase() === email));
+    const removed = before - db.users.length;
+    if (removed) save();
+    return send(res, 200, { ok: true, removed: removed });
   }
 
   if (p === '/api/orders' && req.method === 'GET') {
