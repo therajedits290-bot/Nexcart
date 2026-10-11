@@ -2178,6 +2178,9 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 </div>
 
 <!-- ======= SPLASH SCREEN ======= -->
+<script>/* Which version of this file a phone is running. Shown in Admin > Settings,
+     so an old cached copy is instantly recognisable. */
+const APP_BUILD = 'v45-11oct';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -3170,7 +3173,7 @@ function applyBranding(){
      default existed and an empty value used to show an old mark instead. The
      letter is kept only for the case where the picture itself fails to load. */
   const setLogo = (imgEl, fbEl) => {
-    const src = b.logoDataUrl || NEX_LOGO;
+    const src = ncDirectMediaUrl(b.logoDataUrl) || NEX_LOGO;
     imgEl.style.display = 'block';
     fbEl.style.display = 'none';
     imgEl.onerror = () => {
@@ -3360,6 +3363,25 @@ function renderHome(main){
   const tok = ++renderToken;
   setTimeout(()=>{ if(tok === renderToken) buildHome(main); }, 480);
 }
+
+/* ---------- picture addresses ----------
+   A picture must point at a real file. Owners often paste the GitHub *page*
+   address (github.com/user/repo/blob/main/splash.jpg) — that is a web page, not
+   an image, so the phone shows a broken frame and prints the address itself on
+   the splash screen. Those are rewritten to the raw file address, and a picture
+   that still fails to load is dropped instead of being shown broken. */
+function ncDirectMediaUrl(u){
+  const s = String(u == null ? '' : u).trim();
+  if(!s) return '';
+  const m = s.match(/^https?:\/\/(?:www\.)?github\.com\/([^\/]+)\/([^\/]+)\/(?:blob|raw|tree)\/(.+)$/i);
+  if(m) return 'https://raw.githubusercontent.com/' + m[1] + '/' + m[2] + '/' + m[3];
+  return s;
+}
+function ncLooksLikeMedia(u){
+  const s = String(u||'');
+  if(/^data:(image|video)\//i.test(s) || /^blob:/i.test(s)) return true;
+  return /\.(jpe?g|png|webp|gif|avif|svg|bmp|mp4|webm|mov)(\?|#|$)/i.test(s);
+}
 function buildHome(main){
   const activeBanners = (DB.banners||[]).filter(b=>b.active);
   const cats = DB.categories || [];
@@ -3400,7 +3422,7 @@ function buildHome(main){
         ${activeBanners.map(bn=>`
           <div class="banner-slide adv" data-banner="${bn.id}">
             <div class="adv-media ${bn.img?'':'adv-grad'}" style="${bn.img?'':`--adv-bg:${bn.bg||'linear-gradient(135deg,#FF3F6C 0%,#FF905A 100%)'};`}">
-              ${bn.img?`<img src="${bn.img}" alt="">`:''}
+              ${bn.img?`<img src="${ncDirectMediaUrl(bn.img)}" alt="" onerror="this.style.display='none'">`:''}
               <div class="adv-shade"></div>
               <div class="adv-copy">
                 ${bn.badge?`<div class="adv-badge">${bn.badge}</div>`:''}
@@ -5856,8 +5878,10 @@ function launchApp(){
   let hold = 1500;
   try{
     const sp = (DB.branding && DB.branding.splash) || {};
-    const src = sp.url || sp.dataUrl || '';
-    if(sp.type && sp.type !== 'default' && src){
+    const src = ncDirectMediaUrl(sp.url || sp.dataUrl || '');
+    /* Only a real picture or video address is used. A pasted web page address
+       used to leave a broken frame (and the address text) on the splash. */
+    if(sp.type && sp.type !== 'default' && src && ncLooksLikeMedia(src)){
       const isVideo = sp.type === 'video';
       const media = document.createElement(isVideo ? 'video' : 'img');
       media.className = 'splash-media';
@@ -5870,6 +5894,9 @@ function launchApp(){
       } else {
         media.alt = '';
       }
+      /* If the file still cannot be fetched, remove it and carry on with the
+         normal splash rather than showing a broken picture. */
+      media.onerror = () => { try{ media.remove(); splash.classList.remove('has-media'); }catch(e){} };
       splash.classList.add('has-media');
       splash.insertBefore(media, splash.firstChild);
       hold = Math.max(1, Math.min(15, Number(sp.seconds) || 4)) * 1000;
@@ -6116,7 +6143,18 @@ function bindAdminNav(){
   });
 }
 
+/* Which admin page is on screen, so the server's customer list can redraw the
+   right one in the background. */
+let adminCurrentTab = 'dashboard';
+function ncRepaintAdmin(){
+  try{
+    const shell = $('#adminShell');
+    if(!shell || shell.style.display === 'none') return;
+    renderAdminTab(adminCurrentTab);
+  }catch(e){}
+}
 function renderAdminTab(tab){
+  adminCurrentTab = tab;
   const shell = $('#adminShell');
   if(tab==='dashboard') renderAdminDashboard(shell);
   else if(tab==='products') renderAdminProducts(shell);
@@ -6707,7 +6745,11 @@ function normalizePhone(p){
   const d = String(p||'').replace(/\D/g,'');
   return d.length > 10 ? d.slice(-10) : d;
 }
-function buildCustomerIndex(){
+/* Customers who signed up on any phone, ordered or not. Filled from the server
+   by the admin Customers page, so the list is not empty while your 12 testers
+   are still only browsing. */
+let ncServerCustomers = [];
+function buildCustomerIndex(extra){
   const map = new Map();
   DB.orders.forEach(o=>{
     const key = normalizePhone(o.customerPhone) || (o.customerName||'Guest').toLowerCase();
@@ -6719,6 +6761,18 @@ function buildCustomerIndex(){
     if(o.customerName) c.name = o.customerName;
     // Keep the most readable variant of the number (e.g. "+91 98765 43210").
     if(o.customerPhone && o.customerPhone.length > (c.phone||'').length) c.phone = o.customerPhone;
+  });
+  (extra || ncServerCustomers).forEach(u=>{
+    if(!u) return;
+    const key = normalizePhone(u.phone) || String(u.email || u.id || '').toLowerCase();
+    if(!key) return;
+    if(!map.has(key)) map.set(key, { key, name:'Customer', phone:'', email:'', orders:[], spend:0, last:0, signedUp:true });
+    const c = map.get(key);
+    if(u.name && (c.name==='Customer' || !c.name)) c.name = u.name;
+    if(!c.phone && u.phone) c.phone = u.phone;
+    if(!c.email && u.email) c.email = u.email;
+    if(u.createdAt) c.last = Math.max(c.last, u.createdAt);
+    if(typeof u.spend === 'number' && !c.orders.length) c.spend = Math.max(c.spend, u.spend);
   });
   return [...map.values()].sort((a,b)=> b.last - a.last);
 }
@@ -6754,7 +6808,7 @@ function renderAdminCustomers(shell){
       <div class="cust-avatar">${customerInitials(c.name)}</div>
       <div class="ali-info">
         <div class="ali-title">${c.name}</div>
-        <div class="ali-sub">${c.phone || 'No phone'} · ${c.orders.length} order${c.orders.length===1?'':'s'} · ${formatMoney(c.spend)} spent</div>
+        <div class="ali-sub">${c.phone || 'No phone'}${c.email ? ' · ' + c.email : ''} · ${c.orders.length ? c.orders.length + ' order' + (c.orders.length===1?'':'s') + ' · ' + formatMoney(c.spend) + ' spent' : 'signed up, no order yet'}</div>
       </div>
       <div class="admin-list-actions">
         <button class="admin-icon-action" data-custview="${c.key}">${icon('chevronRight')}</button>
@@ -6765,6 +6819,19 @@ function renderAdminCustomers(shell){
     const c = customers.find(x=>x.key===b.dataset.custview);
     if(c) customerDetailSheet(c);
   }));
+
+  /* Everyone who has signed in on any phone — the server knows them even when
+     they have not ordered yet. One extra pass, then the page repaints. */
+  if(typeof window.ncFetchCustomers === 'function'){
+    window.ncFetchCustomers().then(list=>{
+      if(!Array.isArray(list) || !list.length) return;
+      const before = customers.length;
+      ncServerCustomers = list;
+      const merged = buildCustomerIndex();
+      if(merged.length === before) return;
+      if(typeof ncRepaintAdmin === 'function') ncRepaintAdmin();
+    }).catch(()=>{});
+  }
 }
 function customerDetailSheet(c){
   const overlay = document.createElement('div');
@@ -6910,7 +6977,7 @@ function renderAdminOffers(shell){
     ${banners.length ? banners.map(b=>`
       <div class="banner-row ${b.active?'':'banner-off'}">
         <div class="banner-thumb" style="${b.img?'':`background:${b.bg||'#FF3F6C'}`}">
-          ${b.img?`<img src="${b.img}">`:(b.title||'B').charAt(0)}
+          ${b.img?`<img src="${ncDirectMediaUrl(b.img)}" onerror="this.style.display='none'">`:(b.title||'B').charAt(0)}
         </div>
         <div class="banner-row-info">
           <div class="banner-row-title">${b.title||'(no title)'}</div>
@@ -7441,7 +7508,7 @@ function renderAdminSettings(shell){
     const base = (typeof window.ncBases === 'function') ? window.ncBases() : '';
     const hasKey = (typeof window.ncGetKey === 'function') && !!window.ncGetKey();
     setSyncState(base
-      ? ('Server: <b>' + String(base).replace(/^https?:\/\//,'') + '</b>' + (hasKey ? ' &middot; key saved on this device' : ' &middot; no key saved on this device yet'))
+      ? ('Server: <b>' + String(base).replace(/^https?:\/\//,'') + '</b>' + (hasKey ? ' &middot; key saved on this device' : ' &middot; no key saved on this device yet') + ' &middot; app build ' + APP_BUILD)
       : 'No server configured &mdash; sync is off.');
   })();
   $('#ncSaveKeyBtn').addEventListener('click', ()=>{
@@ -8007,6 +8074,24 @@ function renderAdminSettings(shell){
     }
   }
 
+  /* The Dashboard counts customers and the Customers page lists them, so the
+     server's list is fetched the moment the admin panel opens — not only when
+     the Customers page is visited. Cached for 30 seconds to avoid chatter. */
+  var customersFetchedAt = 0;
+  function refreshCustomers(force) {
+    try {
+      if (!getKey() || !BASE) return;
+      if (typeof adminUnlocked !== 'undefined' && !adminUnlocked) return;
+      if (!force && Date.now() - customersFetchedAt < 30000) return;
+      customersFetchedAt = Date.now();
+      window.ncFetchCustomers().then(function (list) {
+        if (!Array.isArray(list)) return;
+        ncServerCustomers = list;
+        if (typeof ncRepaintAdmin === 'function') ncRepaintAdmin();
+      }).catch(function () {});
+    } catch (e) {}
+  }
+
   /* ---------- 4b. expose the sync helpers ----------
      The admin Settings screen lives in a different script scope, so hand
      it the four things it needs to drive sync from a proper form instead
@@ -8016,6 +8101,14 @@ function renderAdminSettings(shell){
   window.ncSetKey = setKey;
   window.ncPush   = pushCatalog;
   window.ncPull   = pullCatalog;
+  /* Everyone who has signed in on any phone, ordered or not. Used by the
+     admin Customers page so it is not empty before the first order. */
+  window.ncFetchCustomers = function () {
+    if (!getKey() || !BASE) return Promise.resolve([]);
+    return api('/api/admin/users', { admin: true })
+      .then(function (d) { return (d && d.users) || []; })
+      .catch(function () { return []; });
+  };
 
   /* ---------- 5. install hooks ---------- */
 
@@ -8093,6 +8186,9 @@ function renderAdminSettings(shell){
             window.setTimeout(function () { askForKey(false); }, 600);
           }
         } catch (e) {}
+        /* Who has signed up — fills the Dashboard counter and the Customers
+           page on the spot, instead of waiting for a visit to that page. */
+        try { window.setTimeout(function () { refreshCustomers(true); }, 500); } catch (e) {}
         return result;
       };
       wrappedOpen.__ncWrapped = true;
@@ -11628,16 +11724,4 @@ html:not([data-theme="dark"]) .sub-group-h{ color:#B8114F; font-weight:800; }
 html:not([data-theme="dark"]) .catpage-h::before,
 html:not([data-theme="dark"]) .sub-group-h::before{
   width:5px; height:17px; border-radius:3px;
-  background:linear-gradient(180deg,#F7D570 0%, #F04781 55%, #B8114F 100%);
-}
-
-/* product tiles: white card with a visible rose edge */
-html:not([data-theme="dark"]) .catpage-grid:not(.sub-grid) .cat-tile-lg{
-  background:#fff;
-  box-shadow:0 3px 12px rgba(200,20,90,.12), 0 0 0 1px rgba(240,180,205,.95);
-}
-html:not([data-theme="dark"]) .catpage-grid:not(.sub-grid) .cat-tile-lg span{ color:#8A0A3C; }
-</style>
-
-</body>
-</html>
+  background:linear-gradien

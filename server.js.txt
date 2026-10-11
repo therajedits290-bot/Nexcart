@@ -518,6 +518,31 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { orders: db.orders.filter((o) => o.userId === u.id) });
   }
 
+  /* The owner's Customers page. It shows everyone who has ever opened the app
+     and signed in, not only the ones who have ordered yet — otherwise a shop
+     with testers but no orders looks completely empty. No password material
+     ever leaves this endpoint. */
+  if (p === '/api/admin/users' && req.method === 'GET') {
+    if (!isAdmin(req)) return send(res, 401, { error: 'unauthorised' });
+    const byUser = {};
+    db.orders.forEach((o) => {
+      if (!o.userId) return;
+      const e = byUser[o.userId] || (byUser[o.userId] = { orders: 0, spend: 0, last: 0 });
+      e.orders++;
+      if (o.status !== 'Cancelled') e.spend += Number(o.total) || 0;
+      e.last = Math.max(e.last, o.placedAt || 0);
+    });
+    const users = db.users.map((u) => {
+      const e = byUser[u.id] || { orders: 0, spend: 0, last: 0 };
+      return {
+        id: u.id, name: u.name || '', phone: u.phone || '', email: u.email || '',
+        provider: u.provider || 'password', createdAt: u.createdAt || 0,
+        orders: e.orders, spend: e.spend, lastOrderAt: e.last
+      };
+    }).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    return send(res, 200, { users, total: users.length });
+  }
+
   if (p === '/api/orders' && req.method === 'GET') {
     if (!isAdmin(req)) return send(res, 401, { error: 'unauthorised' });
     const since = Number(url.searchParams.get('since')) || 0;
