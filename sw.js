@@ -1,6 +1,4 @@
-
-
-const CACHE = 'nexcart-v53';
+const CACHE = 'nexcart-v54';
 const ASSETS = [
   './',
   './tokri-standalone.html',
@@ -12,13 +10,20 @@ const ASSETS = [
   './delete-account.html'
 ];
 
-/* install: fetch fresh copies (cache:'reload' bypasses the HTTP cache) */
+/* install: fetch each file on its own.
+   v54 - this used to be cache.addAll(), which rejects the whole batch if a
+   single file is missing, so one absent file left the app with no offline
+   copy at all. Now a missing file is simply skipped. */
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE)
-      .then((cache) => cache.addAll(ASSETS.map((u) => new Request(u, { cache: 'reload' })))
-        .catch(() => {}))
+      .then((cache) => Promise.all(
+        ASSETS.map((u) => fetch(new Request(u, { cache: 'reload' }))
+          .then((res) => { if (res && res.ok) return cache.put(u, res); })
+          .catch(() => {}))
+      ))
       .then(() => self.skipWaiting())
+      .catch(() => {})
   );
 });
 

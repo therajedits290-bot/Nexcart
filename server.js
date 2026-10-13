@@ -495,10 +495,16 @@ const server = http.createServer(async (req, res) => {
     if (Array.isArray(b.products)) db.products = b.products;
     if (Array.isArray(b.categories)) db.categories = b.categories;
 
-    /* When the owner's catalogue last changed. Sent back to every device so an
-       out-of-date copy here can never overwrite a newer one on a phone. */
-    if (b.catalogUpdatedAt) db.catalogUpdatedAt = Number(b.catalogUpdatedAt) || 0;
-    else db.catalogUpdatedAt = Date.now();
+    /* When the owner's catalogue last changed.
+       v54: the server now ALWAYS stamps its own clock.
+       Before this it stored whatever timestamp the pushing phone sent, and a
+       phone's timestamp only moves when its own copy changes - so the number
+       sat in the past. Every other device compared that stale value with its
+       own copy, decided the server was not newer, and refused the update.
+       That is exactly why an update in the admin panel reached the owner's
+       phone but not the testers' phones. The device's value is still accepted
+       as a fallback if it happens to be newer than the server's own clock. */
+    db.catalogUpdatedAt = Math.max(Date.now(), Number(b.catalogUpdatedAt) || 0);
 
     /* The admin PIN and the shop rules travel with the catalogue, so one
        change in the admin panel applies to every phone. Numbers only and

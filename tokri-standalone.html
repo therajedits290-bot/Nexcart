@@ -2186,7 +2186,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v53-11oct';</script>
+const APP_BUILD = 'v54-13oct';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -7833,6 +7833,16 @@ function renderAdminSettings(shell){
     } catch (e) {}
   }
 
+  /* Same idea as catalogHash(), but for a catalogue that is not in DB yet. */
+  function catalogSigOf(products, categories) {
+    try {
+      return JSON.stringify([products, categories]).length + ':' +
+             (products || []).map(function (p) {
+               return p.id + p.price + p.stock;
+             }).join(',');
+    } catch (e) { return ''; }
+  }
+
   function catalogHash() {
     try { return JSON.stringify([DB.products, DB.categories]).length + ':' +
                  (DB.products || []).map(function (p) { return p.id + p.price + p.stock; }).join(',') +
@@ -7968,14 +7978,23 @@ function renderAdminSettings(shell){
         var takeServer   = !hasLocal || clearlyNewer || (serverStamp >= localStamp && notSmaller) ||
                            isUntouchedDemo;
         if (takeServer) {
-          D.products   = d.products;
-          D.categories = Array.isArray(d.categories) && d.categories.length ? d.categories : D.categories;
+          /* v54 - a background pull must not repaint the screen when the
+             catalogue is byte-for-byte what this phone already shows. */
+          var serverSig = catalogSigOf(d.products, d.categories);
+          var localSig  = catalogSigOf(D.products, D.categories);
           if (serverStamp) D.catalogUpdatedAt = serverStamp;
-          if (typeof persist === 'function') persist();
-          refreshVisibleCatalog();
-          // The server is now the source of truth — remember its state so we do
-          // not immediately push the same catalogue straight back at it.
-          lastCatalogHash = catalogHash();
+          if (serverSig && serverSig === localSig) {
+            if (typeof persist === 'function') persist();
+            lastCatalogHash = catalogHash();
+          } else {
+            D.products   = d.products;
+            D.categories = Array.isArray(d.categories) && d.categories.length ? d.categories : D.categories;
+            if (typeof persist === 'function') persist();
+            refreshVisibleCatalog();
+            // The server is now the source of truth - remember its state so we do
+            // not immediately push the same catalogue straight back at it.
+            lastCatalogHash = catalogHash();
+          }
         } else {
           // This phone is ahead of the server. Keep it, and let the next poll
           // upload it (an empty baseline forces the comparison to differ).
@@ -8340,6 +8359,26 @@ function renderAdminSettings(shell){
     if (window.__ncCustPoll) return;
     window.__ncCustPoll = window.setInterval(pollMyOrders, 30000);
     window.setTimeout(pollMyOrders, 5000);
+
+    /* ---- v54: keep customer and tester phones in step with the shop ----
+       Before this, a customer phone asked the server for the catalogue ONCE,
+       when the app started. Anyone who left the app open - or came back to it
+       from the background - kept seeing the old products until a full
+       restart, so the owner's changes looked like they had not been sent.
+       Now the same cheap pull runs on a timer, and again the moment the app
+       comes back to the front or the connection returns.
+       pullCatalog() still refuses an older or identical copy, and it only
+       redraws the screen when the products actually changed, so this cannot
+       roll a phone backwards or interrupt what the customer is doing. */
+    if (!window.__ncCustCatalog) {
+      window.__ncCustCatalog = window.setInterval(function () {
+        if (document.visibilityState === 'visible') pullCatalog();
+      }, 60000);
+      document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'visible') pullCatalog();
+      });
+      window.addEventListener('online', function () { pullCatalog(); });
+    }
   }
 
   function boot() {
@@ -11844,18 +11883,32 @@ html:not([data-theme="dark"]) .splash-loader span{ background:#FF3F6C; box-shado
    block puts the original pink values back on this device so the
    shop looks exactly as it used to.
 
-   Delete this block once the saved colours are pink again - or ask
-   me to remove it and I will rebuild the file without it.
+   v54: this now STEPS ASIDE the moment you save a colour of your own.
+   While the shop data still holds the old indigo (#3B2BD9) the pink values
+   are put back, so the shop looks right. Pick any colour in
+   Admin -> Branding -> Save and the guard leaves it alone from then on.
    ============================================================ */
 (function () {
+  var INDIGO = '#3B2BD9';
   var PINK = { brand: '#FF3F6C', dark: '#D81E52', light: '#FFF0F4' };
   var BANNER_BG = [
     'linear-gradient(135deg,#FF6FA5 0%,#D6114F 100%)',
     'linear-gradient(135deg,#FF9CC2 0%,#E4185B 100%)',
     'linear-gradient(135deg,#FFB3D2 0%,#B8114F 100%)'
   ];
+  /* The colour the shop data actually holds right now. */
+  function storedBrand() {
+    try {
+      var b = (typeof DB !== 'undefined' && DB && DB.branding) || null;
+      return String((b && b.primaryColor) || '').toUpperCase();
+    } catch (e) { return ''; }
+  }
   function restore() {
     try {
+      /* If the owner has saved a colour that is not the leftover indigo,
+         that choice is theirs - do not touch it. */
+      var saved = storedBrand();
+      if (saved && saved !== INDIGO) return;
       var st = document.documentElement.style;
       st.setProperty('--brand', PINK.brand);
       st.setProperty('--brand-dark', PINK.dark);
@@ -11933,4 +11986,9 @@ html:not([data-theme="dark"]) .sub-group-h{ color:#B8114F; font-weight:800; }
 html:not([data-theme="dark"]) .catpage-h::before,
 html:not([data-theme="dark"]) .sub-group-h::before{
   width:5px; height:17px; border-radius:3px;
-  background:linear-gradien
+  background:linear-gradient(180deg,#FF3F6C,#FF905A);
+}
+</style>
+
+</body>
+</html>
