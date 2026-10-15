@@ -2186,7 +2186,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v54-13oct';</script>
+const APP_BUILD = 'v56-15oct';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -2968,10 +2968,24 @@ function mrpTotal(){
 // ============================================================
 // SHIPPING + COUPONS
 // ============================================================
-function freeShipThreshold(){ return (DB.settings && DB.settings.freeShipThreshold) || 499; }
-function shippingFeeSetting(){ return (DB.settings && DB.settings.shippingFee) || 40; }
+function freeShipThreshold(){
+  /* v55: an explicit check, not `|| 499`.
+     With `|| 499` a shop that set free delivery on EVERYTHING (threshold 0) got
+     499 back - the owner's choice was silently discarded and customers below
+     Rs499 were still charged delivery. 0 is a real setting. */
+  if(DB.settings && DB.settings.freeShipThreshold != null) return Number(DB.settings.freeShipThreshold);
+  return 499;
+}
+function shippingFeeSetting(){
+  /* v55: same fix. A delivery fee of 0 (free delivery) used to come back as 40. */
+  if(DB.settings && DB.settings.shippingFee != null) return Number(DB.settings.shippingFee);
+  return 40;
+}
 function deliveryFee(subtotal){
-  if(!DB.settings || DB.settings.freeShipThreshold === undefined) return subtotal >= 499 ? 0 : 40;
+  /* One rule, using the two helpers above, so every screen agrees.
+     Nothing is charged when the fee is 0 or the cart has reached the threshold -
+     and the threshold is 0 for a shop that delivers free on everything. */
+  if(shippingFeeSetting() <= 0) return 0;
   return subtotal >= freeShipThreshold() ? 0 : shippingFeeSetting();
 }
 
@@ -4182,6 +4196,19 @@ function renderFreeShipBar(){
   if(!slot) return;
   const subtotal = cartTotal();
   const threshold = freeShipThreshold();
+  /* A threshold of 0 (or a fee of 0) means delivery is already free, so there is
+     nothing to progress towards. Dividing by it would produce Infinity, and
+     "add Rs0 more" is not something to show a customer. */
+  if(threshold <= 0 || shippingFeeSetting() <= 0){
+    slot.innerHTML = `
+      <div class="free-ship-box">
+        <div class="free-ship-text done">
+          ${icon('checkCircle')}
+          <span>FREE delivery on this order</span>
+        </div>
+      </div>`;
+    return;
+  }
   const qualified = subtotal >= threshold;
   const pct = Math.min(100, Math.round(subtotal / threshold * 100));
   slot.innerHTML = `
@@ -7532,7 +7559,9 @@ function renderAdminSettings(shell){
         <h4>Delivery Estimate</h4>
         <div class="form-group"><label class="form-label">Minimum days after the order</label><input class="form-input" id="delMinInput" type="number" value="${s.deliveryMinDays != null ? s.deliveryMinDays : 7}" min="1" max="60"></div>
         <div class="form-group"><label class="form-label">Maximum days after the order</label><input class="form-input" id="delMaxInput" type="number" value="${s.deliveryMaxDays != null ? s.deliveryMaxDays : 8}" min="1" max="60"></div>
-        <p class="form-hint">Customers see a real date, not a day count — e.g. an order placed today reads <b>${cartEta().label}</b>. Existing orders keep the date they were promised.</p>
+        <div class="form-group"><label class="form-label">Delivery charge (\u20B9)</label><input class="form-input" id="delFeeInput" type="number" value="${s.shippingFee != null ? s.shippingFee : 40}" min="0" max="10000"><span class="form-hint">0 = you never charge for delivery.</span></div>
+        <div class="form-group"><label class="form-label">Free delivery above (\u20B9)</label><input class="form-input" id="delFreeInput" type="number" value="${s.freeShipThreshold != null ? s.freeShipThreshold : 499}" min="0" max="100000"><span class="form-hint">0 = free delivery on EVERY order, whatever it costs and whatever the customer spends.</span></div>
+        <p class="form-hint">Set the charge to 0 for free delivery on everything. Customers see a real date, not a day count — e.g. an order placed today reads <b>${cartEta().label}</b>. Existing orders keep the date they were promised.</p>
         <button class="btn btn-secondary btn-block" id="saveDeliveryBtn">Save Delivery Estimate</button>
       </div>
       <div class="od-section">
@@ -7627,11 +7656,24 @@ function renderAdminSettings(shell){
     if(!min || min < 1 || min > 60){ showToast('Minimum must be 1-60 days'); return; }
     if(!max || max < 1 || max > 60){ showToast('Maximum must be 1-60 days'); return; }
     if(max < min){ showToast('Maximum cannot be less than minimum'); return; }
+    /* v55: the delivery charge and the free-delivery threshold are editable here
+       for the first time. Both accept 0, which is why they are parsed with an
+       explicit NaN check: `!fee` would have rejected 0 as if it were empty. */
+    const feeRaw = String($('#delFeeInput').value).trim();
+    const freeRaw = String($('#delFreeInput').value).trim();
+    const fee = feeRaw === '' ? 0 : parseInt(feeRaw, 10);
+    const freeAbove = freeRaw === '' ? 0 : parseInt(freeRaw, 10);
+    if(!isFinite(fee) || fee < 0 || fee > 10000){ showToast('Delivery charge must be 0-10000'); return; }
+    if(!isFinite(freeAbove) || freeAbove < 0 || freeAbove > 100000){ showToast('Free delivery amount must be 0-100000'); return; }
     DB.settings.deliveryMinDays = min;
     DB.settings.deliveryMaxDays = max;
+    DB.settings.shippingFee = fee;
+    DB.settings.freeShipThreshold = freeAbove;
     persist();
     renderAdminSettings(shell);
-    showToast('Delivery estimate: ' + etaDaysText(min, max), 'checkCircle');
+    showToast(fee <= 0 || freeAbove <= 0
+      ? 'Delivery is now FREE on every order'
+      : 'Delivery ' + formatMoney(fee) + ', free above ' + formatMoney(freeAbove), 'checkCircle');
   });
   /* ---- backups: list, restore, back up now ---- */
   const paintSnaps = ()=>{
@@ -10546,12 +10588,12 @@ function renderAdminSettings(shell){
     var st = (typeof DB !== 'undefined' && DB.settings) || {};
     var fee = Number(st.shippingFee || 0), thr = Number(st.freeShipThreshold || 0);
     var items = [];
-    if(fee > 0 && thr > 0){
-      items.push('Delivery Fee <s>' + money(fee) + '</s> <b>FREE</b> above ' + money(thr));
-    } else if(thr > 0){
-      items.push('Delivery <b>FREE</b> above ' + money(thr));
+    if(fee <= 0 || thr <= 0){
+      /* v55: say what is actually true. "Delivery available across India" buried
+         the good news when the shop had made delivery free on everything. */
+      items.push('Delivery <b>FREE</b> on every order');
     } else {
-      items.push('Delivery available across India');
+      items.push('Delivery Fee <s>' + money(fee) + '</s> <b>FREE</b> above ' + money(thr));
     }
     if(st.codEnabled !== false){
       items.push('Cash on Delivery <b>\u20B90</b> extra');
