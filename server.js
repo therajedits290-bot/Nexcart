@@ -265,7 +265,23 @@ function readBody(req, limit) {
     req.on('error', () => done({}));
   });
 }
-const isAdmin = (req) => req.headers['x-admin-key'] === KEY;
+/* v55: a key that nobody chose is not a key.
+   This used to default to the literal 'changeme', so a deployment that forgot to
+   set ADMIN_KEY had its admin API protected by a password printed in the source.
+   Now a missing or default key fails CLOSED: every admin route refuses, with a
+   message that says exactly what to fix, instead of quietly trusting everyone.
+
+   The comparison is also timing-safe now. Node's crypto is already imported, and
+   === leaks how many characters matched. */
+const KEY_IS_DEFAULT = !process.env.ADMIN_KEY || process.env.ADMIN_KEY === 'changeme';
+const isAdmin = (req) => {
+  if (KEY_IS_DEFAULT) return false;
+  const given = String(req.headers['x-admin-key'] || '');
+  const a = Buffer.from(given);
+  const b = Buffer.from(KEY);
+  if (a.length !== b.length) return false;      // lengths differ: not our key
+  return crypto.timingSafeEqual(a, b);
+};
 
 /* Verify a Google ID token without any library: check the RS256 signature
    against Google's published keys, then the audience and issuer. */
@@ -365,7 +381,21 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, {
       products: db.products,
       categories: db.categories,
-      settings: db.settings,
+      /* v55: the admin PIN is NO LONGER sent to customers.
+         This endpoint has no login. Every phone that installed the app fetched
+         it, so the owner's admin PIN was readable by anyone - it was in the
+         network response of the shop itself. The PIN was never a server-side
+         control anyway (the server checks ADMIN_KEY); it is only the gate in
+         front of the admin panel ON THE OWNER'S OWN PHONE. So the correct place
+         for it is that phone, and it is now kept there and nowhere else.
+         The app already refuses to adopt a PIN that is not 4-10 digits, so an
+         owner who set their own PIN keeps it, and a fresh install falls back to
+         the documented default. Nothing else about settings changes. */
+      settings: (function () {
+        const safe = Object.assign({}, db.settings || {});
+        delete safe.adminPin;
+        return safe;
+      })(),
       branding: db.branding || null,
       banners: db.banners || [],
       announcements: db.announcements || [],
@@ -628,10 +658,14 @@ const server = http.createServer(async (req, res) => {
      with testers but no orders looks completely empty. No password material
      ever leaves this endpoint. */
   if (p === '/api/admin/users' && req.method === 'GET') {
-    /* Merge any duplicate rows first, so the owner never sees the same person
+    /* v55: the key is checked FIRST.
+       dedupeUsers() can rewrite the customer list and save it, and it used to
+       run before the check - so a request with no key at all still caused a
+       write. Checking first means an unauthorised caller can only ever read. */
+    if (!isAdmin(req)) return send(res, 401, { error: 'unauthorised' });
+    /* Then merge any duplicate rows, so the owner never sees the same person
        listed twice. */
     dedupeUsers();
-    if (!isAdmin(req)) return send(res, 401, { error: 'unauthorised' });
     const byUser = {};
     db.orders.forEach((o) => {
       if (!o.userId) return;
@@ -730,4 +764,18 @@ init()
   .catch((e) => console.error('[storage] init problem (continuing):', e.message))
   .then(() => server.listen(PORT, () => {
     console.log('NEXCART backend on port ' + PORT + ' — storage: ' + storage);
+    /* v55: say out loud what the admin API is protected by. Silence here is how a
+       shop ends up live with no working admin access and no idea why. */
+    if (KEY_IS_DEFAULT) {
+      console.log('==============================================================');
+      console.log(' ADMIN_KEY IS NOT SET.');
+      console.log(' The admin API is refusing every request on purpose, because a');
+      console.log(' key that ships in the source code is not a key.');
+      console.log(' Fix: Render -> your service -> Environment -> add');
+      console.log('   ADMIN_KEY = <a long random phrase only you know>');
+      console.log(' then Manual Deploy. Customers are unaffected by this.');
+      console.log('==============================================================');
+    } else {
+      console.log('Admin API: protected by ADMIN_KEY (set).');
+    }
   }));
