@@ -42,8 +42,8 @@
    --line: #E9E9EB;
    --success: #03A685;
    --success-bg: #E9F7F2;
-   --warn: #D68910;
-   --warn-bg: #FFF6E5;
+   --warn: #F8BBD0;
+   --warn-bg: #FFF5F8;
    --danger: #E23744;
    --danger-bg: #FDECEE;
    --radius-lg: 14px;
@@ -72,7 +72,7 @@ html[data-theme="dark"]{
    --brand-light: #3A1520;
   --success: #35C177;
   --success-bg: #12301F;
-  --warn: #E0B54A;
+  --warn: #F8BBD0;
   --warn-bg: #332A11;
   --danger: #FF6B75;
   --danger-bg: #3A1B1E;
@@ -533,7 +533,7 @@ img{ max-width:100%; display:block; }
 .policy-page{ padding:18px 18px 40px; }
 .policy-flag{ display:flex; gap:10px; background: var(--warn-bg); border-radius: var(--radius-md); padding:12px 14px; margin-bottom:18px; }
 .policy-flag .icon{ width:18px; height:18px; color: var(--warn); flex-shrink:0; }
-.policy-flag p{ font-size:12px; color:#7a5a08; line-height:1.5; font-weight:500; }
+.policy-flag p{ font-size:12px; color:#D81B60; line-height:1.5; font-weight:500; }
 .policy-page h3{ font-size:15px; font-weight:700; margin: 20px 0 8px; font-family: var(--font-body); }
 .policy-page p, .policy-page li{ font-size:13.5px; color: var(--ink-soft); line-height:1.7; }
 .policy-page ul{ padding-left:18px; margin:6px 0; }
@@ -1552,7 +1552,7 @@ img{ max-width:100%; display:block; }
    4. OFFER STRIP  (marquee, Myntra's fee-offer bar)
    ============================================================ */
 .announce-bar{
-  background:linear-gradient(90deg,var(--brand-light),#FFF6EE);
+  background:linear-gradient(90deg,var(--brand-light),#FFF5F8);
   border-bottom:1px solid var(--hairline);
   color:var(--ink);
 }
@@ -2140,7 +2140,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 /* storage meter in admin > Settings */
 .storage-bar{ height:10px; border-radius:6px; background:var(--surface-2); overflow:hidden; }
 .storage-fill{ height:100%; border-radius:6px; background:var(--success); transition:width .3s ease; }
-.storage-fill.is-mid{ background:#E0A82E; }
+.storage-fill.is-mid{ background:#F8BBD0; }
 .storage-fill.is-high{ background:var(--danger); }
 /* sub-category groups on the Categories page */
 .sub-group-h{
@@ -2186,7 +2186,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v54-13oct';</script>
+const APP_BUILD = 'v57-16oct';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -2968,10 +2968,24 @@ function mrpTotal(){
 // ============================================================
 // SHIPPING + COUPONS
 // ============================================================
-function freeShipThreshold(){ return (DB.settings && DB.settings.freeShipThreshold) || 499; }
-function shippingFeeSetting(){ return (DB.settings && DB.settings.shippingFee) || 40; }
+function freeShipThreshold(){
+  /* v55: an explicit check, not `|| 499`.
+     With `|| 499` a shop that set free delivery on EVERYTHING (threshold 0) got
+     499 back - the owner's choice was silently discarded and customers below
+     Rs499 were still charged delivery. 0 is a real setting. */
+  if(DB.settings && DB.settings.freeShipThreshold != null) return Number(DB.settings.freeShipThreshold);
+  return 499;
+}
+function shippingFeeSetting(){
+  /* v55: same fix. A delivery fee of 0 (free delivery) used to come back as 40. */
+  if(DB.settings && DB.settings.shippingFee != null) return Number(DB.settings.shippingFee);
+  return 40;
+}
 function deliveryFee(subtotal){
-  if(!DB.settings || DB.settings.freeShipThreshold === undefined) return subtotal >= 499 ? 0 : 40;
+  /* One rule, using the two helpers above, so every screen agrees.
+     Nothing is charged when the fee is 0 or the cart has reached the threshold -
+     and the threshold is 0 for a shop that delivers free on everything. */
+  if(shippingFeeSetting() <= 0) return 0;
   return subtotal >= freeShipThreshold() ? 0 : shippingFeeSetting();
 }
 
@@ -4182,6 +4196,19 @@ function renderFreeShipBar(){
   if(!slot) return;
   const subtotal = cartTotal();
   const threshold = freeShipThreshold();
+  /* A threshold of 0 (or a fee of 0) means delivery is already free, so there is
+     nothing to progress towards. Dividing by it would produce Infinity, and
+     "add Rs0 more" is not something to show a customer. */
+  if(threshold <= 0 || shippingFeeSetting() <= 0){
+    slot.innerHTML = `
+      <div class="free-ship-box">
+        <div class="free-ship-text done">
+          ${icon('checkCircle')}
+          <span>FREE delivery on this order</span>
+        </div>
+      </div>`;
+    return;
+  }
   const qualified = subtotal >= threshold;
   const pct = Math.min(100, Math.round(subtotal / threshold * 100));
   slot.innerHTML = `
@@ -7532,7 +7559,9 @@ function renderAdminSettings(shell){
         <h4>Delivery Estimate</h4>
         <div class="form-group"><label class="form-label">Minimum days after the order</label><input class="form-input" id="delMinInput" type="number" value="${s.deliveryMinDays != null ? s.deliveryMinDays : 7}" min="1" max="60"></div>
         <div class="form-group"><label class="form-label">Maximum days after the order</label><input class="form-input" id="delMaxInput" type="number" value="${s.deliveryMaxDays != null ? s.deliveryMaxDays : 8}" min="1" max="60"></div>
-        <p class="form-hint">Customers see a real date, not a day count — e.g. an order placed today reads <b>${cartEta().label}</b>. Existing orders keep the date they were promised.</p>
+        <div class="form-group"><label class="form-label">Delivery charge (\u20B9)</label><input class="form-input" id="delFeeInput" type="number" value="${s.shippingFee != null ? s.shippingFee : 40}" min="0" max="10000"><span class="form-hint">0 = you never charge for delivery.</span></div>
+        <div class="form-group"><label class="form-label">Free delivery above (\u20B9)</label><input class="form-input" id="delFreeInput" type="number" value="${s.freeShipThreshold != null ? s.freeShipThreshold : 499}" min="0" max="100000"><span class="form-hint">0 = free delivery on EVERY order, whatever it costs and whatever the customer spends.</span></div>
+        <p class="form-hint">Set the charge to 0 for free delivery on everything. Customers see a real date, not a day count — e.g. an order placed today reads <b>${cartEta().label}</b>. Existing orders keep the date they were promised.</p>
         <button class="btn btn-secondary btn-block" id="saveDeliveryBtn">Save Delivery Estimate</button>
       </div>
       <div class="od-section">
@@ -7627,11 +7656,24 @@ function renderAdminSettings(shell){
     if(!min || min < 1 || min > 60){ showToast('Minimum must be 1-60 days'); return; }
     if(!max || max < 1 || max > 60){ showToast('Maximum must be 1-60 days'); return; }
     if(max < min){ showToast('Maximum cannot be less than minimum'); return; }
+    /* v55: the delivery charge and the free-delivery threshold are editable here
+       for the first time. Both accept 0, which is why they are parsed with an
+       explicit NaN check: `!fee` would have rejected 0 as if it were empty. */
+    const feeRaw = String($('#delFeeInput').value).trim();
+    const freeRaw = String($('#delFreeInput').value).trim();
+    const fee = feeRaw === '' ? 0 : parseInt(feeRaw, 10);
+    const freeAbove = freeRaw === '' ? 0 : parseInt(freeRaw, 10);
+    if(!isFinite(fee) || fee < 0 || fee > 10000){ showToast('Delivery charge must be 0-10000'); return; }
+    if(!isFinite(freeAbove) || freeAbove < 0 || freeAbove > 100000){ showToast('Free delivery amount must be 0-100000'); return; }
     DB.settings.deliveryMinDays = min;
     DB.settings.deliveryMaxDays = max;
+    DB.settings.shippingFee = fee;
+    DB.settings.freeShipThreshold = freeAbove;
     persist();
     renderAdminSettings(shell);
-    showToast('Delivery estimate: ' + etaDaysText(min, max), 'checkCircle');
+    showToast(fee <= 0 || freeAbove <= 0
+      ? 'Delivery is now FREE on every order'
+      : 'Delivery ' + formatMoney(fee) + ', free above ' + formatMoney(freeAbove), 'checkCircle');
   });
   /* ---- backups: list, restore, back up now ---- */
   const paintSnaps = ()=>{
@@ -9759,8 +9801,8 @@ function renderAdminSettings(shell){
 <style>
 /* ------------------------------------------------ palette */
 .mq, .mq-vip, .mq-wide, .mq-band {
-  --g1:#FFF8CC; --g2:#F7D570; --g3:#D79B1E; --g4:#A96B08; --g5:#7A4602;
-  --vel1:#C41E43; --vel2:#8A0A28; --vel3:#5E0418;
+  --g1:#FFF5F8; --g2:#F8BBD0; --g3:#F8BBD0; --g4:#D81B60; --g5:#D81B60;
+  --vel1:#D81B60; --vel2:#C2185B; --vel3:#5E0418;
   --ink-dark:#4A020F;
   --mq-font: 'Assistant', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
@@ -9769,14 +9811,14 @@ function renderAdminSettings(shell){
 .mq{
   position:relative; margin:16px 0 0; padding:15px 0 18px;
   background:
-    radial-gradient(120% 70% at 50% -12%, #FFB64A 0%, #F58A22 34%, #E2650F 62%, #C4450A 100%);
+    radial-gradient(120% 70% at 50% -12%, #FFF1F5 0%, #F8BBD0 34%, #F8BBD0 62%, #C4450A 100%);
   overflow:hidden; isolation:isolate;
 }
 /* the sparkle field */
 .mq::before{
   content:''; position:absolute; inset:0; pointer-events:none; opacity:.5;
   background-image:
-    radial-gradient(circle, rgba(255,246,205,.95) 0 1.1px, rgba(255,246,205,0) 1.4px),
+    radial-gradient(circle, rgba(255,245,248,.95) 0 1.1px, rgba(255,245,248,0) 1.4px),
     radial-gradient(circle, rgba(255,255,255,.55) 0 .8px, rgba(255,255,255,0) 1.1px);
   background-size: 27px 27px, 53px 53px;
   background-position: 0 0, 13px 9px;
@@ -9792,11 +9834,11 @@ function renderAdminSettings(shell){
 /* the row of golden bulbs that runs above a plaque */
 .mq-bulbs{
   display:block; height:8px; margin:0 22px 5px;
-  background-image: radial-gradient(circle, #FFFCE6 0 1.6px, #F2C247 1.8px 2.6px, rgba(242,194,71,0) 2.9px);
+  background-image: radial-gradient(circle, #FFF5F8 0 1.6px, #F8BBD0 1.8px 2.6px, rgba(248,187,208,0) 2.9px);
   background-size: 15px 8px; background-repeat: repeat-x; background-position: center;
 }
 .mq-bulbs.dark{
-  background-image: radial-gradient(circle, #FFF6C0 0 1.7px, #E3A922 1.9px 2.7px, rgba(227,169,34,0) 3px);
+  background-image: radial-gradient(circle, #FFF5F8 0 1.7px, #F8BBD0 1.9px 2.7px, rgba(248,187,208,0) 3px);
 }
 
 /* ------------------------------------------------ the fans / plaques */
@@ -9809,7 +9851,7 @@ function renderAdminSettings(shell){
   padding:0 13%; line-height:1.02;
   font-family: var(--mq-font); font-weight:800; font-size:clamp(15px,5.7vw,19px);
   letter-spacing:.6px; text-transform:uppercase;
-  background: linear-gradient(180deg,#FFFBDF 0%,#FFE9A2 30%,#F3C24B 55%,#B8810F 78%,#F7DC8A 100%);
+  background: linear-gradient(180deg,#FFF5F8 0%,#FFF1F5 30%,#F8BBD0 55%,#D81B60 78%,#FFF1F5 100%);
   -webkit-background-clip: text; background-clip: text;
   color: transparent; -webkit-text-fill-color: transparent;
   filter: drop-shadow(0 1.5px 0 rgba(70,20,0,.55)) drop-shadow(0 3px 5px rgba(70,20,0,.45));
@@ -9822,8 +9864,8 @@ function renderAdminSettings(shell){
 }
 .mq-jewels i{
   width:7px; height:7px; border-radius:50%;
-  background: radial-gradient(circle at 34% 30%, #FFFBDF, #F2C247 46%, #A96B08 100%);
-  box-shadow: 0 0 5px rgba(255,236,150,.85);
+  background: radial-gradient(circle at 34% 30%, #FFF5F8, #F8BBD0 46%, #D81B60 100%);
+  box-shadow: 0 0 5px rgba(255,241,245,.85);
 }
 .mq-jewels i:nth-child(3n+2){ width:5px; height:5px; margin-top:1px; }
 
@@ -9831,7 +9873,7 @@ function renderAdminSettings(shell){
 .mq-sub{
   display:flex; align-items:center; justify-content:center; gap:5px;
   margin:11px 14px 0; padding:5px 12px;
-  font-family: var(--mq-font); font-size:12.5px; font-weight:800; color:#FFF6D8;
+  font-family: var(--mq-font); font-size:12.5px; font-weight:800; color:#FFF5F8;
   text-shadow: 0 1px 2px rgba(90,10,28,.55);
 }
 .mq-sub b{ font-weight:800; }
@@ -9841,27 +9883,27 @@ function renderAdminSettings(shell){
 .orn-card{
   position:relative; border-radius:13px; padding:7px;
   background:
-    linear-gradient(158deg,#FFF8CC 0%,#EDBE4D 18%,#A96B08 34%,#F7D570 47%,#B07C10 60%,#EBC55F 74%,#8E5503 88%,#F3D275 100%);
+    linear-gradient(158deg,#FFF5F8 0%,#F8BBD0 18%,#D81B60 34%,#F8BBD0 47%,#D81B60 60%,#FFF1F5 74%,#D81B60 88%,#FFF1F5 100%);
   box-shadow:
     0 1px 2px rgba(80,20,0,.30),
     0 8px 18px rgba(96,26,6,.26),
-    inset 0 0 0 1px rgba(255,246,196,.55);
+    inset 0 0 0 1px rgba(255,245,248,.55);
   isolation:isolate;
 }
 .orn-card-in{
   position:relative; border-radius:8px; overflow:hidden; background:#fff;
-  box-shadow: inset 0 0 0 1px rgba(150,100,10,.5), inset 0 0 0 2.5px rgba(255,248,205,.34);
+  box-shadow: inset 0 0 0 1px rgba(216,27,96,.5), inset 0 0 0 2.5px rgba(255,245,248,.34);
 }
 /* the bead lights that run along the top and bottom of the frame */
 .orn-card::before, .orn-card::after{
   content:''; position:absolute; left:13px; right:13px; height:7px; z-index:3; pointer-events:none;
-  background-image: radial-gradient(circle, #FFFDEB 0 1.5px, #F0BE3C 1.7px 2.5px, rgba(240,190,60,0) 2.8px);
+  background-image: radial-gradient(circle, #FFF5F8 0 1.5px, #F8BBD0 1.7px 2.5px, rgba(248,187,208,0) 2.8px);
   background-size: 12px 7px; background-repeat: repeat-x; background-position: center;
 }
 .orn-card::before{ top:0; }
 .orn-card::after{ bottom:0; }
 /* hand-drawn corner curls */
-.orn-corner{ position:absolute; width:17px; height:17px; z-index:4; pointer-events:none; color:#FFF8CC; opacity:.96; }
+.orn-corner{ position:absolute; width:17px; height:17px; z-index:4; pointer-events:none; color:#FFF5F8; opacity:.96; }
 .orn-corner svg{ width:100%; height:100%; display:block; }
 .orn-corner.tl{ top:0; left:0; }
 .orn-corner.tr{ top:0; right:0; transform: scaleX(-1); }
@@ -9871,37 +9913,37 @@ function renderAdminSettings(shell){
 /* ------------------------------------------------ the gold offer board */
 .mq-vip{
   position:relative; margin:14px 12px 0; border-radius:15px; padding:8px;
-  background: linear-gradient(158deg,#FFF8CC 0%,#EDBE4D 18%,#A96B08 34%,#F7D570 48%,#B07C10 64%,#8C5503 82%,#F3D275 100%);
-  box-shadow: 0 1px 2px rgba(80,20,0,.28), 0 9px 22px rgba(96,26,6,.30), inset 0 0 0 1px rgba(255,246,196,.5);
+  background: linear-gradient(158deg,#FFF5F8 0%,#F8BBD0 18%,#D81B60 34%,#F8BBD0 48%,#D81B60 64%,#D81B60 82%,#FFF1F5 100%);
+  box-shadow: 0 1px 2px rgba(80,20,0,.28), 0 9px 22px rgba(96,26,6,.30), inset 0 0 0 1px rgba(255,245,248,.5);
 }
 .mq-vip::before{
   content:''; position:absolute; left:16px; right:16px; top:1px; height:7px; z-index:3; pointer-events:none;
-  background-image: radial-gradient(circle, #FFFDEB 0 1.5px, #F0BE3C 1.7px 2.5px, rgba(240,190,60,0) 2.8px);
+  background-image: radial-gradient(circle, #FFF5F8 0 1.5px, #F8BBD0 1.7px 2.5px, rgba(248,187,208,0) 2.8px);
   background-size: 13px 7px; background-repeat: repeat-x; background-position: center;
 }
 .mq-vip-in{
   position:relative; border-radius:10px; overflow:hidden; display:flex; align-items:stretch;
   background: radial-gradient(130% 130% at 50% -10%, #D7284E 0%, #A50F31 46%, #6E051C 100%);
-  box-shadow: inset 0 0 0 1.5px rgba(255,240,180,.44), inset 0 0 34px rgba(50,0,10,.6);
+  box-shadow: inset 0 0 0 1.5px rgba(255,241,245,.44), inset 0 0 34px rgba(50,0,10,.6);
 }
 .mq-vip-tile{ flex:1; padding:14px 7px; text-align:center; display:flex; flex-direction:column; justify-content:center; }
-.mq-vip-tile + .mq-vip-tile{ border-left:1px solid rgba(255,240,180,.32); }
+.mq-vip-tile + .mq-vip-tile{ border-left:1px solid rgba(255,241,245,.32); }
 .mq-vip-tile b{
-  display:block; font-family:var(--mq-font); font-size:11px; font-weight:800; color:#FFF4CC;
+  display:block; font-family:var(--mq-font); font-size:11px; font-weight:800; color:#FFF5F8;
   line-height:1.3; text-shadow:0 1px 2px rgba(60,0,12,.6);
 }
 .mq-vip-tile span{ display:block; font-size:9px; font-weight:700; color:#FFCBD7; margin-top:4px; line-height:1.32; }
 .mq-vip-cta{
   flex:1.2; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
   padding:12px 9px; margin:5px; border-radius:8px;
-  background: linear-gradient(180deg,#FFFEF6,#FFEFC6 60%,#FBDFA0 100%);
-  box-shadow: inset 0 0 0 1.5px rgba(255,236,170,.9), 0 2px 8px rgba(60,0,12,.35);
+  background: linear-gradient(180deg,#FFFEF6,#FFF5F8 60%,#FFF1F5 100%);
+  box-shadow: inset 0 0 0 1.5px rgba(255,241,245,.9), 0 2px 8px rgba(60,0,12,.35);
 }
 .mq-vip-cta b{
   font-family:var(--mq-font); font-size:15px; font-weight:800; color:#C4143C;
   line-height:1.05; text-align:center; letter-spacing:.2px;
 }
-.mq-vip-cta b em{ font-style:normal; color:#8A0A28; }
+.mq-vip-cta b em{ font-style:normal; color:#C2185B; }
 .mq-vip-cta span{ font-size:8.5px; font-weight:800; color:#8A2A0A; }
 .mq-vip-cta span u{ text-decoration:underline; }
 
@@ -9927,7 +9969,7 @@ function renderAdminSettings(shell){
 }
 .mq-more{
   background:#fff; border-radius:8px; padding:6px 7px 5px; align-self:flex-end;
-  font-family:var(--mq-font); font-size:7px; font-weight:800; color:#7A4602;
+  font-family:var(--mq-font); font-size:7px; font-weight:800; color:#D81B60;
   box-shadow: 0 3px 9px rgba(60,20,0,.22); white-space:nowrap;
 }
 .mq-caption{
@@ -9940,12 +9982,12 @@ function renderAdminSettings(shell){
 .mq-band{
   position:relative; padding:10px 14px 11px; margin:0;
   background: linear-gradient(180deg,#710B21 0%,#4C0416 52%,#38020F 100%);
-  box-shadow: inset 0 2.5px 0 rgba(255,214,110,.6), inset 0 -2.5px 0 rgba(255,214,110,.5),
+  box-shadow: inset 0 2.5px 0 rgba(255,241,245,.6), inset 0 -2.5px 0 rgba(255,241,245,.5),
               0 5px 16px rgba(58,0,14,.4);
 }
 .mq-band::before, .mq-band::after{
   content:''; position:absolute; left:0; right:0; height:7px; pointer-events:none;
-  background-image: radial-gradient(circle, #FFFBE0 0 1.6px, #F0BE3C 1.8px 2.6px, rgba(240,190,60,0) 2.9px);
+  background-image: radial-gradient(circle, #FFF5F8 0 1.6px, #F8BBD0 1.8px 2.6px, rgba(248,187,208,0) 2.9px);
   background-size: 14px 7px; background-repeat: repeat-x; background-position: center;
 }
 .mq-band::before{ top:1px; }
@@ -9954,17 +9996,17 @@ function renderAdminSettings(shell){
   display:block; text-align:center; position:relative;
   font-family:var(--mq-font); font-size:21px; font-weight:800;
   letter-spacing:2px; text-transform:uppercase; padding:4px 0;
-  background: linear-gradient(180deg,#FFFBDF 0%,#FFE9A2 26%,#F3C24B 50%,#B8810F 72%,#F7DC8A 100%);
+  background: linear-gradient(180deg,#FFF5F8 0%,#FFF1F5 26%,#F8BBD0 50%,#D81B60 72%,#FFF1F5 100%);
   -webkit-background-clip:text; background-clip:text;
   color:transparent; -webkit-text-fill-color:transparent;
-  filter: drop-shadow(0 1px 0 rgba(0,0,0,.55)) drop-shadow(0 0 7px rgba(255,200,80,.4));
+  filter: drop-shadow(0 1px 0 rgba(0,0,0,.55)) drop-shadow(0 0 7px rgba(255,241,245,.4));
 }
 
 /* ------------------------------------------------ featured 2-up cards */
 .mq-grid2{ display:grid; grid-template-columns:1fr 1fr; gap:11px; padding:15px 12px 0; }
 .mq-fcard{ padding:6px; }
 .mq-fcard .orn-card-in{ border-radius:7px; }
-.mq-fcard-media{ position:relative; height:186px; background:#efeae1; }
+.mq-fcard-media{ position:relative; height:186px; background:#FFF5F8; }
 .mq-fcard-media img{ width:100%; height:100%; object-fit:cover; display:block; }
 .mq-fcard-copy{
   position:absolute; left:0; right:0; bottom:0; padding:0 7px 11px; text-align:center; color:#fff;
@@ -9986,10 +10028,10 @@ function renderAdminSettings(shell){
 .mq-wide{
   position:relative; display:flex; align-items:stretch; margin:12px 12px 0;
   border-radius:12px; overflow:hidden;
-  background: linear-gradient(100deg,#FBB53A 0%,#F2841A 48%,#E85A0A 100%);
-  box-shadow: 0 5px 16px rgba(96,26,6,.3), inset 0 0 0 1.5px rgba(255,236,170,.55);
+  background: linear-gradient(100deg,#F8BBD0 0%,#F8BBD0 48%,#F8BBD0 100%);
+  box-shadow: 0 5px 16px rgba(96,26,6,.3), inset 0 0 0 1.5px rgba(255,241,245,.55);
 }
-.mq-wide-media{ flex:0 0 41%; background:#efeae1; }
+.mq-wide-media{ flex:0 0 41%; background:#FFF5F8; }
 .mq-wide-media img{ width:100%; height:100%; object-fit:cover; display:block; }
 .mq-wide-right{
   flex:1; min-width:0; display:flex; flex-direction:column; align-items:center;
@@ -10013,9 +10055,9 @@ function renderAdminSettings(shell){
 .mq-dots{ display:flex; justify-content:center; gap:6px; padding:11px 0 2px; }
 .mq-dots i{
   width:6px; height:6px; border-radius:50%; background: rgba(255,255,255,.45);
-  box-shadow: inset 0 0 0 1px rgba(120,60,0,.25);
+  box-shadow: inset 0 0 0 1px rgba(216,27,96,.25);
 }
-.mq-dots i.on{ background: linear-gradient(180deg,#FFF8CC,#E9B93F); box-shadow: 0 0 6px rgba(255,220,120,.8); }
+.mq-dots i.on{ background: linear-gradient(180deg,#FFF5F8,#F8BBD0); box-shadow: 0 0 6px rgba(255,241,245,.8); }
 
 /* ------------------------------------------------ lowest price rail */
 .mq-low{ flex:0 0 42%; max-width:172px; scroll-snap-align:start; }
@@ -10037,25 +10079,25 @@ function renderAdminSettings(shell){
 /* ------------------------------------------------ straight marquee sign */
 .mq-sign{
   position:relative; width:min(312px,86%); margin:0 auto; border-radius:9px; padding:5px;
-  background: linear-gradient(180deg,#FFF8CC 0%,#EDBE4D 22%,#A96B08 48%,#F7D570 72%,#8C5503 100%);
-  box-shadow: 0 1px 2px rgba(80,20,0,.3), 0 6px 16px rgba(96,26,6,.32), inset 0 0 0 1px rgba(255,246,196,.5);
+  background: linear-gradient(180deg,#FFF5F8 0%,#F8BBD0 22%,#D81B60 48%,#F8BBD0 72%,#D81B60 100%);
+  box-shadow: 0 1px 2px rgba(80,20,0,.3), 0 6px 16px rgba(96,26,6,.32), inset 0 0 0 1px rgba(255,245,248,.5);
 }
 .mq-sign-in{
   position:relative; border-radius:5px; padding:12px 12px 12px 44px;
   display:flex; align-items:center; justify-content:center;
-  background: radial-gradient(130% 140% at 50% -10%, #C41E43 0%, #8A0A28 52%, #560415 100%);
-  box-shadow: inset 0 0 0 1.5px rgba(255,240,180,.5), inset 0 0 26px rgba(50,0,10,.55);
+  background: radial-gradient(130% 140% at 50% -10%, #D81B60 0%, #C2185B 52%, #560415 100%);
+  box-shadow: inset 0 0 0 1.5px rgba(255,241,245,.5), inset 0 0 26px rgba(50,0,10,.55);
 }
 .mq-bolt{
   position:absolute; left:11px; top:50%; transform:translateY(-50%);
-  width:26px; height:26px; color:#FFF3B8; filter: drop-shadow(0 0 6px rgba(255,214,110,.85));
+  width:26px; height:26px; color:#FFF5F8; filter: drop-shadow(0 0 6px rgba(255,241,245,.85));
 }
 .mq-bolt svg{ width:100%; height:100%; display:block; }
 .mq-sign-t{
   display:block; text-align:center; font-family:var(--mq-font);
   font-size:clamp(14px,4.9vw,17px); font-weight:800; letter-spacing:.9px;
   text-transform:uppercase; line-height:1.06;
-  background: linear-gradient(180deg,#FFFBDF 0%,#FFE9A2 28%,#F3C24B 52%,#B8810F 74%,#F7DC8A 100%);
+  background: linear-gradient(180deg,#FFF5F8 0%,#FFF1F5 28%,#F8BBD0 52%,#D81B60 74%,#FFF1F5 100%);
   -webkit-background-clip:text; background-clip:text;
   color:transparent; -webkit-text-fill-color:transparent;
   filter: drop-shadow(0 1px 0 rgba(70,20,0,.55)) drop-shadow(0 2px 4px rgba(70,20,0,.4));
@@ -10076,7 +10118,7 @@ function renderAdminSettings(shell){
    ============================================================ */
 :root{
   /* one bead light: a small round gold dot on a transparent tile */
-  --mq-bead: radial-gradient(circle, #FFFDEB 0 1.5px, #F0BE3C 1.7px 2.6px, rgba(240,190,60,0) 2.9px);
+  --mq-bead: radial-gradient(circle, #FFF5F8 0 1.5px, #F8BBD0 1.7px 2.6px, rgba(248,187,208,0) 2.9px);
 }
 
 /* Beads on all four edges of any box. Four tiled layers: two run along the
@@ -10092,20 +10134,20 @@ function renderAdminSettings(shell){
 /* ---------------------------------------------- the rectangular plate */
 .mq-plate{
   position:relative; margin:0 24px; padding:11px; border-radius:9px;
-  background: linear-gradient(180deg,#FFF8CC 0%,#EDBE4D 17%,#A96B08 41%,#F7D570 61%,#B07C10 80%,#8C5503 100%);
+  background: linear-gradient(180deg,#FFF5F8 0%,#F8BBD0 17%,#D81B60 41%,#F8BBD0 61%,#D81B60 80%,#D81B60 100%);
   box-shadow: 0 1px 2px rgba(80,20,0,.34), 0 9px 22px rgba(96,26,6,.38),
-              inset 0 0 0 1px rgba(255,246,196,.52);
+              inset 0 0 0 1px rgba(255,245,248,.52);
 }
 .mq-plate-in{
   position:relative; z-index:2; border-radius:5px; padding:13px 16px;
-  background: radial-gradient(125% 175% at 50% -25%, #C41E43 0%, #8A0A28 52%, #5A0416 100%);
-  box-shadow: inset 0 0 0 1.5px rgba(255,240,180,.48), inset 0 0 30px rgba(48,0,10,.62);
+  background: radial-gradient(125% 175% at 50% -25%, #D81B60 0%, #C2185B 52%, #5A0416 100%);
+  box-shadow: inset 0 0 0 1.5px rgba(255,241,245,.48), inset 0 0 30px rgba(48,0,10,.62);
 }
 .mq-plate-t{
   display:block; text-align:center; font-family:var(--mq-font);
   text-transform:uppercase; font-weight:800; letter-spacing:1.5px; line-height:1.1;
   font-size:clamp(15px,4.9vw,19px);
-  background: linear-gradient(180deg,#FFFBDF 0%,#FFE9A2 26%,#F3C24B 50%,#B8810F 74%,#F7DC8A 100%);
+  background: linear-gradient(180deg,#FFF5F8 0%,#FFF1F5 26%,#F8BBD0 50%,#D81B60 74%,#FFF1F5 100%);
   -webkit-background-clip:text; background-clip:text;
   color:transparent; -webkit-text-fill-color:transparent;
   filter: drop-shadow(0 1px 0 rgba(60,8,0,.55)) drop-shadow(0 2px 4px rgba(60,8,0,.45));
@@ -10114,7 +10156,7 @@ function renderAdminSettings(shell){
 .mq-plate--bolt .mq-plate-t{ text-align:left; }
 .mq-plate .mq-bolt{
   position:absolute; left:24px; top:50%; transform:translateY(-50%); z-index:4;
-  width:26px; height:26px; color:#FFF3B8; filter: drop-shadow(0 0 7px rgba(255,214,110,.9));
+  width:26px; height:26px; color:#FFF5F8; filter: drop-shadow(0 0 7px rgba(255,241,245,.9));
 }
 .mq-plate .mq-bolt svg{ width:100%; height:100%; display:block; }
 
@@ -10122,17 +10164,17 @@ function renderAdminSettings(shell){
 .mq-band{
   position:relative; padding:14px 14px 15px; margin:0;
   background: linear-gradient(180deg,#710B21 0%,#4C0416 52%,#38020F 100%);
-  box-shadow: inset 0 3px 0 rgba(255,214,110,.6), inset 0 -3px 0 rgba(255,214,110,.52),
+  box-shadow: inset 0 3px 0 rgba(255,241,245,.6), inset 0 -3px 0 rgba(255,241,245,.52),
               0 6px 18px rgba(58,0,14,.42);
 }
 .mq-band-t{
   display:block; text-align:center; position:relative; z-index:2;
   font-family:var(--mq-font); font-size:21px; font-weight:800;
   letter-spacing:2px; text-transform:uppercase; padding:3px 0;
-  background: linear-gradient(180deg,#FFFBDF 0%,#FFE9A2 26%,#F3C24B 50%,#B8810F 72%,#F7DC8A 100%);
+  background: linear-gradient(180deg,#FFF5F8 0%,#FFF1F5 26%,#F8BBD0 50%,#D81B60 72%,#FFF1F5 100%);
   -webkit-background-clip:text; background-clip:text;
   color:transparent; -webkit-text-fill-color:transparent;
-  filter: drop-shadow(0 1px 0 rgba(0,0,0,.55)) drop-shadow(0 0 7px rgba(255,200,80,.4));
+  filter: drop-shadow(0 1px 0 rgba(0,0,0,.55)) drop-shadow(0 0 7px rgba(255,241,245,.4));
 }
 
 /* ---------------------------------------------- card frames: beads all round */
@@ -10165,14 +10207,14 @@ function renderAdminSettings(shell){
 /* a category the shop has not filled in yet */
 .mq-fcard-media.is-empty{
   display:flex; align-items:center; justify-content:center;
-  background: radial-gradient(125% 155% at 50% -15%, #C41E43 0%, #8A0A28 55%, #5A0416 100%);
+  background: radial-gradient(125% 155% at 50% -15%, #D81B60 0%, #C2185B 55%, #5A0416 100%);
   box-shadow: inset 0 0 28px rgba(48,0,10,.58);
 }
 .mq-fcard-name{
   font-family:var(--mq-font); font-size:17px; font-weight:800;
   letter-spacing:1.2px; text-transform:uppercase; text-align:center;
   line-height:1.16; padding:0 14px;
-  background: linear-gradient(180deg,#FFFBDF 0%,#FFE9A2 28%,#F3C24B 52%,#B8810F 74%,#F7DC8A 100%);
+  background: linear-gradient(180deg,#FFF5F8 0%,#FFF1F5 28%,#F8BBD0 52%,#D81B60 74%,#FFF1F5 100%);
   -webkit-background-clip:text; background-clip:text;
   color:transparent; -webkit-text-fill-color:transparent;
   filter: drop-shadow(0 1px 0 rgba(60,8,0,.55)) drop-shadow(0 2px 4px rgba(60,8,0,.4));
@@ -10203,10 +10245,10 @@ function renderAdminSettings(shell){
 .banner-slide.adv .mq-beads{ z-index:4; }
 .banner-slide.adv{
   box-shadow:
-    0 0 0 2px rgba(255,224,148,.98),
-    0 0 0 4.5px rgba(255,168,48,.55),
-    0 0 16px 4px rgba(255,146,20,.42),
-    0 10px 24px rgba(140,60,0,.26);
+    0 0 0 2px rgba(255,241,245,.98),
+    0 0 0 4.5px rgba(248,187,208,.55),
+    0 0 16px 4px rgba(248,187,208,.42),
+    0 10px 24px rgba(216,27,96,.26);
 }
 .banner-slide.adv .adv-media{ border-radius:0; }
 
@@ -10225,10 +10267,10 @@ function renderAdminSettings(shell){
 .banner-slide.adv{
   border-radius:16px;
   box-shadow:
-    0 0 0 1.5px rgba(255,224,148,.98),
-    0 0 0 3.5px rgba(255,168,48,.58),
-    0 0 15px 3px rgba(255,146,20,.46),
-    0 10px 24px rgba(140,60,0,.26);
+    0 0 0 1.5px rgba(255,241,245,.98),
+    0 0 0 3.5px rgba(248,187,208,.58),
+    0 0 15px 3px rgba(248,187,208,.46),
+    0 10px 24px rgba(216,27,96,.26);
 }
 .banner-slide.adv .adv-strip{
   background:#fff; padding:9px 9px 9px 13px; min-height:58px; gap:9px;
@@ -10246,10 +10288,10 @@ function renderAdminSettings(shell){
   color:#9AA0A8; text-transform:uppercase; white-space:nowrap; flex-shrink:0;
 }
 .banner-slide.adv .adv-cta{
-  background: linear-gradient(180deg,#FFDE63 0%,#F7B426 52%,#E89A0C 100%);
+  background: linear-gradient(180deg,#FFF1F5 0%,#F8BBD0 52%,#F8BBD0 100%);
   color:#3A2400; font-weight:800; letter-spacing:.2px; border-radius:10px;
   padding:10px 13px;
-  box-shadow: 0 3px 10px rgba(190,120,0,.36), inset 0 1px 0 rgba(255,255,255,.6);
+  box-shadow: 0 3px 10px rgba(216,27,96,.36), inset 0 1px 0 rgba(255,255,255,.6);
 }
 
 /* ---------------------------------------------------- the fee strip */
@@ -10546,12 +10588,12 @@ function renderAdminSettings(shell){
     var st = (typeof DB !== 'undefined' && DB.settings) || {};
     var fee = Number(st.shippingFee || 0), thr = Number(st.freeShipThreshold || 0);
     var items = [];
-    if(fee > 0 && thr > 0){
-      items.push('Delivery Fee <s>' + money(fee) + '</s> <b>FREE</b> above ' + money(thr));
-    } else if(thr > 0){
-      items.push('Delivery <b>FREE</b> above ' + money(thr));
+    if(fee <= 0 || thr <= 0){
+      /* v55: say what is actually true. "Delivery available across India" buried
+         the good news when the shop had made delivery free on everything. */
+      items.push('Delivery <b>FREE</b> on every order');
     } else {
-      items.push('Delivery available across India');
+      items.push('Delivery Fee <s>' + money(fee) + '</s> <b>FREE</b> above ' + money(thr));
     }
     if(st.codEnabled !== false){
       items.push('Cash on Delivery <b>\u20B90</b> extra');
@@ -10781,16 +10823,16 @@ function renderAdminSettings(shell){
 .nci-tile b{ display:block; font-size:19px; font-weight:800; color:var(--ink); line-height:1.1; }
 .nci-tile span{ display:block; font-size:11px; font-weight:700; color:var(--ink-faint); margin-top:3px; }
 .nci-tile.good b{ color:var(--success); }
-.nci-tile.warn b{ color:#C98A16; }
+.nci-tile.warn b{ color:#F8BBD0; }
 .nci-tile.bad b{ color:var(--danger); }
 
 .nci-msg{
   display:flex; gap:9px; align-items:flex-start; border-radius:10px;
   padding:11px 12px; font-size:12px; line-height:1.55; margin-bottom:10px;
 }
-.nci-msg.warn{ background:#FFF6E5; color:#8A5A00; }
-.nci-msg.warn{ background:#FFF7E6; color:#8A5300; box-shadow:inset 0 0 0 1px #F5D9A0; }
-.nci-msg.warn .nci-mic{ background:#F0A500; color:#fff; }
+.nci-msg.warn{ background:#FFF5F8; color:#D81B60; }
+.nci-msg.warn{ background:#FFF5F8; color:#D81B60; box-shadow:inset 0 0 0 1px #FFF1F5; }
+.nci-msg.warn .nci-mic{ background:#F8BBD0; color:#fff; }
 .nci-msg.bad{ background:#FFEDEF; color:#A3122C; }
 .nci-msg.ok{ background:#EAF8EF; color:#0A6B33; }
 .nci-msg b{ font-weight:800; }
@@ -11603,9 +11645,9 @@ function renderAdminSettings(shell){
 html:not([data-theme="dark"]){
   --rose-50:#FFF5F9;   --rose-100:#FFE7F1;  --rose-200:#FFC9DE;
   --rose-300:#FF9FC4;  --rose-400:#FF6FA5;  --rose-500:#FF3F6C;
-  --rose-600:#E4185B;  --rose-700:#B8114F;  --rose-800:#8A0A3C;
-  --gold-100:#FFF8CC;  --gold-200:#F7D570;  --gold-300:#E0AE3C;
-  --gold-400:#B07C10;  --gold-500:#7A4602;
+  --rose-600:#E4185B;  --rose-700:#D81B60;  --rose-800:#8A0A3C;
+  --gold-100:#FFF5F8;  --gold-200:#F8BBD0;  --gold-300:#F8BBD0;
+  --gold-400:#D81B60;  --gold-500:#D81B60;
   /* the old --accent was orange; the theme no longer uses orange */
   --accent:#FF7BA9;
   --accent-dark:#E0245E;
@@ -11622,7 +11664,7 @@ html:not([data-theme="dark"]) body{
 
 /* ---------------------------------------------- 3. header: pink gradient */
 html:not([data-theme="dark"]) .topbar{
-  background: linear-gradient(133deg,#FF83B0 0%, #FF3F6C 46%, #D6114F 100%);
+  background: linear-gradient(133deg,#FF83B0 0%, #FF3F6C 46%, #E91E63 100%);
   border-bottom:1px solid rgba(255,255,255,.28);
   box-shadow:0 4px 16px rgba(190,16,74,.20);
 }
@@ -11652,7 +11694,7 @@ html:not([data-theme="dark"]) .mtabs{
   border-bottom:1px solid var(--hairline);
 }
 html:not([data-theme="dark"]) .mtab.active{ color:var(--rose-700); }
-html:not([data-theme="dark"]) .mtabs-ink{ background:linear-gradient(90deg,#FF6FA5,#D6114F); }
+html:not([data-theme="dark"]) .mtabs-ink{ background:linear-gradient(90deg,#FF6FA5,#E91E63); }
 html:not([data-theme="dark"]) .mtabs-grid{ color:var(--rose-700); }
 
 /* ---------------------------------------------- 5. category rail: gold-ringed tiles */
@@ -11671,7 +11713,7 @@ html:not([data-theme="dark"]) .subcat-img img{ border-radius:11px; }
 html:not([data-theme="dark"]) .subcat-name{ color:var(--rose-800); }
 
 /* ---------------------------------------------- 6. offer ticker */
-html:not([data-theme="dark"]) .announce-bar .ann-pill{ background:linear-gradient(135deg,#FF6FA5,#D6114F); }
+html:not([data-theme="dark"]) .announce-bar .ann-pill{ background:linear-gradient(135deg,#FF6FA5,#E91E63); }
 html:not([data-theme="dark"]) .offer-wrap .announce-bar{ border-bottom:1px solid var(--hairline); }
 
 /* ---------------------------------------------- 7. marketing shell: orange -> pink */
@@ -11689,7 +11731,7 @@ html:not([data-theme="dark"]) .mq-dots i{ box-shadow: inset 0 0 0 1px rgba(110,2
 /* ---------------------------------------------- 8. gold offer board (frame stays gold) */
 html:not([data-theme="dark"]) .mq-vip-in{
   background: radial-gradient(130% 130% at 50% -10%, #EE4A80 0%, #B4144F 46%, #6E0526 100%);
-  box-shadow: inset 0 0 0 1.5px rgba(255,240,180,.46), inset 0 0 34px rgba(60,0,24,.6);
+  box-shadow: inset 0 0 0 1.5px rgba(255,241,245,.46), inset 0 0 34px rgba(60,0,24,.6);
 }
 html:not([data-theme="dark"]) .mq-vip-tile span{ color:#FFC6DA; }
 html:not([data-theme="dark"]) .mq-vip-cta{ background: linear-gradient(180deg,#FFFEF8,#FFF1F7 60%,#FFDCEA 100%); }
@@ -11700,7 +11742,7 @@ html:not([data-theme="dark"]) .mq-vip-cta span{ color:#7A1038; }
 /* ---------------------------------------------- 9. velvet bands & signs -> deep pink */
 html:not([data-theme="dark"]) .mq-band{
   background: linear-gradient(180deg,#8E0A3E 0%, #62052A 52%, #3E0219 100%);
-  box-shadow: inset 0 2.5px 0 rgba(255,214,110,.6), inset 0 -2.5px 0 rgba(255,214,110,.5),
+  box-shadow: inset 0 2.5px 0 rgba(255,241,245,.6), inset 0 -2.5px 0 rgba(255,241,245,.5),
               0 5px 16px rgba(70,0,30,.4);
 }
 html:not([data-theme="dark"]) .mq-sign-in{
@@ -11725,7 +11767,7 @@ html:not([data-theme="dark"]) .mq-wide-media{ background:#FBEAF1; }
 /* ---------------------------------------------- 10. gold frames: rose-tinted shadow */
 html:not([data-theme="dark"]) .orn-card{
   box-shadow: 0 1px 2px rgba(120,20,60,.28), 0 8px 18px rgba(120,20,60,.24),
-              inset 0 0 0 1px rgba(255,246,196,.55);
+              inset 0 0 0 1px rgba(255,245,248,.55);
 }
 html:not([data-theme="dark"]) .mq-fee{
   box-shadow: 0 0 0 1.5px rgba(255,63,108,.36), 0 3px 11px rgba(150,20,70,.14);
@@ -11733,12 +11775,12 @@ html:not([data-theme="dark"]) .mq-fee{
 
 /* ---------------------------------------------- 11. hero banners with no photo */
 html:not([data-theme="dark"]) .adv-media.adv-grad{
-  background: linear-gradient(135deg,#FF7FAE 0%, #F04781 52%, #B8114F 100%) !important;
+  background: linear-gradient(135deg,#FF7FAE 0%, #F04781 52%, #D81B60 100%) !important;
 }
 html:not([data-theme="dark"]) .adv-cta{ box-shadow:0 3px 10px rgba(255,63,108,.30); }
 
 /* ---------------------------------------------- 12. powered-by strip */
-html:not([data-theme="dark"]) .bs-tag{ background:linear-gradient(135deg,#FF6FA5,#B8114F); }
+html:not([data-theme="dark"]) .bs-tag{ background:linear-gradient(135deg,#FF6FA5,#D81B60); }
 html:not([data-theme="dark"]) .bs-brand{ border-color:#F0CFDD; }
 
 /* ---------------------------------------------- 13. footer + bottom nav */
@@ -11784,12 +11826,12 @@ html:not([data-theme="dark"]) .catpage-item.on{
 html:not([data-theme="dark"]) .catpage-item.on::before{
   content:''; position:absolute; left:0; top:7px; bottom:7px; width:3px;
   border-radius:0 3px 3px 0;
-  background:linear-gradient(180deg,#F7D570 0%, #FF6FA5 52%, #D6114F 100%);
+  background:linear-gradient(180deg,#F8BBD0 0%, #FF6FA5 52%, #E91E63 100%);
 }
 html:not([data-theme="dark"]) .catpage-item .cpi-img{
-  background:linear-gradient(148deg,#FFD9E8 0%, #F7D570 34%, #D79B1E 62%, #FF9FC4 100%);
+  background:linear-gradient(148deg,#FFD9E8 0%, #F8BBD0 34%, #F8BBD0 62%, #FF9FC4 100%);
   padding:2px;
-  box-shadow:0 2px 8px rgba(190,90,40,.18);
+  box-shadow:0 2px 8px rgba(248,187,208,.18);
 }
 html:not([data-theme="dark"]) .catpage-item .cpi-img img{ border-radius:9px; }
 html:not([data-theme="dark"]) .catpage-item span,
@@ -11805,7 +11847,7 @@ html:not([data-theme="dark"]) .sub-group-h{
 html:not([data-theme="dark"]) .catpage-h::before,
 html:not([data-theme="dark"]) .sub-group-h::before{
   content:''; flex:none; width:4px; height:15px; border-radius:3px;
-  background:linear-gradient(180deg,#F7D570 0%, #FF6FA5 55%, #D6114F 100%);
+  background:linear-gradient(180deg,#F8BBD0 0%, #FF6FA5 55%, #E91E63 100%);
 }
 
 /* circular sub-category photos get the rose-gold ring */
@@ -11813,8 +11855,8 @@ html:not([data-theme="dark"]) .cat-tile-round img,
 html:not([data-theme="dark"]) .cat-tile-round .ctl-emoji,
 html:not([data-theme="dark"]) .cat-tile-round .ctl-icon{
   padding:2px;
-  background:linear-gradient(148deg,#FFD9E8 0%, #F7D570 34%, #D79B1E 62%, #FF9FC4 100%);
-  box-shadow:0 3px 10px rgba(190,90,40,.20);
+  background:linear-gradient(148deg,#FFD9E8 0%, #F8BBD0 34%, #F8BBD0 62%, #FF9FC4 100%);
+  box-shadow:0 3px 10px rgba(248,187,208,.20);
 }
 html:not([data-theme="dark"]) .cat-tile-round span{ color:var(--rose-800); }
 
@@ -11826,7 +11868,7 @@ html:not([data-theme="dark"]) .catpage-grid:not(.sub-grid) .cat-tile-lg{
 
 /* ---------------------------------------------- 2. profile header */
 html:not([data-theme="dark"]) .profile-header{
-  background:linear-gradient(130deg,#FF7FAE 0%, #F04781 45%, #B8114F 100%);
+  background:linear-gradient(130deg,#FF7FAE 0%, #F04781 45%, #D81B60 100%);
   box-shadow:0 10px 24px rgba(190,16,74,.20);
 }
 </style>
@@ -11864,7 +11906,7 @@ html:not([data-theme="dark"]) .splash-title{
   font-size:26px; font-weight:800; letter-spacing:5px; text-transform:uppercase;
   color:#8A0A3C;
 }
-html:not([data-theme="dark"]) .splash-tagline{ color:#B8114F; opacity:1; }
+html:not([data-theme="dark"]) .splash-tagline{ color:#D81B60; opacity:1; }
 html:not([data-theme="dark"]) .splash-loader span{ background:#FF3F6C; box-shadow:none; }
 </style>
 <script id="nexcart-pink-restore-v52">
@@ -11966,23 +12008,23 @@ html:not([data-theme="dark"]) .catpage-item.on{
 }
 html:not([data-theme="dark"]) .catpage-item.on::before{
   width:4px; border-radius:0 4px 4px 0;
-  background:linear-gradient(180deg,#F7D570 0%, #F04781 52%, #B8114F 100%);
+  background:linear-gradient(180deg,#F8BBD0 0%, #F04781 52%, #D81B60 100%);
 }
-html:not([data-theme="dark"]) .catpage-item.on span{ color:#B8114F; font-weight:800; }
+html:not([data-theme="dark"]) .catpage-item.on span{ color:#D81B60; font-weight:800; }
 
 /* circular photos: a thicker rose-gold ring you cannot miss */
 html:not([data-theme="dark"]) .cat-tile-round img,
 html:not([data-theme="dark"]) .cat-tile-round .ctl-emoji,
 html:not([data-theme="dark"]) .cat-tile-round .ctl-icon{
   padding:3px;
-  background:linear-gradient(148deg,#FFD9E8 0%, #F7D570 33%, #D79B1E 60%, #FF9FC4 100%);
-  box-shadow:0 5px 16px rgba(190,90,40,.28);
+  background:linear-gradient(148deg,#FFD9E8 0%, #F8BBD0 33%, #F8BBD0 60%, #FF9FC4 100%);
+  box-shadow:0 5px 16px rgba(248,187,208,.28);
 }
-html:not([data-theme="dark"]) .cat-tile-round span{ color:#B8114F; font-weight:700; }
+html:not([data-theme="dark"]) .cat-tile-round span{ color:#D81B60; font-weight:700; }
 
 /* headings: rose, with a bold rose-gold bar */
 html:not([data-theme="dark"]) .catpage-h,
-html:not([data-theme="dark"]) .sub-group-h{ color:#B8114F; font-weight:800; }
+html:not([data-theme="dark"]) .sub-group-h{ color:#D81B60; font-weight:800; }
 html:not([data-theme="dark"]) .catpage-h::before,
 html:not([data-theme="dark"]) .sub-group-h::before{
   width:5px; height:17px; border-radius:3px;
@@ -11990,5 +12032,312 @@ html:not([data-theme="dark"]) .sub-group-h::before{
 }
 </style>
 
+<style id="nexcart-blue-system">
+/* ==========================================================================
+   NEXCART — BLUE MARKETPLACE SYSTEM
+
+   Loaded last, so it is the final word on design tokens and on the few
+   surfaces that must not be pink.
+
+   Rules from the spec this implements:
+     - deep shopping blue for the header and promotional chrome
+     - white cards on a light-grey page
+     - pink kept for the logo, active states, wishlist and the primary
+       purchase action only
+     - no gradients, no glass, no oversized rounded cards
+     - consistent radii, subtle shadows, one spacing scale
+
+   Amber stars (--F5A623) are deliberately not mentioned: a rating star is
+   amber everywhere, and it is not a brand colour.
+   ========================================================================== */
+
+:root{
+  /* brand */
+  --brand:#E91E63;
+  --brand-dark:#D81B60;
+  --brand-light:#FCE4EC;
+
+  /* the shopping blue */
+  --blue:#2874F0;
+  --blue-dark:#172337;
+  --blue-light:#E8F0FE;
+  --blue-border:#C6DAFB;
+
+  /* surfaces */
+  --bg:#F1F3F6;
+  --surface:#FFFFFF;
+  --surface-2:#F1F3F6;
+  --sheet-bg:#FFFFFF;
+
+  /* type */
+  --ink:#212121;
+  --ink-soft:#878787;
+  --ink-faint:#9E9E9E;
+
+  /* lines */
+  --line:#E0E0E0;
+  --hairline:#E0E0E0;
+
+  /* states */
+  --success:#388E3C;
+  --success-bg:#E8F5E9;
+  --danger:#D32F2F;
+  --danger-bg:#FDECEA;
+
+  /* discount text reads green in this system */
+  --accent:#388E3C;
+  --accent-dark:#2E7D32;
+  --warn:#E91E63;
+  --warn-bg:#FCE4EC;
+
+  /* one radius scale: cards 8-12, buttons 6-10, fields 8-12 */
+  --radius-lg:12px;
+  --radius-md:8px;
+  --radius-sm:6px;
+}
+
+/* ---------------------------------------------------------------- canvas --- */
+html:not([data-theme="dark"]) body{
+  background:#F1F3F6;
+  color:#212121;
+}
+
+/* ---------------------------------------------------------------- header --- */
+/* flat blue, no gradient, no pink wash */
+html:not([data-theme="dark"]) .topbar{
+  background:#2874F0;
+  background-image:none;
+  border-bottom:1px solid rgba(0,0,0,.12);
+  box-shadow:0 1px 4px rgba(23,35,55,.20);
+}
+html:not([data-theme="dark"]) .topbar .hdr-ic,
+html:not([data-theme="dark"]) .topbar .loc-bar{ color:#FFFFFF; }
+html:not([data-theme="dark"]) .topbar .loc-bar .loc-edit{ color:#D6E4FF; }
+html:not([data-theme="dark"]) .topbar .loc-wallet{
+  background:rgba(255,255,255,.20);
+  color:#FFFFFF;
+}
+
+/* the search field is the one white block in the header */
+html:not([data-theme="dark"]) .topbar .srch{
+  border-color:#FFFFFF;
+  box-shadow:0 1px 3px rgba(23,35,55,.18);
+}
+html:not([data-theme="dark"]) .topbar .srch:focus-within{
+  border-color:#FFFFFF;
+  box-shadow:0 0 0 3px rgba(255,255,255,.42);
+}
+html:not([data-theme="dark"]) .topbar .srch-btn,
+html:not([data-theme="dark"]) .topbar .srch-btn.rec{ color:#2874F0; }
+
+/* cart badge is the pink accent on the blue bar */
+html:not([data-theme="dark"]) .topbar .hdr-ic .hdr-badge{
+  background:#E91E63;
+  color:#FFFFFF;
+  border-color:#FFFFFF;
+}
+
+/* ------------------------------------------------- promotional band/strip --- */
+html:not([data-theme="dark"]) .announce-bar{
+  background:#FFFFFF;
+  background-image:none;
+  border-bottom:1px solid #E0E0E0;
+  color:#212121;
+}
+
+/* --------------------------------------- ornate decoration is retired ----- */
+/* The gold-then-pink marquee frame, beading, bulbs, jewels and corner curls
+   are what made this app look dated. They are replaced by a plain card. */
+html:not([data-theme="dark"]) .orn-card,
+html:not([data-theme="dark"]) .orn-card-in,
+html:not([data-theme="dark"]) .mq,
+html:not([data-theme="dark"]) .mq-vip,
+html:not([data-theme="dark"]) .mq-plate,
+html:not([data-theme="dark"]) .mq-sign,
+html:not([data-theme="dark"]) .mq-band,
+html:not([data-theme="dark"]) .mq-wide{
+  background:#FFFFFF;
+  background-image:none;
+  border:1px solid #E0E0E0;
+  border-radius:10px;
+  box-shadow:0 1px 3px rgba(23,35,55,.08);
+}
+html:not([data-theme="dark"]) .orn-card::before,
+html:not([data-theme="dark"]) .orn-card::after,
+html:not([data-theme="dark"]) .mq-vip::before,
+html:not([data-theme="dark"]) .mq-vip::after,
+html:not([data-theme="dark"]) .mq-band::before,
+html:not([data-theme="dark"]) .mq-band::after,
+.mq-bulbs, .mq-jewels, .orn-corner, .mq-dots, .mq-dots i{
+  display:none;
+}
+
+/* ------------------------------------ the decorative legacy layers, retired --
+   The marquee / ornate-frame set (mq-*, orn-*) draws a beaded gold-then-pink
+   frame, bulbs, jewels, corner curls and a dark maroon offer panel. That is
+   exactly the "excessive gradients and ornament" the spec rules out, so the
+   decoration goes and the content keeps a plain card.
+
+   The element names below were read off the live DOM, not guessed:
+   .mq-vip-in, .mq-plate-in, .mq-beads, .mq-bulbs, .mq-plate-in, .mq-fee-sep.
+
+   !important is used here on purpose and only here: this has to beat sixteen
+   style blocks of gradients that were written to be un-overridable. */
+html:not([data-theme="dark"]) .mq,
+html:not([data-theme="dark"]) .mq-vip,
+html:not([data-theme="dark"]) .mq-vip-in,
+html:not([data-theme="dark"]) .mq-plate,
+html:not([data-theme="dark"]) .mq-plate-in,
+html:not([data-theme="dark"]) .mq-sign,
+html:not([data-theme="dark"]) .mq-band,
+html:not([data-theme="dark"]) .mq-wide,
+html:not([data-theme="dark"]) .orn-card,
+html:not([data-theme="dark"]) .orn-card-in{
+  background:#FFFFFF !important;
+  background-image:none !important;
+  border:1px solid #E0E0E0 !important;
+  border-radius:10px !important;
+  box-shadow:0 1px 3px rgba(23,35,55,.08) !important;
+}
+
+/* beading, bulbs, jewels, corner curls and pagination dots */
+.mq-beads, .mq-bulbs, .mq-jewels, .orn-corner, .mq-dots, .mq-dots i,
+.mq-vip::before, .mq-vip::after, .mq-band::before, .mq-band::after,
+.orn-card::before, .orn-card::after{
+  display:none !important;
+}
+
+/* the remaining pink hairlines inside those components */
+html:not([data-theme="dark"]) .mq-fee-sep{ border-color:#E0E0E0 !important; }
+html:not([data-theme="dark"]) .bs-brand{ border-color:#E0E0E0 !important; }
+
+/* ------------------------------------------- remaining pink washes, retired --
+   Read off the live DOM: app-shell, mtabs, subcat-wrap, mq-plate-t, mq-band-t
+   all still paint a pink gradient over the page. The page canvas must be the
+   light grey of the system, not a pink wash. */
+html:not([data-theme="dark"]) .app-shell{
+  background:#F1F3F6 !important;
+  background-image:none !important;
+}
+
+/* the category page: both big panels were pink gradients (94x2171 and 296x2171).
+   A shop rail and a product area are white, separated by a hairline. */
+html:not([data-theme="dark"]) .catpage-side{
+  background:#FFFFFF !important;
+  background-image:none !important;
+  border-right:1px solid #E0E0E0;
+}
+html:not([data-theme="dark"]) .catpage-panel{
+  background:#FFFFFF !important;
+  background-image:none !important;
+}
+html:not([data-theme="dark"]) .mtabs,
+html:not([data-theme="dark"]) .subcat-wrap{
+  background:#FFFFFF !important;
+  background-image:none !important;
+}
+html:not([data-theme="dark"]) .mq-plate-t,
+html:not([data-theme="dark"]) .mq-band-t{
+  background:none !important;
+  background-image:none !important;
+}
+
+/* ------------------------------------------- the promo panel, made readable --
+   The panel was a dark maroon slab with white text. Neutralising it left white
+   text on a white card - unreadable. So it becomes a soft pink wash with dark
+   text: still clearly a promotion, but legible. */
+html:not([data-theme="dark"]) .mq-vip{
+  background:#FFF5F8 !important;
+  border-color:#F8BBD0 !important;
+}
+html:not([data-theme="dark"]) .mq-vip,
+html:not([data-theme="dark"]) .mq-vip *{
+  color:#212121 !important;
+}
+/* ...then give the call-to-action its label back. Without this the button came
+   out pink text on pink fill, because the rule above reached its children. */
+html:not([data-theme="dark"]) .mq-vip-cta,
+html:not([data-theme="dark"]) .mq-vip-cta *{
+  color:#FFFFFF !important;
+}
+
+/* solid call-to-action pills: pink fill, white label */
+html:not([data-theme="dark"]) .mq-vip-cta,
+html:not([data-theme="dark"]) .adv-cta,
+html:not([data-theme="dark"]) .mq-fcard-cta{
+  background:#E91E63 !important;
+  background-image:none !important;
+  color:#FFFFFF !important;
+  border:0 !important;
+  box-shadow:0 2px 8px rgba(233,30,99,.26) !important;
+}
+
+/* ---------------------------------------------------------------- buttons --- */
+/* pink is the purchase action, blue is everything secondary */
+.btn-primary{
+  background:#E91E63;
+  color:#FFFFFF;
+  box-shadow:0 2px 8px rgba(233,30,99,.26);
+}
+.btn-blue{
+  background:#2874F0;
+  color:#FFFFFF;
+  box-shadow:0 2px 8px rgba(40,116,240,.26);
+}
+
+/* ============================ responsive shell (spec 6, 17, 21) ==========
+   This app was built as a phone column and hard-capped:
+
+       .app-shell { max-width: 480px; margin: 0 auto }
+
+   So on a 1440px screen it drew a 480px strip with empty space either side,
+   and there was exactly ONE media query in the whole file (max-width:480px).
+   The desktop half of the spec cannot exist without widening the shell, so it
+   is widened here in steps and the grids gain columns.
+
+   Everything below 768px is untouched on purpose: the Play Store build is a
+   phone app, and its layout must not shift. */
+
+@media (min-width: 768px){
+  .app-shell{ max-width: 720px; }
+  .product-grid{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .skel-grid{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .admin-stats-grid{ grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .admin-menu-grid{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .catpage-grid{ grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .mq-grid2{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (min-width: 1024px){
+  .app-shell{ max-width: 1000px; }
+  .product-grid{ grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .skel-grid{ grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .catpage-grid{ grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .admin-menu-grid{ grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+@media (min-width: 1280px){
+  .app-shell{ max-width: 1200px; }
+  /* five products per row on a wide screen, as the spec asks */
+  .product-grid{ grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .skel-grid{ grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .catpage-grid{ grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
+
+/* The bottom navigation is a 480px bar pinned with left:50% + translateX(-50%).
+   Inside a widened shell it floated in the middle of the page like a stray
+   control. On desktop it spans the shell instead. */
+@media (min-width: 768px){
+  .bottom-nav{ max-width: 720px; }
+  .app-shell{ padding-bottom: 78px; }
+}
+@media (min-width: 1024px){
+  .bottom-nav{ max-width: 1000px; }
+}
+@media (min-width: 1280px){
+  .bottom-nav{ max-width: 1200px; }
+}
+
+</style>
 </body>
 </html>
