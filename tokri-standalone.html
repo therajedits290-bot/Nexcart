@@ -2186,7 +2186,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v57-16oct';</script>
+const APP_BUILD = 'v59-18oct';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -5115,7 +5115,21 @@ function renderProfilePage(main){
         </div>
       </div>
     </div>
-    <div class="profile-menu-card">
+
+    <div class="profile-quick">
+      <button class="pq-card" data-act="orders">
+        <span class="pq-ic">${icon('box')}</span>
+        <span class="pq-label">Orders</span>
+      </button>
+      <button class="pq-card" data-act="wishlist">
+        <span class="pq-ic">${icon('heart')}</span>
+        <span class="pq-label">Wishlist</span>
+      </button>
+      <button class="pq-card" data-act="addresses">
+        <span class="pq-ic">${icon('mapPin')}</span>
+        <span class="pq-label">Addresses</span>
+      </button>
+    </div>    <div class="profile-menu-card">
       <div class="profile-menu-item" data-act="edit-profile">
         <div class="profile-menu-icon">${icon('edit')}</div>
         <div class="profile-menu-text">Edit Profile<span>Name, phone, email</span></div>
@@ -12034,203 +12048,301 @@ html:not([data-theme="dark"]) .sub-group-h::before{
 
 <style id="nexcart-blue-system">
 /* ==========================================================================
-   NEXCART — BLUE MARKETPLACE SYSTEM
+   NEXCART — REFERENCE DESIGN SYSTEM
+   Built to match the three demo screens the owner supplied.
 
-   Loaded last, so it is the final word on design tokens and on the few
-   surfaces that must not be pink.
+   That reference is a PINK system on white. It contains no blue anywhere, so
+   the earlier blue-marketplace pass (#2874F0 header, #F1F3F6 canvas) is
+   reverted here. The owner's latest instruction wins.
 
-   Rules from the spec this implements:
-     - deep shopping blue for the header and promotional chrome
-     - white cards on a light-grey page
-     - pink kept for the logo, active states, wishlist and the primary
-       purchase action only
-     - no gradients, no glass, no oversized rounded cards
-     - consistent radii, subtle shadows, one spacing scale
-
-   Amber stars (--F5A623) are deliberately not mentioned: a rating star is
-   amber everywhere, and it is not a brand colour.
+   What the reference actually specifies, read off the screens:
+     - white page, white cards, hairline dividers, soft shadows
+     - pink wordmark and pink accents; dark near-black text
+     - a grey rounded search pill
+     - soft category circles, not heavy pink rings
+     - card anatomy: heart in a white circle, white rating pill over the photo,
+       small uppercase category, bold price, struck-through MRP, green percent
+     - soft green strip for delivery / COD information
    ========================================================================== */
 
 :root{
-  /* brand */
   --brand:#E91E63;
-  --brand-dark:#D81B60;
-  --brand-light:#FCE4EC;
+  --brand-ink:#D81B60;
+  --brand-soft:#FCE4EC;
 
-  /* the shopping blue */
-  --blue:#2874F0;
-  --blue-dark:#172337;
-  --blue-light:#E8F0FE;
-  --blue-border:#C6DAFB;
+  --ink:#111111;
+  --ink-2:#4A4A4A;
+  --ink-3:#757575;
+  --ink-4:#9E9E9E;
 
-  /* surfaces */
-  --bg:#F1F3F6;
+  --line:#EFEFEF;
+  --line-2:#E4E4E4;
+
+  --bg:#FFFFFF;
   --surface:#FFFFFF;
-  --surface-2:#F1F3F6;
-  --sheet-bg:#FFFFFF;
+  --surface-2:#F6F6F6;
+  --pill:#F1F1F1;
 
-  /* type */
-  --ink:#212121;
-  --ink-soft:#878787;
-  --ink-faint:#9E9E9E;
-
-  /* lines */
-  --line:#E0E0E0;
-  --hairline:#E0E0E0;
-
-  /* states */
-  --success:#388E3C;
-  --success-bg:#E8F5E9;
+  --green:#0F8A3C;
+  --green-soft:#E9F7EE;
   --danger:#D32F2F;
-  --danger-bg:#FDECEA;
+  --star:#F5A623;
 
-  /* discount text reads green in this system */
-  --accent:#388E3C;
-  --accent-dark:#2E7D32;
-  --warn:#E91E63;
-  --warn-bg:#FCE4EC;
-
-  /* one radius scale: cards 8-12, buttons 6-10, fields 8-12 */
-  --radius-lg:12px;
-  --radius-md:8px;
-  --radius-sm:6px;
+  --r-card:12px;
+  --r-tile:14px;
+  --r-pill:999px;
+  --r-btn:10px;
+  --sh-card:0 1px 2px rgba(17,17,17,.06);
 }
 
 /* ---------------------------------------------------------------- canvas --- */
-html:not([data-theme="dark"]) body{
-  background:#F1F3F6;
-  color:#212121;
+html:not([data-theme="dark"]) body{ background:#FFFFFF; color:#111111; }
+html:not([data-theme="dark"]) .app-shell{
+  background:#FFFFFF !important;
+  background-image:none !important;
 }
 
 /* ---------------------------------------------------------------- header --- */
-/* flat blue, no gradient, no pink wash */
+/* white bar, hairline underneath, no blue and no gradient */
 html:not([data-theme="dark"]) .topbar{
-  background:#2874F0;
-  background-image:none;
-  border-bottom:1px solid rgba(0,0,0,.12);
-  box-shadow:0 1px 4px rgba(23,35,55,.20);
+  background:#FFFFFF !important;
+  background-image:none !important;
+  border-bottom:1px solid #EFEFEF !important;
+  box-shadow:none !important;
 }
-html:not([data-theme="dark"]) .topbar .hdr-ic,
-html:not([data-theme="dark"]) .topbar .loc-bar{ color:#FFFFFF; }
-html:not([data-theme="dark"]) .topbar .loc-bar .loc-edit{ color:#D6E4FF; }
-html:not([data-theme="dark"]) .topbar .loc-wallet{
-  background:rgba(255,255,255,.20);
-  color:#FFFFFF;
-}
+html:not([data-theme="dark"]) .topbar .hdr-ic{ color:#111111 !important; }
+html:not([data-theme="dark"]) .topbar .loc-bar{ color:#757575 !important; }
+html:not([data-theme="dark"]) .topbar .loc-bar b,
+html:not([data-theme="dark"]) .topbar .loc-bar strong{ color:#111111 !important; }
+html:not([data-theme="dark"]) .topbar .loc-bar .loc-edit{ color:#E91E63 !important; }
+html:not([data-theme="dark"]) .topbar .loc-wallet{ background:#F1F1F1 !important; color:#111111 !important; }
 
-/* the search field is the one white block in the header */
+/* the search pill */
 html:not([data-theme="dark"]) .topbar .srch{
-  border-color:#FFFFFF;
-  box-shadow:0 1px 3px rgba(23,35,55,.18);
+  background:#F1F1F1 !important;
+  border:0 !important;
+  border-radius:999px !important;
+  box-shadow:none !important;
 }
+html:not([data-theme="dark"]) .topbar .srch input{ color:#111111 !important; }
+html:not([data-theme="dark"]) .topbar .srch-btn{ color:#757575 !important; }
 html:not([data-theme="dark"]) .topbar .srch:focus-within{
-  border-color:#FFFFFF;
-  box-shadow:0 0 0 3px rgba(255,255,255,.42);
+  box-shadow:0 0 0 2px rgba(233,30,99,.28) !important;
 }
-html:not([data-theme="dark"]) .topbar .srch-btn,
-html:not([data-theme="dark"]) .topbar .srch-btn.rec{ color:#2874F0; }
 
-/* cart badge is the pink accent on the blue bar */
+/* cart badge is the pink accent */
 html:not([data-theme="dark"]) .topbar .hdr-ic .hdr-badge{
-  background:#E91E63;
-  color:#FFFFFF;
-  border-color:#FFFFFF;
+  background:#E91E63 !important;
+  color:#FFFFFF !important;
+  border-color:#FFFFFF !important;
 }
 
-/* ------------------------------------------------- promotional band/strip --- */
+/* --------------------------------------------------- the green info strip --- */
 html:not([data-theme="dark"]) .announce-bar{
-  background:#FFFFFF;
-  background-image:none;
-  border-bottom:1px solid #E0E0E0;
-  color:#212121;
+  background:#E9F7EE !important;
+  background-image:none !important;
+  border-bottom:0 !important;
+  color:#0F8A3C !important;
+}
+html:not([data-theme="dark"]) .announce-bar *{ color:#0F8A3C !important; }
+
+/* ------------------------------------ the last of the artwork, switched off --
+   .mq carries a sparkle field on ::before and a scalloped paper-garland edge on
+   ::after. Neutralising the background gradients was not enough - these pseudo
+   elements keep painting, which is why a faint dotted texture survived the
+   first pass. */
+.mq::before, .mq::after,
+.mq-wide::before, .mq-wide::after,
+.mq-vip::after, .mq-band::after{
+  display:none !important;
 }
 
-/* --------------------------------------- ornate decoration is retired ----- */
-/* The gold-then-pink marquee frame, beading, bulbs, jewels and corner curls
-   are what made this app look dated. They are replaced by a plain card. */
-html:not([data-theme="dark"]) .orn-card,
-html:not([data-theme="dark"]) .orn-card-in,
+/* ----------------------------------------------------------- offer panel --- */
+/* The reference shows soft coupon cards with dashed pink borders, not a dark
+   slab. The panel keeps one card, with each offer inside it. */
 html:not([data-theme="dark"]) .mq,
 html:not([data-theme="dark"]) .mq-vip,
-html:not([data-theme="dark"]) .mq-plate,
-html:not([data-theme="dark"]) .mq-sign,
-html:not([data-theme="dark"]) .mq-band,
-html:not([data-theme="dark"]) .mq-wide{
-  background:#FFFFFF;
-  background-image:none;
-  border:1px solid #E0E0E0;
-  border-radius:10px;
-  box-shadow:0 1px 3px rgba(23,35,55,.08);
-}
-html:not([data-theme="dark"]) .orn-card::before,
-html:not([data-theme="dark"]) .orn-card::after,
-html:not([data-theme="dark"]) .mq-vip::before,
-html:not([data-theme="dark"]) .mq-vip::after,
-html:not([data-theme="dark"]) .mq-band::before,
-html:not([data-theme="dark"]) .mq-band::after,
-.mq-bulbs, .mq-jewels, .orn-corner, .mq-dots, .mq-dots i{
-  display:none;
-}
-
-/* ------------------------------------ the decorative legacy layers, retired --
-   The marquee / ornate-frame set (mq-*, orn-*) draws a beaded gold-then-pink
-   frame, bulbs, jewels, corner curls and a dark maroon offer panel. That is
-   exactly the "excessive gradients and ornament" the spec rules out, so the
-   decoration goes and the content keeps a plain card.
-
-   The element names below were read off the live DOM, not guessed:
-   .mq-vip-in, .mq-plate-in, .mq-beads, .mq-bulbs, .mq-plate-in, .mq-fee-sep.
-
-   !important is used here on purpose and only here: this has to beat sixteen
-   style blocks of gradients that were written to be un-overridable. */
-html:not([data-theme="dark"]) .mq,
-html:not([data-theme="dark"]) .mq-vip,
-html:not([data-theme="dark"]) .mq-vip-in,
 html:not([data-theme="dark"]) .mq-plate,
 html:not([data-theme="dark"]) .mq-plate-in,
 html:not([data-theme="dark"]) .mq-sign,
 html:not([data-theme="dark"]) .mq-band,
-html:not([data-theme="dark"]) .mq-wide,
-html:not([data-theme="dark"]) .orn-card,
-html:not([data-theme="dark"]) .orn-card-in{
+html:not([data-theme="dark"]) .mq-wide{
   background:#FFFFFF !important;
   background-image:none !important;
-  border:1px solid #E0E0E0 !important;
-  border-radius:10px !important;
-  box-shadow:0 1px 3px rgba(23,35,55,.08) !important;
+  border:1px dashed #F3A0BE !important;
+  border-radius:12px !important;
+  box-shadow:none !important;
 }
-
-/* beading, bulbs, jewels, corner curls and pagination dots */
-.mq-beads, .mq-bulbs, .mq-jewels, .orn-corner, .mq-dots, .mq-dots i,
-.mq-vip::before, .mq-vip::after, .mq-band::before, .mq-band::after,
-.orn-card::before, .orn-card::after{
-  display:none !important;
-}
-
-/* the remaining pink hairlines inside those components */
-html:not([data-theme="dark"]) .mq-fee-sep{ border-color:#E0E0E0 !important; }
-html:not([data-theme="dark"]) .bs-brand{ border-color:#E0E0E0 !important; }
-
-/* ------------------------------------------- remaining pink washes, retired --
-   Read off the live DOM: app-shell, mtabs, subcat-wrap, mq-plate-t, mq-band-t
-   all still paint a pink gradient over the page. The page canvas must be the
-   light grey of the system, not a pink wash. */
-html:not([data-theme="dark"]) .app-shell{
-  background:#F1F3F6 !important;
+html:not([data-theme="dark"]) .mq-vip,
+html:not([data-theme="dark"]) .mq-vip *{ color:#111111 !important; }
+html:not([data-theme="dark"]) .mq-vip-cta,
+html:not([data-theme="dark"]) .mq-vip-cta *{
+  background:#E91E63 !important;
   background-image:none !important;
+  color:#FFFFFF !important;
+  border:0 !important;
+  border-radius:10px !important;
 }
 
-/* the category page: both big panels were pink gradients (94x2171 and 296x2171).
-   A shop rail and a product area are white, separated by a hairline. */
+/* ------------------------------------------------------------ section head --- */
+html:not([data-theme="dark"]) .section-head{
+  background:transparent !important;
+  background-image:none !important;
+  border-bottom:0 !important;
+}
+html:not([data-theme="dark"]) .section-head h2,
+html:not([data-theme="dark"]) .section-head h3,
+html:not([data-theme="dark"]) .section-head .t,
+html:not([data-theme="dark"]) .section-head b{
+  color:#111111 !important;
+  font-weight:800 !important;
+}
+/* the right-hand action reads pink, like "See all" in the reference */
+html:not([data-theme="dark"]) .section-head a,
+html:not([data-theme="dark"]) .section-head button,
+html:not([data-theme="dark"]) .section-head .see-all{
+  color:#E91E63 !important;
+  font-weight:700 !important;
+}
+
+/* -------------------------------------------------------- category circles --- */
+html:not([data-theme="dark"]) .subcat-img{
+  background:#FFFFFF !important;
+  background-image:none !important;
+  border:1px solid #EFEFEF !important;
+  border-radius:50% !important;
+  box-shadow:0 1px 2px rgba(17,17,17,.06);
+}
+html:not([data-theme="dark"]) .subcat-img img{ border-radius:50%; }
+html:not([data-theme="dark"]) .catpage-item .cpi-img{
+  background:#FFFFFF !important;
+  background-image:none !important;
+  border:1px solid #EFEFEF !important;
+  box-shadow:0 1px 2px rgba(17,17,17,.06);
+}
+
+/* ----------------------------------------------------------- product card --- */
+/* Reference anatomy: heart in a white circle, white rating pill over the photo,
+   uppercase category, bold price, struck MRP, green percent off. The markup
+   already carries every one of these, so this is styling only. */
+html:not([data-theme="dark"]) .product-card{
+  background:#FFFFFF !important;
+  border:1px solid #EFEFEF !important;
+  border-radius:12px !important;
+  box-shadow:0 1px 2px rgba(17,17,17,.06) !important;
+  overflow:hidden;
+}
+html:not([data-theme="dark"]) .product-wish-btn{
+  background:rgba(255,255,255,.96) !important;
+  border-radius:50% !important;
+  box-shadow:0 1px 4px rgba(17,17,17,.14) !important;
+  color:#E91E63 !important;
+}
+html:not([data-theme="dark"]) .rating-pill{
+  background:#FFFFFF !important;
+  color:#111111 !important;
+  border-radius:6px !important;
+  box-shadow:0 1px 3px rgba(17,17,17,.16) !important;
+}
+html:not([data-theme="dark"]) .rating-count{ color:#757575 !important; }
+html:not([data-theme="dark"]) .product-cat{
+  color:#757575 !important;
+  text-transform:uppercase;
+  letter-spacing:.4px;
+}
+html:not([data-theme="dark"]) .product-name{
+  color:#111111 !important;
+  text-align:left !important;
+}
+html:not([data-theme="dark"]) .price-now{ color:#111111 !important; font-weight:800 !important; }
+html:not([data-theme="dark"]) .price-was{ color:#9E9E9E !important; }
+html:not([data-theme="dark"]) .price-off{ color:#0F8A3C !important; font-weight:700 !important; }
+
+/* ------------------------------------------------------------- bottom nav --- */
+html:not([data-theme="dark"]) .bottom-nav{
+  background:#FFFFFF !important;
+  border-top:1px solid #EFEFEF !important;
+  box-shadow:0 -1px 8px rgba(17,17,17,.05);
+}
+html:not([data-theme="dark"]) .bottom-nav .nav-item{ color:#757575; }
+html:not([data-theme="dark"]) .bottom-nav .nav-item.active,
+html:not([data-theme="dark"]) .bottom-nav .nav-item.on{ color:#E91E63; }
+
+/* ------------------------------------------------------------ category page --- */
 html:not([data-theme="dark"]) .catpage-side{
   background:#FFFFFF !important;
   background-image:none !important;
-  border-right:1px solid #E0E0E0;
+  border-right:1px solid #EFEFEF;
 }
 html:not([data-theme="dark"]) .catpage-panel{
   background:#FFFFFF !important;
   background-image:none !important;
 }
+
+/* ============================== responsive shell (kept from the build) ======
+   This app was a phone column hard-capped at max-width:480px with exactly one
+   media query in the entire file. Everything below 768px is untouched on
+   purpose: the Play Store build is a phone app. */
+@media (min-width: 768px){
+  .app-shell{ max-width: 720px; padding-bottom: 78px; }
+  .bottom-nav{ max-width: 720px; }
+  .product-grid{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .skel-grid{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .admin-stats-grid{ grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .admin-menu-grid{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .catpage-grid{ grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .mq-grid2{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1024px){
+  .app-shell{ max-width: 1000px; }
+  .bottom-nav{ max-width: 1000px; }
+  .product-grid{ grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .skel-grid{ grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .catpage-grid{ grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .admin-menu-grid{ grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (min-width: 1280px){
+  .app-shell{ max-width: 1200px; }
+  .bottom-nav{ max-width: 1200px; }
+  .product-grid{ grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .skel-grid{ grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .catpage-grid{ grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
+
+/* ================= CORRECTION =================
+   Rewriting this file dropped the rule that hides the marquee beading, so the
+   pearl frame came back on the banner: mq-beads measured 362x244 of repeating
+   radial-gradient dots and mq-bulbs another 344x8. Both are decoration.
+   mq-vip-in was also still painting its velvet gradient (342x84), which left
+   dark text on a dark panel inside the coupon card. */
+
+.mq-beads, .mq-bulbs, .mq-jewels, .mq-dots, .mq-dots i, .orn-corner,
+.orn-card::before, .orn-card::after{
+  display:none !important;
+}
+
+/* nothing inside the coupon card keeps a fill of its own ... */
+html:not([data-theme="dark"]) .mq-vip,
+html:not([data-theme="dark"]) .mq-vip *,
+html:not([data-theme="dark"]) .mq-plate,
+html:not([data-theme="dark"]) .mq-plate *{
+  background-image:none !important;
+  background-color:transparent !important;
+}
+/* ... except the call to action, which is a solid pink button */
+html:not([data-theme="dark"]) .mq-vip-cta{
+  background-color:#E91E63 !important;
+  color:#FFFFFF !important;
+}
+html:not([data-theme="dark"]) .mq-vip-cta *{ color:#FFFFFF !important; }
+
+/* ------------------------- RESTORED (the rewrite dropped these) -------------
+   Rewriting this file from scratch silently lost four earlier rules. Listed
+   here so the loss is visible in the file, and covered by check.mjs so it
+   cannot happen quietly again. */
+
+/* .mtabs was still painting a pink gradient (rgb(255,241,247)) across the
+   category tab row, which is why a pale pink band survived under the header. */
 html:not([data-theme="dark"]) .mtabs,
 html:not([data-theme="dark"]) .subcat-wrap{
   background:#FFFFFF !important;
@@ -12241,102 +12353,142 @@ html:not([data-theme="dark"]) .mq-band-t{
   background:none !important;
   background-image:none !important;
 }
+html:not([data-theme="dark"]) .mq-fee-sep{ border-color:#EFEFEF !important; }
+html:not([data-theme="dark"]) .bs-brand{ border-color:#EFEFEF !important; }
 
-/* ------------------------------------------- the promo panel, made readable --
-   The panel was a dark maroon slab with white text. Neutralising it left white
-   text on a white card - unreadable. So it becomes a soft pink wash with dark
-   text: still clearly a promotion, but legible. */
-html:not([data-theme="dark"]) .mq-vip{
-  background:#FFF5F8 !important;
-  border-color:#F8BBD0 !important;
-}
-html:not([data-theme="dark"]) .mq-vip,
-html:not([data-theme="dark"]) .mq-vip *{
-  color:#212121 !important;
-}
-/* ...then give the call-to-action its label back. Without this the button came
-   out pink text on pink fill, because the rule above reached its children. */
-html:not([data-theme="dark"]) .mq-vip-cta,
-html:not([data-theme="dark"]) .mq-vip-cta *{
-  color:#FFFFFF !important;
+/* the dashed coupon border belongs on the coupon card only. Applied to the .mq
+   wrapper it drew a stray empty dashed box above the bottom nav. */
+html:not([data-theme="dark"]) .mq{
+  border:0 !important;
+  border-radius:0 !important;
 }
 
-/* solid call-to-action pills: pink fill, white label */
-html:not([data-theme="dark"]) .mq-vip-cta,
-html:not([data-theme="dark"]) .adv-cta,
-html:not([data-theme="dark"]) .mq-fcard-cta{
+/* ------------------- the dashed border belongs to the coupon card ONLY ------
+   Seven elements carried it: mq-vip (the coupons - correct) plus mq-plate,
+   mq-plate-in, mq-band and mq-wide, which are real content sections further
+   down the page - "Sneak Peek Deals", "Featured Brands", "Lowest Prices In Our
+   Store". Dashing those turned them into empty-looking dashed boxes. */
+html:not([data-theme="dark"]) .mq-plate,
+html:not([data-theme="dark"]) .mq-plate-in,
+html:not([data-theme="dark"]) .mq-sign,
+html:not([data-theme="dark"]) .mq-band,
+html:not([data-theme="dark"]) .mq-wide{
+  border:0 !important;
+  border-radius:12px !important;
+  background:#FFFFFF !important;
+  background-image:none !important;
+}
+/* and their text has to stay readable on that white card */
+html:not([data-theme="dark"]) .mq-plate, html:not([data-theme="dark"]) .mq-plate *,
+html:not([data-theme="dark"]) .mq-sign,  html:not([data-theme="dark"]) .mq-sign *,
+html:not([data-theme="dark"]) .mq-band,  html:not([data-theme="dark"]) .mq-band *,
+html:not([data-theme="dark"]) .mq-wide,  html:not([data-theme="dark"]) .mq-wide *{
+  color:#111111 !important;
+}
+
+/* ================= PROFILE — reference image 1 =================
+   The screen already had the right row anatomy, so this is layout and colour:
+   a light grey page, a white header block, three quick cards, pink-tinted
+   rounded icon squares, and a red delete row. */
+
+#mainContent:has(.profile-header){ background:#F5F5F5 !important; }
+
+html:not([data-theme="dark"]) .profile-header{ background:#FFFFFF !important; }
+html:not([data-theme="dark"]) .profile-avatar{
   background:#E91E63 !important;
   background-image:none !important;
   color:#FFFFFF !important;
-  border:0 !important;
-  box-shadow:0 2px 8px rgba(233,30,99,.26) !important;
+}
+html:not([data-theme="dark"]) .profile-name{ color:#111111 !important; }
+html:not([data-theme="dark"]) .profile-phone{ color:#757575 !important; }
+
+html:not([data-theme="dark"]) .profile-menu-card{
+  background:#FFFFFF !important;
+  border-radius:12px !important;
+  margin:0 12px 12px !important;
+  overflow:hidden;
+  box-shadow:0 1px 2px rgba(17,17,17,.06);
+}
+html:not([data-theme="dark"]) .profile-menu-icon{
+  background:#FCE4EC !important;
+  color:#E91E63 !important;
+  border-radius:10px !important;
+}
+html:not([data-theme="dark"]) .profile-menu-text{ color:#111111 !important; }
+html:not([data-theme="dark"]) .profile-menu-text span{ color:#757575 !important; }
+
+/* delete is the one destructive row, so it reads red */
+html:not([data-theme="dark"]) .profile-menu-item[data-act="delete-account"] .profile-menu-text{ color:#D32F2F !important; }
+html:not([data-theme="dark"]) .profile-menu-item[data-act="delete-account"] .profile-menu-icon{
+  background:#FDECEA !important;
+  color:#D32F2F !important;
 }
 
-/* ---------------------------------------------------------------- buttons --- */
-/* pink is the purchase action, blue is everything secondary */
-.btn-primary{
-  background:#E91E63;
-  color:#FFFFFF;
-  box-shadow:0 2px 8px rgba(233,30,99,.26);
+/* the three quick cards */
+.profile-quick{
+  display:grid;
+  grid-template-columns:repeat(3, minmax(0, 1fr));
+  gap:10px;
+  margin:0 12px 12px;
 }
-.btn-blue{
-  background:#2874F0;
-  color:#FFFFFF;
-  box-shadow:0 2px 8px rgba(40,116,240,.26);
+.pq-card{
+  background:#FFFFFF;
+  border:0;
+  border-radius:12px;
+  padding:14px 8px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:8px;
+  box-shadow:0 1px 2px rgba(17,17,17,.06);
+  font:inherit;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  transition:transform 140ms cubic-bezier(.22,.61,.36,1);
 }
-
-/* ============================ responsive shell (spec 6, 17, 21) ==========
-   This app was built as a phone column and hard-capped:
-
-       .app-shell { max-width: 480px; margin: 0 auto }
-
-   So on a 1440px screen it drew a 480px strip with empty space either side,
-   and there was exactly ONE media query in the whole file (max-width:480px).
-   The desktop half of the spec cannot exist without widening the shell, so it
-   is widened here in steps and the grids gain columns.
-
-   Everything below 768px is untouched on purpose: the Play Store build is a
-   phone app, and its layout must not shift. */
-
-@media (min-width: 768px){
-  .app-shell{ max-width: 720px; }
-  .product-grid{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .skel-grid{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .admin-stats-grid{ grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .admin-menu-grid{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .catpage-grid{ grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .mq-grid2{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pq-card:active{ transform:scale(.97); }
+.pq-ic{ color:#E91E63; display:flex; line-height:0; }
+.pq-ic svg{ width:22px; height:22px; }
+.pq-label{
+  font:600 12.5px/1 Inter, Assistant, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color:#111111;
 }
 
-@media (min-width: 1024px){
-  .app-shell{ max-width: 1000px; }
-  .product-grid{ grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .skel-grid{ grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .catpage-grid{ grid-template-columns: repeat(5, minmax(0, 1fr)); }
-  .admin-menu-grid{ grid-template-columns: repeat(4, minmax(0, 1fr)); }
-}
+/* ================= CATEGORIES — reference image 3 =================
+   A correction: my earlier pass forced .subcat-img to border-radius:50%. The
+   base rule was already 14px, which is exactly the rounded square the
+   reference wants, so that override is undone. Circles belong on the rail. */
+html:not([data-theme="dark"]) .subcat-img{ border-radius:14px !important; }
+html:not([data-theme="dark"]) .subcat-img img{ border-radius:11px !important; }
+html:not([data-theme="dark"]) .catpage-item .cpi-img{ border-radius:50% !important; }
 
-@media (min-width: 1280px){
-  .app-shell{ max-width: 1200px; }
-  /* five products per row on a wide screen, as the spec asks */
-  .product-grid{ grid-template-columns: repeat(5, minmax(0, 1fr)); }
-  .skel-grid{ grid-template-columns: repeat(5, minmax(0, 1fr)); }
-  .catpage-grid{ grid-template-columns: repeat(6, minmax(0, 1fr)); }
+html:not([data-theme="dark"]) .catpage-side{
+  background:#F7F7F7 !important;
+  background-image:none !important;
 }
+html:not([data-theme="dark"]) .catpage-item.on{
+  background:#FFFFFF !important;
+  border-radius:10px;
+}
+html:not([data-theme="dark"]) .catpage-h::before{ display:none !important; }
+html:not([data-theme="dark"]) .catpage-h{ font-weight:800 !important; color:#111111 !important; }
 
-/* The bottom navigation is a 480px bar pinned with left:50% + translateX(-50%).
-   Inside a widened shell it floated in the middle of the page like a stray
-   control. On desktop it spans the shell instead. */
-@media (min-width: 768px){
-  .bottom-nav{ max-width: 720px; }
-  .app-shell{ padding-bottom: 78px; }
+/* ------------------------- profile: two cleanup details ---------------------
+   1. the header still carried a pink wash behind the quick cards, and its
+      pseudo-elements were painting over them.
+   2. the last row sat under the fixed bottom nav, so the page needed floor
+      clearance. */
+html:not([data-theme="dark"]) .profile-header{
+  background:#FFFFFF !important;
+  background-image:none !important;
+  border-radius:0 0 16px 16px;
 }
-@media (min-width: 1024px){
-  .bottom-nav{ max-width: 1000px; }
-}
-@media (min-width: 1280px){
-  .bottom-nav{ max-width: 1200px; }
-}
+html:not([data-theme="dark"]) .profile-header::before,
+html:not([data-theme="dark"]) .profile-header::after{ display:none !important; }
+
+.profile-quick{ position:relative; z-index:2; }
+
+#mainContent:has(.profile-header){ padding-bottom:90px !important; }
 
 </style>
 </body>
