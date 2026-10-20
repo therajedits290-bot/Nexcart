@@ -31,7 +31,19 @@
 // 4. /api/health says where the data really lives ("postgres" or "file"), so
 //    the database connection can be verified with one tap.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// v1.3.0 — LIVE SYNC + MEDIA
+//   * db.rev goes up on every admin push. GET /api/version is a tiny check and
+//     GET /api/stream is a Server-Sent-Events feed that tells every open app
+//     the moment the owner publishes, so customers see changes in seconds.
+//   * /api/bootstrap?rev=N answers {unchanged:true} when nothing moved, also
+//     carries `home` (the home-screen layout) and is gzip-compressed.
+//   * Product photos, banner pictures and videos are uploaded once to
+//     POST /api/admin/media and served from /media/<id>.<ext> (cached, with
+//     Range support for video), instead of riding inside the catalogue JSON.
+// ---------------------------------------------------------------------------
 const http = require('http');
+const zlib = require('zlib');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -49,9 +61,19 @@ const LOCK_MS = 15 * 60 * 1000;
    everything a customer can post stays small. */
 const BODY_PUBLIC = 200000;      // ~200 KB — orders, sign-up, sign-in
 const BODY_ADMIN = 24000000;     // ~24 MB — catalogue, photos, logo and splash
+const BODY_MEDIA = 40000000;     // ~40 MB — one photo or video as a data URL
+const MEDIA_DIR = path.join(process.env.DATA_DIR || __dirname, 'media');
+const MEDIA_TYPES = {
+  'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif',
+  'video/mp4': 'mp4', 'video/webm': 'webm', 'video/quicktime': 'mov'
+};
+const MEDIA_MAX_IMG = 8 * 1024 * 1024;
+const MEDIA_MAX_VID = 30 * 1024 * 1024;
+const MAX_STREAMS = 5000;
 
 let db = { products: [], categories: [], orders: [], users: [],
-           sessions: [], fails: {}, settings: {}, updatedAt: 0, catalogUpdatedAt: 0 };
+           sessions: [], fails: {}, settings: {}, updatedAt: 0, catalogUpdatedAt: 0,
+           rev: 0, home: null };
 
 /* ---------------- storage ---------------- */
 
@@ -236,13 +258,128 @@ function userFromReq(req) {
   return s ? db.users.find((u) => u.id === s.userId) || null : null;
 }
 function send(res, code, body) {
-  res.writeHead(code, {
+  const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type, x-admin-key, Authorization',
-    'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS'
-  });
-  res.end(JSON.stringify(body));
+    'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS'
+  };
+  let out = JSON.stringify(body);
+  const req = res.__req;
+  const ae = req ? String(req.headers['accept-encoding'] || '') : '';
+  headers['Vary'] = 'Accept-Encoding';
+  if (code !== 204 && out.length > 1024 && /\bgzip\b/.test(ae)) {
+    try {
+      out = zlib.gzipSync(Buffer.from(out), { level: 6 });
+      headers['Content-Encoding'] = 'gzip';
+    } catch (e) {}
+  }
+  headers['Content-Length'] = Buffer.byteLength(out);
+  res.writeHead(code, headers);
+  res.end(code === 204 ? undefined : out);
+}
+
+/* ---------------- live stream (Server-Sent Events) ---------------- */
+const streams = new Set();
+function broadcastRev() {
+  const msg = 'event: rev\ndata: ' + JSON.stringify({ rev: db.rev }) + '\n\n';
+  streams.forEach((r) => { try { r.write(msg); } catch (e) { streams.delete(r); } });
+}
+setInterval(() => {
+  streams.forEach((r) => { try { r.write(': ping\n\n'); } catch (e) { streams.delete(r); } });
+}, 20000).unref();
+
+/* ---------------- media storage ---------------- */
+const mediaCache = new Map();          // id -> { mime, data }, insertion order = LRU
+let mediaCacheBytes = 0;
+const MEDIA_CACHE_MAX = 40 * 1024 * 1024;
+function cachePut(id, mime, data) {
+  if (data.length > MEDIA_CACHE_MAX / 2) return;
+  if (mediaCache.has(id)) { mediaCacheBytes -= mediaCache.get(id).data.length; mediaCache.delete(id); }
+  mediaCache.set(id, { mime, data });
+  mediaCacheBytes += data.length;
+  while (mediaCacheBytes > MEDIA_CACHE_MAX && mediaCache.size) {
+    const k = mediaCache.keys().next().value;
+    mediaCacheBytes -= mediaCache.get(k).data.length;
+    mediaCache.delete(k);
+  }
+}
+function cacheGet(id) {
+  const v = mediaCache.get(id);
+  if (v) { mediaCache.delete(id); mediaCache.set(id, v); }
+  return v || null;
+}
+async function mediaSave(id, mime, data) {
+  if (pool) {
+    await pool.query(
+      `INSERT INTO nc_media (id, mime, data, created) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING`,
+      [id, mime, data, Date.now()]);
+  } else {
+    fs.mkdirSync(MEDIA_DIR, { recursive: true });
+    fs.writeFileSync(path.join(MEDIA_DIR, id), data);
+    fs.writeFileSync(path.join(MEDIA_DIR, id + '.mime'), mime);
+  }
+  cachePut(id, mime, data);
+}
+async function mediaLoad(id) {
+  const hit = cacheGet(id);
+  if (hit) return hit;
+  let rec = null;
+  if (pool) {
+    const r = await pool.query('SELECT mime, data FROM nc_media WHERE id = $1', [id]);
+    if (r.rows.length) rec = { mime: r.rows[0].mime, data: r.rows[0].data };
+  } else {
+    try {
+      rec = { data: fs.readFileSync(path.join(MEDIA_DIR, id)),
+              mime: fs.readFileSync(path.join(MEDIA_DIR, id + '.mime'), 'utf8') };
+    } catch (e) { rec = null; }
+  }
+  if (rec) cachePut(id, rec.mime, rec.data);
+  return rec;
+}
+async function mediaStats() {
+  if (pool) {
+    const r = await pool.query('SELECT count(*)::int AS c, coalesce(sum(length(data)),0)::bigint AS b FROM nc_media');
+    return { count: r.rows[0].c, bytes: Number(r.rows[0].b) };
+  }
+  let count = 0, bytes = 0;
+  try {
+    fs.readdirSync(MEDIA_DIR).forEach((n) => {
+      if (n.endsWith('.mime')) return;
+      count++; bytes += fs.statSync(path.join(MEDIA_DIR, n)).size;
+    });
+  } catch (e) {}
+  return { count, bytes };
+}
+function serveMedia(req, res, rec, id) {
+  const base = {
+    'Content-Type': rec.mime,
+    'Cache-Control': 'public, max-age=31536000, immutable',
+    'ETag': '"' + id + '"',
+    'Accept-Ranges': 'bytes',
+    'Access-Control-Allow-Origin': '*',
+    'Cross-Origin-Resource-Policy': 'cross-origin'
+  };
+  if (String(req.headers['if-none-match'] || '').indexOf(id) !== -1) {
+    res.writeHead(304, base); return res.end();
+  }
+  const total = rec.data.length;
+  const rg = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers['range'] || ''));
+  if (rg && (rg[1] !== '' || rg[2] !== '')) {
+    let start, end;
+    if (rg[1] === '') { start = Math.max(0, total - parseInt(rg[2], 10)); end = total - 1; }
+    else { start = parseInt(rg[1], 10); end = rg[2] === '' ? total - 1 : Math.min(parseInt(rg[2], 10), total - 1); }
+    if (start >= total || start > end) {
+      res.writeHead(416, Object.assign({}, base, { 'Content-Range': 'bytes */' + total }));
+      return res.end();
+    }
+    res.writeHead(206, Object.assign({}, base, {
+      'Content-Range': 'bytes ' + start + '-' + end + '/' + total,
+      'Content-Length': end - start + 1 }));
+    return res.end(rec.data.subarray(start, end + 1));
+  }
+  res.writeHead(200, Object.assign({}, base, { 'Content-Length': total }));
+  res.end(req.method === 'HEAD' ? undefined : rec.data);
 }
 /* Reads a JSON body. Above the cap the bytes are drained but not kept, and the
    caller gets { __tooBig: true } so it can answer 413 with a readable message.
@@ -265,7 +402,23 @@ function readBody(req, limit) {
     req.on('error', () => done({}));
   });
 }
-const isAdmin = (req) => req.headers['x-admin-key'] === KEY;
+/* v55: a key that nobody chose is not a key.
+   This used to default to the literal 'changeme', so a deployment that forgot to
+   set ADMIN_KEY had its admin API protected by a password printed in the source.
+   Now a missing or default key fails CLOSED: every admin route refuses, with a
+   message that says exactly what to fix, instead of quietly trusting everyone.
+
+   The comparison is also timing-safe now. Node's crypto is already imported, and
+   === leaks how many characters matched. */
+const KEY_IS_DEFAULT = !process.env.ADMIN_KEY || process.env.ADMIN_KEY === 'changeme';
+const isAdmin = (req) => {
+  if (KEY_IS_DEFAULT) return false;
+  const given = String(req.headers['x-admin-key'] || '');
+  const a = Buffer.from(given);
+  const b = Buffer.from(KEY);
+  if (a.length !== b.length) return false;      // lengths differ: not our key
+  return crypto.timingSafeEqual(a, b);
+};
 
 /* Verify a Google ID token without any library: check the RS256 signature
    against Google's published keys, then the audience and issuer. */
@@ -297,6 +450,8 @@ async function init() {
   if (pool) {
     try {
       await pool.query(CREATE_TABLE);
+      await pool.query(`CREATE TABLE IF NOT EXISTS nc_media (
+        id text PRIMARY KEY, mime text NOT NULL, data bytea NOT NULL, created bigint NOT NULL)`);
       const r = await pool.query('SELECT data FROM nexcart_state WHERE id = 1');
       dbOk = true;
       if (r.rows.length && r.rows[0].data && typeof r.rows[0].data === 'object') {
@@ -341,6 +496,8 @@ async function init() {
   if (!db.branding || typeof db.branding !== 'object') db.branding = null;
   db.updatedAt = Number(db.updatedAt) || 0;
   db.catalogUpdatedAt = Number(db.catalogUpdatedAt) || 0;
+  db.rev = Number(db.rev) || 0;
+  if (!db.home || typeof db.home !== 'object' || Array.isArray(db.home)) db.home = null;
 
   // The database is empty but this install had data on disk (or this is a
   // brand-new database): seed it, and wait, so the very first upload cannot be
@@ -351,21 +508,96 @@ async function init() {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   const p = url.pathname;
+  res.__req = req;
   if (req.method === 'OPTIONS') return send(res, 204, {});
 
   if (p === '/api/health')
     return send(res, 200, { ok: true, products: db.products.length, orders: db.orders.length,
-                            users: db.users.length, storage: storage });
+                            users: db.users.length, storage: storage, rev: db.rev });
+
+  /* ---- live sync ---- */
+  if (p === '/api/version')
+    return send(res, 200, { rev: db.rev, t: Date.now() });
+
+  if (p === '/api/stream' && req.method === 'GET') {
+    if (streams.size >= MAX_STREAMS) return send(res, 503, { error: 'Too many live connections' });
+    try { req.socket.setTimeout(0); req.socket.setNoDelay(true); req.socket.setKeepAlive(true); } catch (e) {}
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+      'Access-Control-Allow-Origin': '*'
+    });
+    res.write('retry: 3000\n\n');
+    res.write('event: rev\ndata: ' + JSON.stringify({ rev: db.rev }) + '\n\n');
+    streams.add(res);
+    const drop = () => streams.delete(res);
+    req.on('close', drop); req.on('error', drop); res.on('error', drop); res.on('close', drop);
+    return;
+  }
+
+  /* ---- media ---- */
+  if (p === '/api/admin/media' && req.method === 'POST') {
+    if (!isAdmin(req)) return send(res, 401, { error: 'unauthorised' });
+    const b = await readBody(req, BODY_MEDIA);
+    if (b.__tooBig) return send(res, 413, { error: 'File too large (over 40 MB)' });
+    const mm = /^data:([a-z0-9.+\/-]+);base64,([A-Za-z0-9+\/=\s]+)$/i.exec(String(b.dataUrl || ''));
+    if (!mm) return send(res, 400, { error: 'Send {dataUrl:"data:<type>;base64,..."}' });
+    const mime = mm[1].toLowerCase();
+    const ext = MEDIA_TYPES[mime];
+    if (!ext) return send(res, 415, { error: 'Unsupported file type ' + mime });
+    const data = Buffer.from(mm[2].replace(/\s+/g, ''), 'base64');
+    if (!data.length) return send(res, 400, { error: 'Empty file' });
+    const cap = mime.startsWith('video/') ? MEDIA_MAX_VID : MEDIA_MAX_IMG;
+    if (data.length > cap)
+      return send(res, 413, { error: (mime.startsWith('video/') ? 'Video' : 'Image') + ' too large (max ' + (cap >> 20) + ' MB)' });
+    const id = crypto.createHash('sha256').update(data).digest('hex').slice(0, 24);
+    try { await mediaSave(id, mime, data); }
+    catch (e) { return send(res, 500, { error: 'Could not store the file: ' + e.message }); }
+    return send(res, 200, { ok: true, id, url: '/media/' + id + '.' + ext, mime, size: data.length });
+  }
+  if (p === '/api/admin/media-stats' && req.method === 'GET') {
+    if (!isAdmin(req)) return send(res, 401, { error: 'unauthorised' });
+    try { return send(res, 200, await mediaStats()); }
+    catch (e) { return send(res, 500, { error: e.message }); }
+  }
+  const mt = p.match(/^\/media\/([a-f0-9]{24})(?:\.[a-z0-9]{2,5})?$/);
+  if (mt && (req.method === 'GET' || req.method === 'HEAD')) {
+    try {
+      const rec = await mediaLoad(mt[1]);
+      if (!rec) return send(res, 404, { error: 'Not found' });
+      return serveMedia(req, res, rec, mt[1]);
+    } catch (e) { return send(res, 500, { error: 'Could not read the file' }); }
+  }
 
   /* Everything a phone needs in order to show the same shop the owner sees:
      the catalogue, the categories, and the whole admin-panel configuration —
      branding (name, logo, opening screen), offer banners, the announcement
      ticker, coupon codes and the shop rules. */
+  if (p === '/api/bootstrap' && db.rev > 0 && String(url.searchParams.get('rev') || '') === String(db.rev))
+    return send(res, 200, { unchanged: true, rev: db.rev });
   if (p === '/api/bootstrap')
     return send(res, 200, {
+      rev: db.rev,
+      home: db.home || null,
       products: db.products,
       categories: db.categories,
-      settings: db.settings,
+      /* v55: the admin PIN is NO LONGER sent to customers.
+         This endpoint has no login. Every phone that installed the app fetched
+         it, so the owner's admin PIN was readable by anyone - it was in the
+         network response of the shop itself. The PIN was never a server-side
+         control anyway (the server checks ADMIN_KEY); it is only the gate in
+         front of the admin panel ON THE OWNER'S OWN PHONE. So the correct place
+         for it is that phone, and it is now kept there and nowhere else.
+         The app already refuses to adopt a PIN that is not 4-10 digits, so an
+         owner who set their own PIN keeps it, and a fresh install falls back to
+         the documented default. Nothing else about settings changes. */
+      settings: (function () {
+        const safe = Object.assign({}, db.settings || {});
+        delete safe.adminPin;
+        return safe;
+      })(),
       branding: db.branding || null,
       banners: db.banners || [],
       announcements: db.announcements || [],
@@ -495,10 +727,16 @@ const server = http.createServer(async (req, res) => {
     if (Array.isArray(b.products)) db.products = b.products;
     if (Array.isArray(b.categories)) db.categories = b.categories;
 
-    /* When the owner's catalogue last changed. Sent back to every device so an
-       out-of-date copy here can never overwrite a newer one on a phone. */
-    if (b.catalogUpdatedAt) db.catalogUpdatedAt = Number(b.catalogUpdatedAt) || 0;
-    else db.catalogUpdatedAt = Date.now();
+    /* When the owner's catalogue last changed.
+       v54: the server now ALWAYS stamps its own clock.
+       Before this it stored whatever timestamp the pushing phone sent, and a
+       phone's timestamp only moves when its own copy changes - so the number
+       sat in the past. Every other device compared that stale value with its
+       own copy, decided the server was not newer, and refused the update.
+       That is exactly why an update in the admin panel reached the owner's
+       phone but not the testers' phones. The device's value is still accepted
+       as a fallback if it happens to be newer than the server's own clock. */
+    db.catalogUpdatedAt = Math.max(Date.now(), Number(b.catalogUpdatedAt) || 0);
 
     /* The admin PIN and the shop rules travel with the catalogue, so one
        change in the admin panel applies to every phone. Numbers only and
@@ -543,8 +781,12 @@ const server = http.createServer(async (req, res) => {
     if (Array.isArray(b.banners)) db.banners = b.banners;
     if (Array.isArray(b.announcements)) db.announcements = b.announcements;
     if (Array.isArray(b.coupons)) db.coupons = b.coupons;
+    /* The home-screen layout (service tabs, quick tiles, sale timer, ...).
+       Only replaced when the phone really sent an object. */
+    if (b.home && typeof b.home === 'object' && !Array.isArray(b.home)) db.home = b.home;
 
     db.updatedAt = Date.now();
+    db.rev = (Number(db.rev) || 0) + 1;
 
     /* Wait for the database before answering. If it refuses the write, say so:
        the owner must not be told the shop is safe when it is not. */
@@ -557,7 +799,8 @@ const server = http.createServer(async (req, res) => {
                '). Check DATABASE_URL in Render, then upload again.'
       });
     }
-    return send(res, 200, { ok: true, products: db.products.length, storage: storage });
+    broadcastRev();
+    return send(res, 200, { ok: true, rev: db.rev, products: db.products.length, storage: storage });
   }
 
   /* ---------------- orders ---------------- */
@@ -622,10 +865,14 @@ const server = http.createServer(async (req, res) => {
      with testers but no orders looks completely empty. No password material
      ever leaves this endpoint. */
   if (p === '/api/admin/users' && req.method === 'GET') {
-    /* Merge any duplicate rows first, so the owner never sees the same person
+    /* v55: the key is checked FIRST.
+       dedupeUsers() can rewrite the customer list and save it, and it used to
+       run before the check - so a request with no key at all still caused a
+       write. Checking first means an unauthorised caller can only ever read. */
+    if (!isAdmin(req)) return send(res, 401, { error: 'unauthorised' });
+    /* Then merge any duplicate rows, so the owner never sees the same person
        listed twice. */
     dedupeUsers();
-    if (!isAdmin(req)) return send(res, 401, { error: 'unauthorised' });
     const byUser = {};
     db.orders.forEach((o) => {
       if (!o.userId) return;
@@ -720,8 +967,26 @@ const server = http.createServer(async (req, res) => {
   send(res, 404, { error: 'Not found' });
 });
 
+server.requestTimeout = 600000;     // slow phones uploading a video need time
+server.headersTimeout = 65000;
+server.keepAliveTimeout = 65000;
+
 init()
   .catch((e) => console.error('[storage] init problem (continuing):', e.message))
   .then(() => server.listen(PORT, () => {
     console.log('NEXCART backend on port ' + PORT + ' — storage: ' + storage);
+    /* v55: say out loud what the admin API is protected by. Silence here is how a
+       shop ends up live with no working admin access and no idea why. */
+    if (KEY_IS_DEFAULT) {
+      console.log('==============================================================');
+      console.log(' ADMIN_KEY IS NOT SET.');
+      console.log(' The admin API is refusing every request on purpose, because a');
+      console.log(' key that ships in the source code is not a key.');
+      console.log(' Fix: Render -> your service -> Environment -> add');
+      console.log('   ADMIN_KEY = <a long random phrase only you know>');
+      console.log(' then Manual Deploy. Customers are unaffected by this.');
+      console.log('==============================================================');
+    } else {
+      console.log('Admin API: protected by ADMIN_KEY (set).');
+    }
   }));
