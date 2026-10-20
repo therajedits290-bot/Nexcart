@@ -6,7 +6,7 @@
   "scope": "/Nexcart/",
   "id": "/Nexcart/",
   "display": "standalone",
-  "theme_color": "#2874F0",
+  "theme_color": "#FF3F6C",
   "background_color": "#FFFFFF",
   "icons": [
     { "sizes": "192x192", "src": "icon-192.png", "type": "image/png", "purpose": "any" },
