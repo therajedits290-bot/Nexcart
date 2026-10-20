@@ -2187,7 +2187,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v60-20oct';</script>
+const APP_BUILD = 'v61-20oct';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -2206,13 +2206,8 @@ const APP_BUILD = 'v60-20oct';</script>
   <!-- Top bar (storefront) -->
   <!-- Top bar: location + search + actions (Myntra-class) -->
   <header class="topbar" id="topbar">
-    <div class="fk-services" id="fkServices"></div>
-    <div class="fk-locrow">
-      <button class="fk-loc" id="fkLocBtn" type="button" aria-label="Delivery address">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.6"/></svg>
-        <span class="fk-loc-t"><b>Deliver to</b> <span id="fkLocText">Add your delivery address</span></span>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><path d="M6 9l6 6 6-6"/></svg>
-      </button>
+    <div class="fk-toprow">
+      <div class="fk-brand" id="fkBrand" role="button" aria-label="Home"><img class="fk-brand-logo" id="fkBrandLogo" src="" alt=""><span class="fk-brand-name" id="fkBrandName">Nexcart</span></div>
       <div class="hdr-icons">
         <button class="hdr-ic" id="wishlistTopBtn" aria-label="Wishlist" type="button"></button>
         <button class="hdr-ic" id="cartTopBtn" aria-label="Cart" type="button"><span class="hdr-badge" id="cartTopBadge" style="display:none">0</span></button>
@@ -2247,10 +2242,10 @@ const APP_BUILD = 'v60-20oct';</script>
   <!-- Bottom nav -->
   <nav class="bottom-nav" id="bottomNav">
     <button class="nav-item active" data-page="home"><span class="nav-icon" id="navIconHome"></span><span class="nav-label">Home</span></button>
-    <button class="nav-item" data-page="play"><span class="nav-icon" id="navIconPlay"></span><span class="nav-label">Play</span></button>
     <button class="nav-item" data-page="categories"><span class="nav-icon" id="navIconCategories"></span><span class="nav-label">Categories</span></button>
-    <button class="nav-item" data-page="profile"><span class="nav-icon" id="navIconProfile"></span><span class="nav-label">Account</span></button>
     <button class="nav-item" data-page="cart"><span class="nav-icon" id="navIconCart"></span><span class="nav-badge" id="cartBadge" style="display:none;">0</span><span class="nav-label">Cart</span></button>
+    <button class="nav-item" data-page="orders"><span class="nav-icon" id="navIconOrders"></span><span class="nav-label">My Orders</span></button>
+    <button class="nav-item" data-page="profile"><span class="nav-icon" id="navIconProfile"></span><span class="nav-label">Account</span></button>
   </nav>
 </div>
 
@@ -3119,7 +3114,7 @@ function reviewSheet(order, onDone){
 // THEME (light / dark)
 // ============================================================
 function applyTheme(){
-  const t = (DB.settings && DB.settings.theme) || 'light';
+  const t = 'light';
   document.documentElement.setAttribute('data-theme', t);
   const meta = document.querySelector('meta[name="theme-color"]');
   if(meta) meta.setAttribute('content', t === 'dark' ? '#101014' : '#2874F0');
@@ -3837,52 +3832,12 @@ function renderCategoriesPage(main){
         });
       }
 
-      if(prods.length){
-        const h = document.createElement('div');
-        h.className = 'catpage-h';
-        h.textContent = (cat ? cat.name : 'Products') + ' \u00B7 ' + prods.length + (prods.length === 1 ? ' item' : ' items');
-        panel.appendChild(h);
-
-        const g = document.createElement('div');
-        g.className = 'catpage-grid';
-        prods.slice(0, 30).forEach(p=>{
-          g.appendChild(tile(p.name, p.img, '', 'box', ()=> openProductDetail(p.id)));
-        });
-        panel.appendChild(g);
-      } else if(!subs.length){
-        /* A category with nothing in it and no sub-categories still needs to
-           say so, or the panel would look broken. But when there ARE
-           sub-categories to browse, the "nothing here yet" line is just noise
-           sitting under them, so it is not shown (owner's request). */
-        const h = document.createElement('div');
-        h.className = 'catpage-h';
-        h.textContent = cat ? cat.name : 'Products';
-        panel.appendChild(h);
-        const n = document.createElement('p');
-        n.className = 'catpage-note';
-        n.textContent = 'Nothing in this category yet.';
-        panel.appendChild(n);
-      }
-
-      const others = cats.filter(c=> c.id !== active);
-      if(others.length){
-        const h2 = document.createElement('div');
-        h2.className = 'catpage-h';
-        h2.textContent = 'More categories';
-        panel.appendChild(h2);
-
-        const g2 = document.createElement('div');
-        g2.className = 'catpage-grid';
-        others.forEach(c=>{
-          g2.appendChild(tile(c.name, catImg(c), c.emoji, c.icon, ()=>{
-            active = c.id;
-            side.scrollTop = 0;
-            paintSide();
-            paintPanel();
-          }));
-        });
-        panel.appendChild(g2);
-      }
+      /* categories only - products open from the sub-category / "view all" tap */
+      const allBtn = document.createElement('button');
+      allBtn.type = 'button'; allBtn.className = 'fk-cat-all';
+      allBtn.innerHTML = '<span>View all in ' + (cat ? cat.name : 'this category') + '</span><span>\u203A</span>';
+      allBtn.addEventListener('click', ()=> openCategoryProducts(active));
+      panel.insertBefore(allBtn, panel.firstChild);
     }
 
     paintSide();
@@ -13318,7 +13273,7 @@ html.fk.fk.fk[data-theme="dark"] body .section-title, html.fk.fk.fk[data-theme="
 html.fk.fk.fk[data-theme="dark"] body .qty-stepper button, html.fk.fk.fk[data-theme="dark"] body .qty-stepper span{background:var(--fk-card) !important; color:var(--fk-ink) !important;}
 
 /* NEXCART Home v2 — light-blue header, service tabs, icon strip, hero carousel, sale bar, tiles, Play, splash */
-html.fk.fk.fk body .topbar{background:linear-gradient(180deg,#BFD9FF 0%,#DCEAFF 55%,#F2F7FF 100%) !important; box-shadow:none !important; border-bottom:0 !important; top:-112px !important; padding:0 !important;}
+html.fk.fk.fk body .topbar{background:linear-gradient(180deg,#BFD9FF 0%,#DCEAFF 55%,#F2F7FF 100%) !important; box-shadow:none !important; border-bottom:0 !important; top:0 !important; padding:0 !important;}
 html.fk.fk.fk[data-theme="dark"] body .topbar{background:linear-gradient(180deg,#14243F 0%,#162033 60%,#12151C 100%) !important;}
 html.fk.fk.fk body .fk-services{display:flex !important; justify-content:space-around !important; align-items:flex-start !important; height:76px !important; padding:10px 6px 0 !important; gap:2px !important;}
 html.fk.fk.fk body .fk-svc{flex:1 !important; min-width:0 !important; max-width:92px !important; display:flex !important; flex-direction:column !important; align-items:center !important; gap:3px !important; background:none !important; border:0 !important; padding:0 !important; color:#1C1C1C !important; font-family:'Roboto',sans-serif !important; cursor:pointer !important; position:relative !important; -webkit-tap-highlight-color:transparent !important;}
@@ -13466,6 +13421,44 @@ html.fk.fk.fk body .splash-foot{position:absolute !important; bottom:28px !impor
 html.fk.fk.fk body .fk-sync-dot{position:fixed !important; left:10px !important; bottom:calc(var(--fk-nav,56px) + 10px) !important; z-index:80 !important; background:#1C1C1C !important; color:#fff !important; font-size:11px !important; padding:5px 10px !important; border-radius:14px !important; opacity:0 !important; transition:opacity .3s !important; pointer-events:none !important;}
 html.fk.fk.fk body .fk-sync-dot.show{opacity:.92 !important;}
 @media (prefers-reduced-motion: reduce){html.fk.fk.fk body .fk-bn-i, html.fk.fk.fk body .splash::before, html.fk.fk.fk body .splash::after, html.fk.fk.fk body .fk-sale::after{animation:none !important;}}
+html.fk.fk.fk body .fk-toprow{display:flex !important; align-items:center !important; padding:8px 6px 8px 14px !important; gap:6px !important;}
+html.fk.fk.fk body .fk-brand{order:0 !important; flex:1 !important; min-width:0 !important; display:flex !important; flex-direction:row !important; align-items:center !important; gap:9px !important; cursor:pointer !important;}
+html.fk.fk.fk body .fk-brand-logo{width:32px !important; height:32px !important; border-radius:9px !important; background:#fff !important; object-fit:contain !important; box-shadow:0 1px 4px rgba(40,116,240,.25) !important; flex:none !important;}
+html.fk.fk.fk body .fk-brand-name{color:#1B4FBF !important; font-size:21px !important; font-weight:800 !important; font-style:italic !important; letter-spacing:-.4px !important; font-family:'Roboto',sans-serif !important; white-space:nowrap !important; overflow:hidden !important; text-overflow:ellipsis !important;}
+html.fk.fk.fk body .fk-tiles.sz-s{grid-template-columns:repeat(5,minmax(0,1fr)) !important; gap:6px !important;}
+html.fk.fk.fk body .fk-tiles.sz-m{grid-template-columns:repeat(4,minmax(0,1fr)) !important; gap:8px !important;}
+html.fk.fk.fk body .fk-tiles.sz-l{grid-template-columns:repeat(3,minmax(0,1fr)) !important; gap:10px !important;}
+html.fk.fk.fk body .fk-tiles.sz-s .fk-t2-img{border-radius:12px !important;}
+html.fk.fk.fk body .fk-tiles.sz-s .fk-t2-l{font-size:10.5px !important;}
+html.fk.fk.fk body .catpage-grid{grid-template-columns:repeat(3,minmax(0,1fr)) !important; gap:4px !important;}
+html.fk.fk.fk body .cat-tile-lg{background:transparent !important; padding-bottom:6px !important; border-radius:10px !important;}
+html.fk.fk.fk body .cat-tile-lg img, html.fk.fk.fk body .cat-tile-lg .ctl-emoji, html.fk.fk.fk body .cat-tile-lg .ctl-icon{width:62px !important; height:62px !important; aspect-ratio:auto !important; margin:6px auto 0 !important; border-radius:50% !important; padding:0 !important; background:#EEF3FC !important; box-shadow:none !important; object-fit:cover !important;}
+html.fk.fk.fk body .cat-tile-lg span, html.fk.fk.fk body .cat-tile-round span{color:#1C1C1C !important; font-size:11.5px !important; font-weight:500 !important; margin-top:5px !important;}
+html.fk.fk.fk body .catpage-h::before, html.fk.fk.fk body .sub-group-h::before{background:#2874F0 !important;}
+html.fk.fk.fk body .fk-cat-all{display:flex !important; align-items:center !important; justify-content:space-between !important; width:100% !important; border:0 !important; background:#EAF2FF !important; color:#2874F0 !important; font-weight:700 !important; font-size:13px !important; padding:12px 14px !important; border-radius:12px !important; margin:2px 0 14px !important; cursor:pointer !important;}
+html.fk.fk.fk body .fk-acc{background:#F1F3F6 !important; min-height:100% !important;}
+html.fk.fk.fk body .fk-acc-hero{position:relative !important; background:linear-gradient(160deg,#1A56C8 0%,#2874F0 55%,#5B9BFF 100%) !important; color:#fff !important; padding:26px 20px 46px !important; overflow:hidden !important;}
+html.fk.fk.fk body .fk-acc-hero::before{content:'' !important; position:absolute !important; right:-50px !important; top:-60px !important; width:200px !important; height:200px !important; border-radius:50% !important; background:rgba(255,255,255,.10) !important;}
+html.fk.fk.fk body .fk-acc-wave{position:absolute !important; left:0 !important; right:0 !important; bottom:-1px !important; height:26px !important; background:#F1F3F6 !important; border-radius:26px 26px 0 0 !important;}
+html.fk.fk.fk body .fk-acc-ava{position:relative !important; width:64px !important; height:64px !important; border-radius:20px !important; background:#fff !important; color:#2874F0 !important; font-size:30px !important; font-weight:800 !important; display:flex !important; align-items:center !important; justify-content:center !important; box-shadow:0 6px 18px rgba(0,0,0,.2) !important; margin-bottom:12px !important;}
+html.fk.fk.fk body .fk-acc-hi{position:relative !important; font-size:13px !important; opacity:.85 !important;}
+html.fk.fk.fk body .fk-acc-name{position:relative !important; font-size:24px !important; font-weight:800 !important; line-height:1.15 !important; font-family:'Roboto',sans-serif !important;}
+html.fk.fk.fk body .fk-acc-sub{position:relative !important; font-size:12.5px !important; opacity:.9 !important; margin-top:3px !important; word-break:break-all !important;}
+html.fk.fk.fk body .fk-acc-edit{position:absolute !important; right:16px !important; top:24px !important; background:rgba(255,255,255,.2) !important; color:#fff !important; border:1px solid rgba(255,255,255,.5) !important; border-radius:20px !important; padding:6px 14px !important; font-size:12px !important; font-weight:700 !important;}
+html.fk.fk.fk body .fk-acc-body{padding:0 14px 20px !important; margin-top:-6px !important; position:relative !important;}
+html.fk.fk.fk body .fk-acc-h{font-size:11.5px !important; font-weight:800 !important; letter-spacing:.9px !important; text-transform:uppercase !important; color:#6B7280 !important; margin:16px 4px 8px !important;}
+html.fk.fk.fk body .fk-acc-card{background:#fff !important; border-radius:16px !important; overflow:hidden !important; box-shadow:0 1px 4px rgba(0,0,0,.06) !important;}
+html.fk.fk.fk body .fk-acc-row{display:flex !important; align-items:center !important; gap:12px !important; padding:12px 14px !important; border-top:1px solid #F0F1F4 !important; cursor:pointer !important;}
+html.fk.fk.fk body .fk-acc-row:first-child{border-top:0 !important;}
+html.fk.fk.fk body .fk-acc-row:active{background:#F5F8FF !important;}
+html.fk.fk.fk body .fk-acc-ic{width:38px !important; height:38px !important; border-radius:12px !important; display:flex !important; align-items:center !important; justify-content:center !important; flex:none !important;}
+html.fk.fk.fk body .fk-acc-ic .icon{width:20px !important; height:20px !important;}
+html.fk.fk.fk body .fk-acc-t{flex:1 !important; min-width:0 !important; display:flex !important; flex-direction:column !important;}
+html.fk.fk.fk body .fk-acc-t b{font-size:14.5px !important; font-weight:600 !important; color:#1C1C1C !important;}
+html.fk.fk.fk body .fk-acc-t i{font-style:normal !important; font-size:12px !important; color:#878787 !important; margin-top:1px !important;}
+html.fk.fk.fk body .fk-acc-row .chev{width:18px !important; height:18px !important; color:#B0B5BF !important;}
+html.fk.fk.fk body .fk-acc-logout{width:100% !important; margin-top:18px !important; border:1.5px solid #D93025 !important; color:#D93025 !important; background:#fff !important; border-radius:14px !important; padding:13px !important; font-size:14.5px !important; font-weight:700 !important; display:flex !important; align-items:center !important; justify-content:center !important; gap:8px !important;}
+html.fk.fk.fk body .fk-acc-logout .icon{width:19px !important; height:19px !important;}
 </style>
 <script id="nexcart-fk-js">
 /* ==========================================================================
@@ -13893,6 +13886,7 @@ html.fk.fk.fk body .fk-sync-dot.show{opacity:.92 !important;}
     home:  nv(ns('<path d="M3 11l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/>'), ns('<path d="M12 2.6L2 11.4h3V21h5.5v-6h3v6H19V11.4h3z"/>', true)),
     play:  nv(ns('<rect x="3" y="4" width="18" height="16" rx="4"/><path d="M10 9l5 3-5 3z"/>'), ns('<path d="M7 3.5h10A4.5 4.5 0 0 1 21.5 8v8a4.5 4.5 0 0 1-4.5 4.5H7A4.5 4.5 0 0 1 2.5 16V8A4.5 4.5 0 0 1 7 3.5zm3.4 5.3v6.4L15.8 12z" fill-rule="evenodd"/>', true)),
     grid:  nv(ns('<rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/>'), ns('<rect x="3.5" y="3.5" width="7.5" height="7.5" rx="2"/><rect x="13" y="3.5" width="7.5" height="7.5" rx="2"/><rect x="3.5" y="13" width="7.5" height="7.5" rx="2"/><rect x="13" y="13" width="7.5" height="7.5" rx="2"/>', true)),
+    box:   nv(ns('<path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3.3 7.6L12 12.5l8.7-4.9M12 12.5V21"/>'), ns('<path d="M12 2.4l8.8 4.9L12 12.2 3.2 7.3z"/><path d="M3 9.1l8 4.5V21.4l-8-4.5zM21 9.1v7.8l-8 4.5v-7.8z"/>', true)),
     user:  nv(ns('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.2 3.6-7 8-7s8 2.8 8 7"/>'), ns('<circle cx="12" cy="7.6" r="4.6"/><path d="M3 21.5c0-4.6 4-7.6 9-7.6s9 3 9 7.6z"/>', true)),
     cart:  nv(ns('<circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2.5 3.5h3l2.7 12.4a1.2 1.2 0 0 0 1.2.9h8.6a1.2 1.2 0 0 0 1.2-.9L21 7H6"/>'), ns('<path d="M2 3h3.2l.7 3H21.5l-2 8.4a2 2 0 0 1-2 1.6H9.4a2 2 0 0 1-2-1.6L5 5.2 4.4 5H2z"/><circle cx="9.5" cy="20" r="1.7"/><circle cx="17.5" cy="20" r="1.7"/>', true))
   };
@@ -14006,6 +14000,8 @@ html.fk.fk.fk body .fk-sync-dot.show{opacity:.92 !important;}
         };
       });
     }
+    var bl = document.getElementById('fkBrandLogo'); if (bl) { var ls = logoSrc(); if (bl.getAttribute('src') !== ls) bl.setAttribute('src', ls); }
+    var bn = document.getElementById('fkBrandName'); if (bn && bn.textContent !== brandName()) bn.textContent = brandName();
     var lt = document.getElementById('fkLocText'); if (lt) lt.textContent = locText();
     var lb = document.getElementById('fkLocBtn');
     if (lb) lb.onclick = function () {
@@ -14208,7 +14204,7 @@ html.fk.fk.fk body .fk-sync-dot.show{opacity:.92 !important;}
     var items = tileItems(catId); if (!items.length) return '';
     window.__fkTiles = items;
     var base = cfg().tileColor || '';
-    return '<div class="fk-tiles-wrap"><div class="fk-tiles' + (items.length > 5 ? ' two' : '') + '"' + (base ? ' style="--fk-base:' + esc(base) + '"' : '') + '>' + items.map(function (t, i) {
+    return '<div class="fk-tiles-wrap"><div class="fk-tiles sz-' + (cfg().tileSize || 's') + '"' + (base ? ' style="--fk-base:' + esc(base) + '"' : '') + '>' + items.map(function (t, i) {
       var pic = t.img ? '<img src="' + esc(media(t.img)) + '" alt="" loading="lazy" onerror="this.style.display=\'none\'">' : '';
       var txt = (!t.img && (t.text || t.label)) ? '<span class="fk-t2-txt">' + esc(t.text || t.label) + '</span>' : (t.text && t.img ? '<span class="fk-t2-over">' + esc(t.text) + '</span>' : '');
       return '<button type="button" class="fk-t2" data-i="' + i + '"><span class="fk-t2-img" ' + (t.bg ? 'style="background:' + esc(t.bg) + '"' : '') + '>' + pic + txt + '</span><span class="fk-t2-l">' + esc(t.label || '') + '</span></button>';
@@ -14316,83 +14312,83 @@ html.fk.fk.fk body .fk-sync-dot.show{opacity:.92 !important;}
         if (strip) { strip.innerHTML = stripHTML(); initStrip(); }
         renderBody();
         window.scrollTo(0, y);
-      } else if (currentTab === 'play') {
-        renderPlay(document.getElementById('mainContent'), true);
       } else if (typeof renderTab === 'function') renderTab(currentTab);
     } catch (e) { if (window.console) console.warn('fkRefresh', e); }
   };
 
-  /* ================================================================ PLAY */
-  var playObs = null;
-  function renderPlay(main, keep) {
-    var vids = (cfg().videos || []).filter(function (v) { return v.active !== false && v.video; });
-    if (!vids.length) {
-      main.innerHTML = '<div class="empty-state" style="min-height:60vh;display:flex;flex-direction:column;align-items:center;justify-content:center;">' +
-        '<div style="width:74px;height:74px;">' + CAT_ICONS.star + '</div><h3>Videos are coming soon</h3><p>Short product videos and offers will play here.</p></div>';
-      return;
-    }
-    main.innerHTML = '<div class="fk-play" id="fkPlay">' + vids.map(function (v, i) {
-      var p = v.productId ? (typeof getProduct === 'function' ? getProduct(v.productId) : null) : null;
-      return '<section class="fk-reel" data-i="' + i + '">' +
-        '<video src="' + esc(media(v.video)) + '" ' + (v.poster ? 'poster="' + esc(media(v.poster)) + '" ' : '') + 'loop muted playsinline webkit-playsinline preload="' + (i < 2 ? 'auto' : 'metadata') + '"></video>' +
-        '<div class="fk-reel-shade"></div>' +
-        '<div class="fk-reel-side"><button class="fk-r-btn" data-like="' + i + '" aria-label="Like"><svg viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-9.6-9.2C1 8.6 2.8 5 6.3 5c2 0 3.6 1.1 4.4 2.6h.6C12.1 6.1 13.7 5 15.7 5c3.5 0 5.3 3.6 3.9 6.8C19.5 16.4 12 21 12 21z"/></svg></button>' +
-        '<button class="fk-r-btn" data-share="' + i + '" aria-label="Share"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="M8.3 10.8l7.4-4.6M8.3 13.2l7.4 4.6"/></svg></button>' +
-        '<button class="fk-r-btn" data-mute="1" aria-label="Sound"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z"/><path class="snd" d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg></button></div>' +
-        '<div class="fk-reel-info"><div class="fk-reel-title">' + esc(v.title || '') + '</div>' +
-        (p ? '<button class="fk-reel-prod" data-pid="' + esc(p.id) + '"><img src="' + esc(p.img) + '" alt=""><span><b>' + esc(p.name) + '</b><i>' + money(p.price) + (p.mrp > p.price ? ' <s>' + money(p.mrp) + '</s>' : '') + '</i></span><em>Shop now</em></button>' : '') +
-        '</div></section>';
-    }).join('') + '</div>';
-    var feed = document.getElementById('fkPlay'), muted = true;
-    if (playObs) { try { playObs.disconnect(); } catch (e) {} }
-    playObs = new IntersectionObserver(function (es) {
-      es.forEach(function (e) {
-        var v = e.target.querySelector('video'); if (!v) return;
-        if (e.isIntersecting && e.intersectionRatio > 0.6) { v.muted = muted; var pr = v.play(); if (pr && pr.catch) pr.catch(function () {}); }
-        else { try { v.pause(); } catch (x) {} }
+
+  /* ============================================================ ACCOUNT PAGE */
+  function installProfile() {
+    var origProfile = window.renderProfilePage;
+    if (typeof origProfile !== 'function' || origProfile.__fk2) return;
+    var ACC = [
+      ['Shopping', [
+        ['orders', 'box', 'My Orders', 'Track, cancel or return', '#E3F0FF', '#2874F0'],
+        ['wishlist', 'heart', 'Wishlist', '', '#FFE8EE', '#E8335D'],
+        ['addresses', 'mapPin', 'Saved Addresses', '', '#E6F7EE', '#119C5B']]],
+      ['My account', [
+        ['edit-profile', 'edit', 'Edit Profile', 'Name, phone, email', '#FFF1DD', '#E67E00'],
+        ['install-app', 'download', 'Install App', 'Add to your home screen', '#EEE8FF', '#6B4DE0']]],
+      ['Help & legal', [
+        ['support', 'headset', 'Help & Support', '', '#E3F0FF', '#2874F0'],
+        ['privacy', 'shield', 'Privacy Policy', '', '#EEF1F5', '#4B5565'],
+        ['return-policy', 'refresh', 'Return & Refund Policy', '', '#EEF1F5', '#4B5565'],
+        ['terms', 'document', 'Terms & Conditions', '', '#EEF1F5', '#4B5565'],
+        ['delete-account', 'trash', 'Delete my account', '', '#FDECEC', '#D93025']]]
+    ];
+    var w = function (main) {
+      if (isGuest()) return origProfile.apply(this, arguments);
+      var u = DB.user || {};
+      var nOrd = (DB.orders || []).length, nWish = (DB.wishlist || []).length, nAddr = (u.addresses || []).length;
+      var hint = { orders: nOrd ? nOrd + ' order' + (nOrd === 1 ? '' : 's') + ' · track, cancel or return' : 'Track, cancel or return', wishlist: nWish + (nWish === 1 ? ' item' : ' items') + ' saved', addresses: nAddr + (nAddr === 1 ? ' address' : ' addresses') + ' saved' };
+      var first = String(u.name || 'Guest').trim();
+      main.innerHTML =
+        '<div class="fk-acc"><div class="fk-acc-hero"><div class="fk-acc-wave"></div>' +
+        '<div class="fk-acc-ava">' + esc(first.charAt(0).toUpperCase()) + '</div>' +
+        '<div class="fk-acc-hi">Hello,</div><div class="fk-acc-name">' + esc(first) + '</div>' +
+        '<div class="fk-acc-sub">' + esc(u.phone || '') + (u.email ? ' · ' + esc(u.email) : '') + '</div>' +
+        '<button type="button" class="fk-acc-edit" data-act="edit-profile">Edit profile</button></div>' +
+        '<div class="fk-acc-body">' + ACC.map(function (g) {
+          return '<div class="fk-acc-h">' + esc(g[0]) + '</div><div class="fk-acc-card">' + g[1].map(function (r) {
+            var sub = hint[r[0]] != null ? hint[r[0]] : r[3];
+            return '<div class="fk-acc-row" data-act="' + r[0] + '"' + (r[0] === 'install-app' ? ' id="installAppRow" style="display:none"' : '') + '><span class="fk-acc-ic" style="background:' + r[4] + ';color:' + r[5] + '">' + icon(r[1]) + '</span>' +
+              '<span class="fk-acc-t"><b>' + esc(r[2]) + '</b>' + (sub ? '<i>' + esc(sub) + '</i>' : '') + '</span>' + icon('chevronRight', 'chev') + '</div>';
+          }).join('') + '</div>';
+        }).join('') +
+        '<button type="button" class="fk-acc-logout" data-act="logout">' + icon('logout') + ' Log out</button>' +
+        '<div class="store-footer" id="adminTapZone"><div class="sf-brand" id="footAppName">' + esc(brandName()) + '</div><div class="sf-line">&copy; 2026 ' + esc(brandName()) + ' &middot; All rights reserved</div><div class="sf-ver">v61</div></div></div></div>';
+      try { updateInstallRow(); } catch (e) {}
+      $A('[data-act]', main).forEach(function (el) {
+        el.addEventListener('click', function () {
+          var act = el.dataset.act;
+          if (act === 'edit-profile') openEditProfile();
+          else if (act === 'addresses') openAddresses();
+          else if (act === 'install-app') promptInstallApp();
+          else if (act === 'wishlist') openWishlistPage();
+          else if (act === 'orders') { viewStack = []; switchTab('orders'); }
+          else if (act === 'privacy') openPolicyPage('privacy');
+          else if (act === 'return-policy') openPolicyPage('return');
+          else if (act === 'terms') openPolicyPage('terms');
+          else if (act === 'delete-account') openPolicyPage('delete');
+          else if (act === 'support') openSupportPage();
+          else if (act === 'logout') confirmAction('Log out?', 'You will need to enter your phone number again to log back in.', doLogout);
+        });
       });
-    }, { root: feed, threshold: [0, 0.6, 1] });
-    $A('.fk-reel', feed).forEach(function (r) { playObs.observe(r); });
-    feed.addEventListener('click', function (e) {
-      var b = e.target.closest('button');
-      if (!b) { var rv = e.target.closest('.fk-reel'); if (rv) { var vv = rv.querySelector('video'); if (vv) { if (vv.paused) vv.play(); else vv.pause(); } } return; }
-      if (b.dataset.pid) { openProductDetail(b.dataset.pid); return; }
-      if (b.dataset.like != null) { b.classList.toggle('on'); return; }
-      if (b.dataset.share != null) {
-        var v = vids[Number(b.dataset.share)];
-        try { navigator.share ? navigator.share({ title: v.title || brandName(), url: location.href }) : showToast('Link copied'); } catch (x) {}
-        return;
-      }
-      if (b.dataset.mute) { muted = !muted; $A('video', feed).forEach(function (x) { x.muted = muted; }); feed.classList.toggle('unmuted', !muted); }
-    });
+    };
+    w.__fk2 = true;
+    try { renderProfilePage = w; } catch (e) {}
+    window.renderProfilePage = w;
   }
-  window.fkRenderPlay = renderPlay;
+  installProfile();
 
   /* ================================================== NAV, TABS, HEADER HOOKS */
   function wireNav() {
-    if (typeof renderTab === 'function' && !renderTab.__fk2) {
-      var orig = renderTab;
-      var w = function (page) {
-        document.documentElement.classList.toggle('fkplay', page === 'play');
-        if (page === 'play') {
-          ++renderToken;
-          var main = document.getElementById('mainContent'); main.innerHTML = '';
-          renderPlay(main);
-          try { updateCartBadge(); } catch (e) {}
-          return;
-        }
-        return orig.apply(this, arguments);
-      };
-      w.__fk2 = true;
-      try { renderTab = w; } catch (e) {}
-      window.renderTab = w;
-    }
     if (typeof renderNavIcons === 'function' && !renderNavIcons.__fk2) {
       var ro = renderNavIcons;
       var rn = function () {
         try { ro.apply(this, arguments); } catch (e) {}
         var I = window.fkNavIcons;
-        [['navIconHome', 'home'], ['navIconPlay', 'play'], ['navIconCategories', 'grid'], ['navIconProfile', 'user'], ['navIconCart', 'cart']].forEach(function (p) {
+        [['navIconHome', 'home'], ['navIconCategories', 'grid'], ['navIconCart', 'cart'], ['navIconOrders', 'box'], ['navIconProfile', 'user']].forEach(function (p) {
           var el = document.getElementById(p[0]); if (el) el.innerHTML = I[p[1]];
         });
       };
@@ -14403,7 +14399,7 @@ html.fk.fk.fk body .fk-sync-dot.show{opacity:.92 !important;}
   wireNav();
   wrap('applyBranding', paintHeader);
   wrap('updateWishlistTopIcon', function () { paintHeader(); });
-  wrap('switchTab', function (p) { document.documentElement.classList.toggle('fkplay', p === 'play'); paintHeader(); });
+  wrap('switchTab', function (p) { paintHeader(); });
   wrap('popView', function () { paintHeader(); });
 
   /* in case the app already drew itself before this script ran */
@@ -14615,15 +14611,7 @@ html.fk.fk.fk body .fk-sync-dot.show{opacity:.92 !important;}
       field('Sale ends at', 'h2SaleEnd', tsToInput(sale.endsAt), '', 'datetime-local') +
       '<button class="btn btn-secondary btn-sm" id="h2SaleLink">Tap action: ' + E(linkLabel(sale.link)) + '</button> <button class="btn btn-primary btn-sm" id="h2SaleSave">Save countdown</button></div></div>' +
 
-      sec('Top service tabs', 'The little icon buttons above the search bar (up to 5). Leave empty for the default set.') +
-      svc.map(function (s, i) {
-        return '<div class="banner-row ' + (s.active === false ? 'banner-off' : '') + '"><div class="banner-thumb" style="width:44px;height:44px;background:#fff;">' + (s.img ? '<img src="' + E(ncDirectMediaUrl(s.img)) + '">' : (s.icon === 'logo' ? 'N' : (window.fkIcon ? window.fkIcon(s.icon) : ''))) + '</div>' +
-          '<div class="banner-row-info"><div class="banner-row-title">' + E(s.label === '__brand__' ? 'Shop name' : s.label) + '</div><div class="banner-row-sub">' + E(linkLabel(s.link)) + '</div></div>' +
-          '<button class="mini-switch ' + (s.active === false ? '' : 'on') + '" data-stoggle="' + i + '"></button><button class="icon-btn" data-sedit="' + i + '">' + icon('edit') + '</button><button class="icon-btn" data-sdel="' + i + '">' + icon('trash') + '</button></div>';
-      }).join('') +
-      '<div style="display:flex;gap:8px;margin-top:6px;"><button class="btn btn-secondary btn-sm" id="h2AddSvc"' + (svc.length >= 5 ? ' disabled' : '') + '>' + icon('plus') + ' Add tab</button>' + (svc.length ? '<button class="btn btn-secondary btn-sm" id="h2ResetSvc">Use default</button>' : '') + '</div>' +
-
-      sec('Picture tiles', 'The grid of pictures below the banner on the main Home tab. Leave empty to show your categories automatically.') +
+      sec('Picture tiles', 'The pictures below the banner on the main Home tab. Leave empty to show your categories automatically. Change their size under “Search bar & look”.') +
       tiles.map(function (t, i) {
         return '<div class="banner-row ' + (t.active === false ? 'banner-off' : '') + '"><div class="banner-thumb" style="width:50px;height:50px;">' + (t.img ? '<img src="' + E(ncDirectMediaUrl(t.img)) + '">' : '') + '</div>' +
           '<div class="banner-row-info"><div class="banner-row-title">' + E(t.label || '(no name)') + '</div><div class="banner-row-sub">' + E(linkLabel(t.link)) + '</div></div>' +
@@ -14632,14 +14620,12 @@ html.fk.fk.fk body .fk-sync-dot.show{opacity:.92 !important;}
       }).join('') +
       '<div style="display:flex;gap:8px;margin-top:6px;"><button class="btn btn-secondary btn-sm" id="h2AddTile">' + icon('plus') + ' Add tile</button>' + (tiles.length ? '<button class="btn btn-secondary btn-sm" id="h2ResetTiles">Use categories</button>' : '') + '</div>' +
 
-      sec('Play videos', 'Short vertical videos for the Play tab (swipe up like Reels). Link a product so customers can buy straight from the video.') +
-      vids.map(function (v, i) {
-        return '<div class="banner-row ' + (v.active === false ? 'banner-off' : '') + '"><div class="banner-thumb" style="width:50px;height:50px;background:#000;color:#fff;display:flex;align-items:center;justify-content:center;">▶</div>' +
-          '<div class="banner-row-info"><div class="banner-row-title">' + E(v.title || 'Video') + '</div><div class="banner-row-sub">' + (v.productId ? 'Product linked' : 'No product') + '</div></div>' +
-          '<button class="icon-btn" data-vup="' + i + '">↑</button><button class="icon-btn" data-vdn="' + i + '">↓</button>' +
-          '<button class="mini-switch ' + (v.active === false ? '' : 'on') + '" data-vtoggle="' + i + '"></button><button class="icon-btn" data-vedit="' + i + '">' + icon('edit') + '</button><button class="icon-btn" data-vdel="' + i + '">' + icon('trash') + '</button></div>';
+      sec('Category icons (row under the search bar)', 'Each category shows a small icon in the row under the search bar. Tap “Change” to upload your own picture; “Auto” goes back to the built-in icon. Names and photos of categories are edited in the Categories tab.') +
+      (DB.categories || []).map(function (c, i) {
+        return '<div class="banner-row"><div class="banner-thumb" style="width:46px;height:46px;background:#fff;">' + (c.tabIcon ? '<img src="' + E(ncDirectMediaUrl(c.tabIcon)) + '" style="object-fit:contain">' : '<span style="font-size:11px;color:var(--ink-faint)">Auto</span>') + '</div>' +
+          '<div class="banner-row-info"><div class="banner-row-title">' + E(c.name) + '</div><div class="banner-row-sub">' + (c.tabIcon ? 'Custom icon' : 'Automatic icon') + '</div></div>' +
+          '<button class="btn btn-secondary btn-sm" data-cichg="' + i + '">Change</button>' + (c.tabIcon ? '<button class="icon-btn" data-cireset="' + i + '">' + icon('close') + '</button>' : '') + '</div>';
       }).join('') +
-      '<button class="btn btn-secondary btn-sm" id="h2AddVid" style="margin-top:6px;">' + icon('plus') + ' Add video</button>' +
 
       sec('Home page sections', 'Switch parts of the Home page on or off.') +
       [['tiles', 'Picture tiles'], ['ticker', 'Scrolling announcement strip'], ['rails', 'Product rows (Suggested / Deals / Budget)'], ['offers', 'Offer cards'], ['deals', 'Top deals blocks']].map(function (r) {
@@ -14650,6 +14636,7 @@ html.fk.fk.fk body .fk-sync-dot.show{opacity:.92 !important;}
       '<div class="admin-list-item" style="flex-wrap:wrap;"><div style="width:100%;">' +
       field('Words that scroll inside the search bar (comma separated)', 'h2Words', (h.searchWords || []).join(', '), 'mobiles, shoes, watches') +
       field('Name of the first category tab', 'h2ForYou', h.forYouLabel || '', 'For You') +
+      '<div class="form-group"><label class="form-label">Size of the home picture tiles</label><select class="form-input" id="h2TileSize">' + [['s', 'Small (5 per row)'], ['m', 'Medium (4 per row)'], ['l', 'Large (3 per row)']].map(function (o) { return '<option value="' + o[0] + '" ' + ((h.tileSize || 's') === o[0] ? 'selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>' +
       field('Tile background colour (e.g. #E8F0FF)', 'h2TileColor', h.tileColor || '', '#E8F0FF') +
       '<button class="btn btn-primary btn-sm" id="h2LookSave">Save</button></div></div>' +
       '<div style="height:30px"></div>';
@@ -14715,6 +14702,18 @@ html.fk.fk.fk body .fk-sync-dot.show{opacity:.92 !important;}
     on('[data-vup]', function (el) { move(h.videos, Number(el.dataset.vup), -1); save(); again(); });
     on('[data-vdn]', function (el) { move(h.videos, Number(el.dataset.vdn), 1); save(); again(); });
 
+    /* category icons */
+    on('[data-cichg]', function (el) {
+      var c = DB.categories[Number(el.dataset.cichg)]; if (!c) return;
+      var inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*'; inp.style.display = 'none'; document.body.appendChild(inp);
+      inp.onchange = function () {
+        var f = inp.files[0]; inp.remove(); if (!f) return;
+        ncShrinkImage(f, 160, 30, /png|svg|webp|gif/i.test(f.type)).then(function (r) { c.tabIcon = r.dataUrl; save(); again(); showToast('Icon updated — live on all phones', 'checkCircle'); }).catch(function () { showToast('Could not use that picture', 'xCircle'); });
+      };
+      inp.click();
+    });
+    on('[data-cireset]', function (el) { var c = DB.categories[Number(el.dataset.cireset)]; if (c) { delete c.tabIcon; save(); again(); } });
+
     /* sections */
     QA('[id^="h2sec_"]', shell).forEach(function (sw) {
       sw.onclick = function () { h.sections = h.sections || {}; var k = sw.id.slice(6); h.sections[k] = !(h.sections[k] !== false); sw.classList.toggle('on', h.sections[k] !== false); save(); };
@@ -14722,6 +14721,7 @@ html.fk.fk.fk body .fk-sync-dot.show{opacity:.92 !important;}
     on('#h2LookSave', function () {
       h.searchWords = Q('#h2Words', shell).value.split(',').map(function (x) { return x.trim(); }).filter(Boolean).slice(0, 8);
       h.forYouLabel = Q('#h2ForYou', shell).value.trim();
+      h.tileSize = Q('#h2TileSize', shell).value;
       var c = Q('#h2TileColor', shell).value.trim(); h.tileColor = /^#[0-9a-f]{3,8}$/i.test(c) ? c : '';
       if (save()) showToast('Saved — live on all phones', 'checkCircle');
     });
