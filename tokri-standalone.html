@@ -2187,7 +2187,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v67-20oct';</script>
+const APP_BUILD = 'v68-20oct';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -13616,6 +13616,12 @@ html.fk.fk.fk body .splash-loader span{display:block !important; width:9px !impo
 html.fk.fk.fk body .splash-loader span:nth-child(2){background:#FFE27A !important; animation-delay:.18s !important;}
 html.fk.fk.fk body .splash-loader span:nth-child(3){animation-delay:.36s !important;}
 @keyframes fkDot{0%,80%,100%{ transform:translateY(0) scale(.7); opacity:.5; } 40%{ transform:translateY(-9px) scale(1.1); opacity:1; }}
+html.fk.fk.fk body .fk-tiles.sz-s{--w:46px !important;}
+html.fk.fk.fk body .fk-tiles.sz-m{--w:54px !important;}
+html.fk.fk.fk body .fk-tiles.sz-l{--w:66px !important;}
+html.fk.fk.fk body .fk-tiles, html.fk.fk.fk body .fk-tiles.sz-s, html.fk.fk.fk body .fk-tiles.sz-m, html.fk.fk.fk body .fk-tiles.sz-l{gap:10px !important;}
+html.fk.fk.fk body .fk-t2{min-width:calc(var(--w,46px) + 14px) !important;}
+html.fk.fk.fk body .fk-t2-l{font-size:10px !important; max-width:66px !important;}
 </style>
 <script id="nexcart-fk-js">
 /* ==========================================================================
@@ -14392,7 +14398,7 @@ html.fk.fk.fk body .splash-loader span:nth-child(3){animation-delay:.36s !import
   function gridItems(catId) {
     if (catId === 'all') return allSubsFlat().slice(0, 30);
     var items = tileItems(catId);
-    return items.length > 6 && (items[0].link || {}).kind === 'sub' ? items.slice(6, 36) : [];
+    return [];
   }
   function gridHTML(catId) {
     var items = gridItems(catId); if (!items.length) return '';
@@ -14404,7 +14410,6 @@ html.fk.fk.fk body .splash-loader span:nth-child(3){animation-delay:.36s !import
   }
   function tilesHTML(catId) {
     var items = tileItems(catId); if (!items.length) return '';
-    if (catId !== 'all' && items.length > 6 && (items[0].link || {}).kind === 'sub') items = items.slice(0, 6);
     window.__fkTiles = items;
     var base = cfg().tileColor || '';
     return '<div class="fk-tiles-wrap"><div class="fk-tiles sz-' + (cfg().tileSize || 's') + '"' + (base ? ' style="--fk-base:' + esc(base) + '"' : '') + '>' + items.map(function (t, i) {
