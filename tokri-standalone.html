@@ -2187,7 +2187,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v68-20oct';</script>
+const APP_BUILD = 'v69-20oct';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -13622,6 +13622,16 @@ html.fk.fk.fk body .fk-tiles.sz-l{--w:66px !important;}
 html.fk.fk.fk body .fk-tiles, html.fk.fk.fk body .fk-tiles.sz-s, html.fk.fk.fk body .fk-tiles.sz-m, html.fk.fk.fk body .fk-tiles.sz-l{gap:10px !important;}
 html.fk.fk.fk body .fk-t2{min-width:calc(var(--w,46px) + 14px) !important;}
 html.fk.fk.fk body .fk-t2-l{font-size:10px !important; max-width:66px !important;}
+html.fk.fk.fk body #ncPushAsk{position:fixed !important; left:10px !important; right:10px !important; bottom:calc(66px + env(safe-area-inset-bottom,0px)) !important; z-index:900 !important; display:flex !important; align-items:center !important; gap:10px !important; background:#fff !important; border-radius:16px !important; padding:10px 12px !important; box-shadow:0 8px 28px rgba(60,20,60,.28) !important; border:1px solid #F3D9E6 !important; animation:ncpIn .4s ease both !important;}
+html.fk.fk.fk body #ncPushAsk .ncp-ic{width:38px !important; height:38px !important; border-radius:12px !important; background:#FFE8EF !important; color:#FF3F6C !important; display:flex !important; align-items:center !important; justify-content:center !important; flex:none !important;}
+html.fk.fk.fk body #ncPushAsk .ncp-ic svg{width:20px !important; height:20px !important;}
+html.fk.fk.fk body #ncPushAsk .ncp-t{flex:1 !important; min-width:0 !important; display:flex !important; flex-direction:column !important; line-height:1.25 !important;}
+html.fk.fk.fk body #ncPushAsk .ncp-t b{font-size:13px !important; color:#2A1730 !important;}
+html.fk.fk.fk body #ncPushAsk .ncp-t span{font-size:11px !important; color:#6B6578 !important;}
+html.fk.fk.fk body #ncPushAsk button{border:0 !important; border-radius:10px !important; font-size:12px !important; font-weight:700 !important; padding:9px 11px !important;}
+html.fk.fk.fk body #ncPushAsk .ncp-no{background:transparent !important; color:#6B6578 !important;}
+html.fk.fk.fk body #ncPushAsk .ncp-yes{background:#FF3F6C !important; color:#fff !important;}
+@keyframes ncpIn{from{ opacity:0; } to{ opacity:1; }}
 </style>
 <script id="nexcart-fk-js">
 /* ==========================================================================
@@ -15115,6 +15125,166 @@ html.fk.fk.fk body .fk-t2-l{font-size:10px !important; max-width:66px !important
       while (n--) u8[n] = bin.charCodeAt(n);
       return new File([u8], 'splash.' + (mime.split('/')[1] || 'jpg'), { type: mime });
     }
+  })();
+})();
+
+/* ==========================================================================
+   NEXCART notifications (pairs with server.js v1.4.0 + sw.js push handler)
+   Customer side: soft "turn on" prompt, Account > Notifications switch.
+   Owner side:    Admin > Notify tab (send an offer to every phone) + alerts for new orders.
+   ========================================================================== */
+(function () {
+  'use strict';
+  function Q(s, r) { return (r || document).querySelector(s); }
+  function E(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function base() { try { return (window.ncBases && window.ncBases()) || ''; } catch (e) { return ''; } }
+  function akey() { try { return (window.ncGetKey && window.ncGetKey()) || ''; } catch (e) { return ''; } }
+  function token() { try { return localStorage.getItem('nc_token') || ''; } catch (e) { return ''; } }
+  function toast(m, i) { try { showToast(m, i || 'checkCircle'); } catch (e) {} }
+  function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) {} return null; }
+  var supported = ('serviceWorker' in navigator) && ('PushManager' in window) && ('Notification' in window);
+
+  function api(path, method, body, admin) {
+    var h = { 'Content-Type': 'application/json' };
+    if (token()) h.Authorization = 'Bearer ' + token();
+    if (admin) h['x-admin-key'] = akey();
+    return fetch(base() + path, { method: method || 'GET', headers: h, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status)); return d; }); });
+  }
+  function regReady() {
+    return navigator.serviceWorker.getRegistration().then(function (r) { return r || navigator.serviceWorker.register('sw.js'); }).then(function () { return navigator.serviceWorker.ready; });
+  }
+  function u8(b64) { var p = '='.repeat((4 - b64.length % 4) % 4), s = atob((b64 + p).replace(/-/g, '+').replace(/_/g, '/')), o = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) o[i] = s.charCodeAt(i); return o; }
+
+  function subscribe() {
+    return regReady().then(function (reg) {
+      return reg.pushManager.getSubscription().then(function (sub) {
+        if (sub) return sub;
+        return api('/api/push/key').then(function (k) { return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: u8(k.key) }); });
+      });
+    }).then(function (sub) { return api('/api/push/subscribe', 'POST', { subscription: sub.toJSON() }, !!akey()).then(function () { return sub; }); });
+  }
+  function enable() {
+    if (!supported) { toast('This browser does not support notifications', 'info'); return Promise.resolve(false); }
+    return Notification.requestPermission().then(function (p) {
+      if (p !== 'granted') { ls('nc_push_off', '1'); toast('Notifications are blocked. Allow them in your phone settings for this app.', 'info'); return false; }
+      ls('nc_push_off', '');
+      return subscribe().then(function () { toast('Notifications turned on', 'checkCircle'); return true; })
+        .catch(function (e) { toast('Could not turn on notifications: ' + e.message, 'info'); return false; });
+    });
+  }
+  function disable() {
+    return regReady().then(function (reg) { return reg.pushManager.getSubscription(); }).then(function (sub) {
+      ls('nc_push_off', '1');
+      if (!sub) return;
+      var ep = sub.endpoint;
+      return sub.unsubscribe().then(function () { return api('/api/push/unsubscribe', 'POST', { endpoint: ep }); });
+    }).then(function () { toast('Notifications turned off', 'checkCircle'); }).catch(function () {});
+  }
+  function isOn() { return supported && Notification.permission === 'granted' && ls('nc_push_off') !== '1'; }
+
+  window.ncNotif = {
+    supported: supported, isOn: isOn, enable: enable, disable: disable,
+    hint: function () { return !supported ? 'Not supported on this browser' : isOn() ? 'On · order updates & offers' : 'Off · tap to turn on'; },
+    toggle: function (done) { (isOn() ? disable() : enable()).then(function () { if (done) done(); }); }
+  };
+
+  /* soft prompt (shown once a week until the customer decides) */
+  function softPrompt() {
+    if (!supported || document.getElementById('ncPushAsk')) return;
+    if (Notification.permission !== 'default') return;
+    var last = Number(ls('nc_push_ask') || 0); if (last && Date.now() - last < 7 * 864e5) return;
+    var d = document.createElement('div'); d.id = 'ncPushAsk';
+    d.innerHTML = '<div class="ncp-ic">' + (typeof icon === 'function' ? icon('bell') : '') + '</div><div class="ncp-t"><b>Never miss an offer</b><span>Get order updates and new deals on your phone</span></div><button type="button" class="ncp-no">Not now</button><button type="button" class="ncp-yes">Turn on</button>';
+    document.body.appendChild(d);
+    Q('.ncp-no', d).onclick = function () { ls('nc_push_ask', String(Date.now())); d.remove(); };
+    Q('.ncp-yes', d).onclick = function () { ls('nc_push_ask', String(Date.now())); d.remove(); enable(); };
+  }
+  function boot() {
+    if (!supported || akey()) { if (akey() && supported && Notification.permission === 'granted') subscribe().catch(function () {}); return; }
+    if (Notification.permission === 'granted' && ls('nc_push_off') !== '1') subscribe().catch(function () {});
+    else setTimeout(softPrompt, 9000);
+  }
+  /* keep the subscription tied to the signed-in customer */
+  var lastTok = token();
+  setInterval(function () { var t = token(); if (t !== lastTok) { lastTok = t; if (isOn()) subscribe().catch(function () {}); } }, 4000);
+
+  /* open the right page when a notification is tapped */
+  function openTab(tab) { try { viewStack = []; switchTab(tab === 'profile' ? 'profile' : tab || 'home'); } catch (e) {} }
+  if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', function (e) { if (e.data && e.data.type === 'nc-open') openTab(e.data.tab); });
+  var hm = /^#(home|orders|categories|cart|profile)$/.exec(location.hash || ''); if (hm) setTimeout(function () { openTab(hm[1]); }, 3500);
+  setTimeout(boot, 2500);
+
+  /* ---------------- Account row ---------------- */
+  (function () {
+    var ro = window.renderProfilePage; if (typeof ro !== 'function') return;
+    var w = function (main) {
+      var r = ro.apply(this, arguments);
+      try {
+        var card = Q('.fk-acc-card', main); if (!card || Q('[data-act="notifications"]', main)) return r;
+        var rows = card.parentNode.querySelectorAll('.fk-acc-card'); var tgt = rows[1] || card;
+        var row = document.createElement('div'); row.className = 'fk-acc-row'; row.setAttribute('data-act', 'notifications');
+        row.innerHTML = '<span class="fk-acc-ic" style="background:#FFF1DD;color:#E67E00">' + icon('bell') + '</span><span class="fk-acc-t"><b>Notifications</b><i id="ncNotifHint">' + E(ncNotif.hint()) + '</i></span><button type="button" class="mini-switch ' + (isOn() ? 'on' : '') + '" id="ncNotifSw" aria-label="Notifications"></button>';
+        tgt.insertBefore(row, tgt.firstChild);
+        row.onclick = function () { ncNotif.toggle(function () { var s = Q('#ncNotifSw'), h = Q('#ncNotifHint'); if (s) s.classList.toggle('on', isOn()); if (h) h.textContent = ncNotif.hint(); }); };
+      } catch (e) {}
+      return r;
+    };
+    w.__nf = true; try { renderProfilePage = w; } catch (e) {} window.renderProfilePage = w;
+  })();
+
+  /* ---------------- Admin: Notify tab ---------------- */
+  function when(ms) { var d = new Date(ms); return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }); }
+  function renderNotify(shell) {
+    var body = '<div class="section" style="padding:12px 16px 0;"><div class="section-head"><span class="section-title">Send a notification</span></div>' +
+      '<div class="section-sub" style="margin-bottom:8px;">It arrives on every customer phone that turned notifications on, even when the app is closed.</div></div>' +
+      '<div class="admin-list-item" style="flex-wrap:wrap;"><div style="width:100%;">' +
+      '<div class="form-group"><label class="form-label">Title</label><input class="form-input" id="ntTitle" maxlength="80" placeholder="Big Savings Days are live!"></div>' +
+      '<div class="form-group"><label class="form-label">Message</label><textarea class="form-input" id="ntBody" rows="3" maxlength="240" placeholder="Up to 70% off on fashion & electronics. Tap to shop."></textarea></div>' +
+      '<div class="form-group"><label class="form-label">Opens</label><select class="form-input" id="ntTab"><option value="home">Home</option><option value="categories">Categories</option><option value="orders">My Orders</option><option value="cart">Cart</option></select></div>' +
+      '<div class="form-group"><label class="form-label">Send to</label><select class="form-input" id="ntAud"><option value="all">All customers</option><option value="admins">Only me (test)</option></select></div>' +
+      '<button class="btn btn-primary btn-block" id="ntSend">Send now</button>' +
+      '<div id="ntStat" style="font-size:12px;color:var(--ink-faint);margin-top:8px;">Loading…</div></div></div>' +
+      '<div class="section" style="padding:12px 16px 0;"><div class="section-head"><span class="section-title">Alerts for you</span></div></div>' +
+      '<div class="admin-list-item"><div class="ali-info"><div class="ali-title">Get a notification on this phone for every new order</div><div class="ali-sub" id="ntMine">' + (isOn() ? 'On for this phone' : 'Off for this phone') + '</div></div><button class="mini-switch ' + (isOn() ? 'on' : '') + '" id="ntMineSw"></button></div>' +
+      '<div class="section" style="padding:12px 16px 0;"><div class="section-head"><span class="section-title">Recently sent</span></div></div><div id="ntHist"></div><div style="height:30px"></div>';
+    shell.innerHTML = adminShellHTML('notify', 'Notifications', body, false);
+    bindAdminNav();
+    var stat = Q('#ntStat', shell), hist = Q('#ntHist', shell);
+    function load() {
+      api('/api/admin/notify', 'GET', null, true).then(function (d) {
+        stat.textContent = d.subscribers + ' phone' + (d.subscribers === 1 ? '' : 's') + ' will receive notifications.';
+        hist.innerHTML = (d.history || []).map(function (h) { return '<div class="admin-list-item"><div class="ali-info"><div class="ali-title">' + E(h.title) + '</div><div class="ali-sub">' + E(h.body) + '</div><div class="ali-sub">' + when(h.at) + ' · delivered to ' + h.sent + (h.failed ? ' · ' + h.failed + ' failed' : '') + '</div></div></div>'; }).join('') || '<div class="section-sub" style="padding:0 16px;">Nothing sent yet.</div>';
+      }).catch(function (e) { stat.textContent = 'Could not load: ' + e.message; });
+    }
+    load();
+    Q('#ntSend', shell).onclick = function () {
+      var t = Q('#ntTitle', shell).value.trim(); if (!t) { toast('Add a title', 'info'); return; }
+      var btn = this; btn.disabled = true; btn.textContent = 'Sending…';
+      api('/api/admin/notify', 'POST', { title: t, body: Q('#ntBody', shell).value.trim(), tab: Q('#ntTab', shell).value, audience: Q('#ntAud', shell).value }, true)
+        .then(function (r) { toast('Sent to ' + r.sent + ' phone' + (r.sent === 1 ? '' : 's'), 'checkCircle'); Q('#ntTitle', shell).value = ''; Q('#ntBody', shell).value = ''; load(); })
+        .catch(function (e) { toast(e.message, 'info'); })
+        .then(function () { btn.disabled = false; btn.textContent = 'Send now'; });
+    };
+    Q('#ntMineSw', shell).onclick = function () {
+      var sw = this; (isOn() ? disable() : enable()).then(function () { sw.classList.toggle('on', isOn()); Q('#ntMine', shell).textContent = isOn() ? 'On for this phone' : 'Off for this phone'; });
+    };
+  }
+  (function () {
+    var shellOrig = window.adminShellHTML, tabOrig = window.renderAdminTab;
+    if (typeof shellOrig !== 'function' || typeof tabOrig !== 'function') return;
+    window.adminShellHTML = adminShellHTML = function (active) {
+      var html = shellOrig.apply(this, arguments);
+      if (html.indexOf('data-admin-page="notify"') < 0) {
+        var item = '<button class="nav-item ' + (active === 'notify' ? 'active' : '') + '" data-admin-page="notify"><span class="nav-icon">' + ICONS.bell + '</span><span class="nav-label">Notify</span></button>';
+        html = html.replace(/(<button class="nav-item[^"]*" data-admin-page="offers")/, item + '$1');
+      }
+      return html;
+    };
+    window.renderAdminTab = renderAdminTab = function (tab) {
+      if (tab === 'notify') { adminCurrentTab = 'notify'; renderNotify(document.getElementById('adminShell')); window.scrollTo(0, 0); return; }
+      return tabOrig.apply(this, arguments);
+    };
   })();
 })();
 

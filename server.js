@@ -32,6 +32,8 @@
 //    the database connection can be verified with one tap.
 // ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
+// v1.4.0 — WEB PUSH NOTIFICATIONS (offers from admin, order updates, new-order alerts)
+// ---------------------------------------------------------------------------
 // v1.3.0 — LIVE SYNC + MEDIA
 //   * db.rev goes up on every admin push. GET /api/version is a tiny check and
 //     GET /api/stream is a Server-Sent-Events feed that tells every open app
@@ -47,6 +49,109 @@ const zlib = require('zlib');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+
+
+/* ===========================================================================
+   WEB PUSH  (v1.4.0) — notifications that reach a customer's phone even when
+   the app is closed. Built on Node's own crypto: no extra package to install.
+   VAPID keys are generated once and kept in the database (or taken from the
+   VAPID_PUBLIC / VAPID_PRIVATE env vars if you prefer to set them yourself).
+   =========================================================================== */
+const https = require('https');
+const b64u = (buf) => Buffer.from(buf).toString('base64url');
+const unb64u = (str) => Buffer.from(String(str || ''), 'base64url');
+
+function pushKeys() {
+  db.vapid = db.vapid || null;
+  if (process.env.VAPID_PRIVATE && process.env.VAPID_PUBLIC) {
+    return { pub: process.env.VAPID_PUBLIC.trim(), priv: process.env.VAPID_PRIVATE.trim() };
+  }
+  if (!db.vapid || !db.vapid.pub || !db.vapid.priv) {
+    const kp = crypto.generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
+    const j = kp.privateKey.export({ format: 'jwk' });
+    db.vapid = { pub: b64u(Buffer.concat([Buffer.from([4]), unb64u(j.x), unb64u(j.y)])), priv: j.d };
+    save();
+  }
+  return db.vapid;
+}
+function vapidJwt(audience) {
+  const k = pushKeys();
+  const pubBuf = unb64u(k.pub);
+  const keyObj = crypto.createPrivateKey({
+    key: { kty: 'EC', crv: 'P-256', d: k.priv, x: b64u(pubBuf.subarray(1, 33)), y: b64u(pubBuf.subarray(33, 65)) },
+    format: 'jwk'
+  });
+  const head = b64u(JSON.stringify({ typ: 'JWT', alg: 'ES256' }));
+  const body = b64u(JSON.stringify({ aud: audience, exp: Math.floor(Date.now() / 1000) + 12 * 3600,
+                                     sub: 'mailto:' + (process.env.VAPID_SUBJECT || 'admin@nexcart.app') }));
+  const sig = crypto.sign('sha256', Buffer.from(head + '.' + body), { key: keyObj, dsaEncoding: 'ieee-p1363' });
+  return head + '.' + body + '.' + b64u(sig);
+}
+/* RFC 8291 "aes128gcm" encryption of the payload for one subscriber */
+function pushEncrypt(sub, payload) {
+  const uaPub = unb64u(sub.keys && sub.keys.p256dh), auth = unb64u(sub.keys && sub.keys.auth);
+  const ecdh = crypto.createECDH('prime256v1'); ecdh.generateKeys();
+  const asPub = ecdh.getPublicKey();
+  const secret = ecdh.computeSecret(uaPub);
+  const hk = (ikm, salt, info, n) => Buffer.from(crypto.hkdfSync('sha256', ikm, salt, info, n));
+  const ikm = hk(secret, auth, Buffer.concat([Buffer.from('WebPush: info\0'), uaPub, asPub]), 32);
+  const salt = crypto.randomBytes(16);
+  const cek = hk(ikm, salt, Buffer.from('Content-Encoding: aes128gcm\0'), 16);
+  const nonce = hk(ikm, salt, Buffer.from('Content-Encoding: nonce\0'), 12);
+  const c = crypto.createCipheriv('aes-128-gcm', cek, nonce);
+  const ct = Buffer.concat([c.update(Buffer.concat([Buffer.from(payload), Buffer.from([2])])), c.final(), c.getAuthTag()]);
+  const rs = Buffer.alloc(4); rs.writeUInt32BE(4096);
+  return Buffer.concat([salt, rs, Buffer.from([asPub.length]), asPub, ct]);
+}
+/* resolves {ok, gone} — gone=true means the phone unsubscribed, drop it */
+function pushOne(sub, payloadObj) {
+  return new Promise((resolve) => {
+    let u;
+    try { u = new URL(sub.endpoint); } catch (e) { return resolve({ ok: false, gone: true }); }
+    if (u.protocol !== 'https:') return resolve({ ok: false, gone: true });
+    let body;
+    try { body = pushEncrypt(sub, JSON.stringify(payloadObj)); } catch (e) { return resolve({ ok: false, gone: true }); }
+    let jwt; try { jwt = vapidJwt(u.origin); } catch (e) { return resolve({ ok: false, gone: false }); }
+    const r = https.request({
+      method: 'POST', hostname: u.hostname, port: u.port || 443, path: u.pathname + u.search, timeout: 15000,
+      headers: {
+        'Content-Encoding': 'aes128gcm', 'Content-Type': 'application/octet-stream', 'Content-Length': body.length,
+        TTL: '86400', Urgency: 'high',
+        Authorization: 'vapid t=' + jwt + ', k=' + pushKeys().pub
+      }
+    }, (resp) => {
+      resp.resume();
+      resp.on('end', () => resolve({ ok: resp.statusCode >= 200 && resp.statusCode < 300,
+                                      gone: resp.statusCode === 404 || resp.statusCode === 410 }));
+    });
+    r.on('timeout', () => { r.destroy(); resolve({ ok: false, gone: false }); });
+    r.on('error', () => resolve({ ok: false, gone: false }));
+    r.end(body);
+  });
+}
+async function pushTo(subs, payloadObj) {
+  let sent = 0, failed = 0; const dead = new Set();
+  for (let i = 0; i < subs.length; i += 20) {
+    const res = await Promise.all(subs.slice(i, i + 20).map((s) => pushOne(s, payloadObj)));
+    res.forEach((r, k) => { if (r.ok) sent++; else { failed++; if (r.gone) dead.add(subs[i + k].endpoint); } });
+  }
+  if (dead.size) { db.pushSubs = (db.pushSubs || []).filter((s) => !dead.has(s.endpoint)); save(); }
+  return { sent, failed };
+}
+function pushNotify(filter, payloadObj) {
+  const subs = (db.pushSubs || []).filter(filter);
+  if (!subs.length) return Promise.resolve({ sent: 0, failed: 0 });
+  return pushTo(subs, payloadObj).catch(() => ({ sent: 0, failed: 0 }));
+}
+const ORDER_MSG = {
+  'Placed': ['Order placed', 'We have received your order. Thank you for shopping with us!'],
+  'Confirmed': ['Order confirmed', 'Your order is confirmed and is being prepared.'],
+  'Packed': ['Order packed', 'Your order is packed and ready to ship.'],
+  'Shipped': ['Order shipped', 'Your order is on its way.'],
+  'Out for Delivery': ['Out for delivery', 'Your order will reach you today.'],
+  'Delivered': ['Order delivered', 'Your order has been delivered. Enjoy!'],
+  'Cancelled': ['Order cancelled', 'Your order has been cancelled.']
+};
 
 const PORT = process.env.PORT || 3000;
 const KEY = process.env.ADMIN_KEY || 'changeme';
@@ -487,6 +592,8 @@ async function init() {
   db.categories = db.categories || [];
   db.orders = db.orders || [];
   db.users = db.users || [];
+  db.pushSubs = db.pushSubs || [];
+  db.notifs = db.notifs || [];
   db.sessions = db.sessions || [];
   db.fails = db.fails || {};
   db.settings = db.settings || {};
@@ -803,6 +910,53 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { ok: true, rev: db.rev, products: db.products.length, storage: storage });
   }
 
+  /* ---------------- push notifications ---------------- */
+  if (p === '/api/push/key' && req.method === 'GET')
+    return send(res, 200, { key: pushKeys().pub });
+
+  if (p === '/api/push/subscribe' && req.method === 'POST') {
+    const b = await readBody(req);
+    const sub = b.subscription || {};
+    if (!sub.endpoint || !/^https:\/\//.test(String(sub.endpoint)) || !sub.keys || !sub.keys.p256dh || !sub.keys.auth)
+      return send(res, 400, { error: 'Invalid subscription' });
+    const user = userFromReq(req);
+    const rec = { endpoint: String(sub.endpoint).slice(0, 600), keys: { p256dh: String(sub.keys.p256dh), auth: String(sub.keys.auth) },
+                  userId: user ? user.id : '', admin: isAdmin(req), at: Date.now() };
+    db.pushSubs = db.pushSubs || [];
+    const i = db.pushSubs.findIndex((x) => x.endpoint === rec.endpoint);
+    if (i >= 0) { rec.userId = rec.userId || db.pushSubs[i].userId; rec.admin = rec.admin || db.pushSubs[i].admin; db.pushSubs[i] = rec; }
+    else { if (db.pushSubs.length >= 50000) db.pushSubs.shift(); db.pushSubs.push(rec); }
+    save();
+    return send(res, 200, { ok: true });
+  }
+  if (p === '/api/push/unsubscribe' && req.method === 'POST') {
+    const b = await readBody(req);
+    const ep = String((b.subscription && b.subscription.endpoint) || b.endpoint || '');
+    db.pushSubs = (db.pushSubs || []).filter((x) => x.endpoint !== ep);
+    save();
+    return send(res, 200, { ok: true });
+  }
+  if (p === '/api/admin/notify' && req.method === 'GET') {
+    if (!isAdmin(req)) return send(res, 401, { error: 'unauthorised' });
+    const subs = db.pushSubs || [];
+    return send(res, 200, { subscribers: subs.length, customers: subs.filter((x) => !x.admin || x.userId).length,
+                            history: (db.notifs || []).slice(0, 20) });
+  }
+  if (p === '/api/admin/notify' && req.method === 'POST') {
+    if (!isAdmin(req)) return send(res, 401, { error: 'unauthorised' });
+    const b = await readBody(req);
+    const title = String(b.title || '').trim().slice(0, 80), text = String(b.body || '').trim().slice(0, 240);
+    if (!title) return send(res, 400, { error: 'Add a title' });
+    const payload = { title, body: text, tab: ['home', 'orders', 'categories', 'cart', 'profile'].includes(b.tab) ? b.tab : 'home',
+                      image: /^https?:\/\//.test(String(b.image || '')) ? String(b.image) : '', tag: 'offer-' + Date.now() };
+    const r = await pushNotify(b.audience === 'admins' ? (x) => x.admin : () => true, payload);
+    db.notifs = db.notifs || [];
+    db.notifs.unshift({ at: Date.now(), title, body: text, sent: r.sent, failed: r.failed });
+    db.notifs = db.notifs.slice(0, 50);
+    save();
+    return send(res, 200, { ok: true, sent: r.sent, failed: r.failed });
+  }
+
   /* ---------------- orders ---------------- */
 
   if (p === '/api/orders' && req.method === 'POST') {
@@ -851,6 +1005,7 @@ const server = http.createServer(async (req, res) => {
     };
     db.orders.unshift(order);
     save();
+    pushNotify((x) => x.admin, { title: 'New order ' + order.id, body: name + ' · ₹' + serverTotal + ' · ' + items.length + ' item' + (items.length === 1 ? '' : 's'), tab: 'orders', tag: 'neworder-' + order.id });
     return send(res, 201, { ok: true, order });
   }
 
@@ -953,6 +1108,7 @@ const server = http.createServer(async (req, res) => {
     if (!order) return send(res, 404, { error: 'Order not found' });
     /* The owner can move the parcel: status, city, courier and the timeline the
        customer sees when they track the order. */
+    const prevStatus = order.status;
     if (b.status) order.status = String(b.status).slice(0, 40);
     if (b.currentCity !== undefined) order.currentCity = String(b.currentCity).slice(0, 120);
     if (b.trackingId !== undefined) order.trackingId = String(b.trackingId).slice(0, 80);
@@ -961,6 +1117,11 @@ const server = http.createServer(async (req, res) => {
     if (Array.isArray(b.timeline) && b.timeline.length) order.timeline = b.timeline.slice(-30);
     order.updatedAt = Date.now();
     save();
+    if (order.status !== prevStatus && order.userId) {
+      const msg = ORDER_MSG[order.status] || ['Order update', 'Your order is now: ' + order.status];
+      pushNotify((x) => x.userId === order.userId && !x.admin,
+        { title: msg[0], body: msg[1] + ' (Order ' + (order.clientOrderId || order.id) + ')', tab: 'orders', tag: 'order-' + order.id });
+    }
     return send(res, 200, { ok: true, order });
   }
 
