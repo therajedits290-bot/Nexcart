@@ -2187,7 +2187,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v69-20oct';</script>
+const APP_BUILD = 'v70-20oct';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -15193,7 +15193,7 @@ html.fk.fk.fk body #ncPushAsk .ncp-yes{background:#FF3F6C !important; color:#fff
   function softPrompt() {
     if (!supported || document.getElementById('ncPushAsk')) return;
     if (Notification.permission !== 'default') return;
-    var last = Number(ls('nc_push_ask') || 0); if (last && Date.now() - last < 7 * 864e5) return;
+    var last = Number(ls('nc_push_ask') || 0); if (last && Date.now() - last < 2 * 864e5) return;
     var d = document.createElement('div'); d.id = 'ncPushAsk';
     d.innerHTML = '<div class="ncp-ic">' + (typeof icon === 'function' ? icon('bell') : '') + '</div><div class="ncp-t"><b>Never miss an offer</b><span>Get order updates and new deals on your phone</span></div><button type="button" class="ncp-no">Not now</button><button type="button" class="ncp-yes">Turn on</button>';
     document.body.appendChild(d);
@@ -15203,7 +15203,7 @@ html.fk.fk.fk body #ncPushAsk .ncp-yes{background:#FF3F6C !important; color:#fff
   function boot() {
     if (!supported || akey()) { if (akey() && supported && Notification.permission === 'granted') subscribe().catch(function () {}); return; }
     if (Notification.permission === 'granted' && ls('nc_push_off') !== '1') subscribe().catch(function () {});
-    else setTimeout(softPrompt, 9000);
+    else setTimeout(softPrompt, 5000);
   }
   /* keep the subscription tied to the signed-in customer */
   var lastTok = token();
@@ -15241,6 +15241,11 @@ html.fk.fk.fk body #ncPushAsk .ncp-yes{background:#FF3F6C !important; color:#fff
       '<div class="admin-list-item" style="flex-wrap:wrap;"><div style="width:100%;">' +
       '<div class="form-group"><label class="form-label">Title</label><input class="form-input" id="ntTitle" maxlength="80" placeholder="Big Savings Days are live!"></div>' +
       '<div class="form-group"><label class="form-label">Message</label><textarea class="form-input" id="ntBody" rows="3" maxlength="240" placeholder="Up to 70% off on fashion & electronics. Tap to shop."></textarea></div>' +
+      '<div class="form-group"><label class="form-label">Big picture (optional) — shows under the message like a poster</label>' +
+      '<div style="display:flex;gap:8px;align-items:center;"><button type="button" class="btn btn-secondary btn-sm" id="ntPick">Choose picture</button><button type="button" class="btn btn-secondary btn-sm" id="ntClear" style="display:none">Remove</button><span id="ntPickMsg" style="font-size:12px;color:var(--ink-faint)"></span></div>' +
+      '<input type="file" id="ntFile" accept="image/*" style="display:none"></div>' +
+      '<div class="form-group"><label class="form-label">Quick emoji for the title</label><div id="ntEmo" style="display:flex;gap:6px;flex-wrap:wrap;">' + ['🚨','🔥','🎉','🛍️','💥','⚡','🎁','⏰'].map(function (e) { return '<button type="button" class="btn btn-secondary btn-sm" data-emo="' + e + '" style="padding:6px 10px;">' + e + '</button>'; }).join('') + '</div></div>' +
+      '<div class="form-group"><label class="form-label">Preview</label><div id="ntPrev"></div></div>' +
       '<div class="form-group"><label class="form-label">Opens</label><select class="form-input" id="ntTab"><option value="home">Home</option><option value="categories">Categories</option><option value="orders">My Orders</option><option value="cart">Cart</option></select></div>' +
       '<div class="form-group"><label class="form-label">Send to</label><select class="form-input" id="ntAud"><option value="all">All customers</option><option value="admins">Only me (test)</option></select></div>' +
       '<button class="btn btn-primary btn-block" id="ntSend">Send now</button>' +
@@ -15258,11 +15263,32 @@ html.fk.fk.fk body #ncPushAsk .ncp-yes{background:#FF3F6C !important; color:#fff
       }).catch(function (e) { stat.textContent = 'Could not load: ' + e.message; });
     }
     load();
+    var imgUrl = '';
+    function prev() {
+      var t = Q('#ntTitle', shell).value.trim() || 'Your title appears here', m = Q('#ntBody', shell).value.trim() || 'Your message appears here';
+      var name = (DB.branding && DB.branding.name) || 'NEXCART';
+      Q('#ntPrev', shell).innerHTML = '<div style="background:#2d2d30;color:#fff;border-radius:16px;padding:12px;font-family:inherit;">' +
+        '<div style="display:flex;align-items:center;gap:8px;font-size:12px;opacity:.85;"><img src="icon-192.png" style="width:20px;height:20px;border-radius:5px" onerror="this.style.display=\'none\'"> ' + E(name) + ' · now</div>' +
+        '<div style="font-weight:700;font-size:14px;margin-top:6px;">' + E(t) + '</div><div style="font-size:13px;opacity:.9;margin-top:2px;">' + E(m) + '</div>' +
+        (imgUrl ? '<img src="' + E(imgUrl) + '" style="width:100%;border-radius:10px;margin-top:8px;display:block;">' : '') + '</div>';
+    }
+    prev();
+    ['#ntTitle', '#ntBody'].forEach(function (q) { Q(q, shell).addEventListener('input', prev); });
+    Array.prototype.forEach.call(shell.querySelectorAll('[data-emo]'), function (b) { b.onclick = function () { var el = Q('#ntTitle', shell); el.value = b.dataset.emo + ' ' + el.value.replace(/^[^\w\s]+\s*/, ''); prev(); }; });
+    Q('#ntPick', shell).onclick = function () { Q('#ntFile', shell).click(); };
+    Q('#ntClear', shell).onclick = function () { imgUrl = ''; this.style.display = 'none'; Q('#ntPickMsg', shell).textContent = ''; prev(); };
+    Q('#ntFile', shell).onchange = function () {
+      var f = this.files && this.files[0]; if (!f) return;
+      Q('#ntPickMsg', shell).textContent = 'Uploading…';
+      var go = (typeof ncShrinkImage === 'function') ? ncShrinkImage(f, 1024, 400).then(function (r) { var bs = atob(r.dataUrl.split(',')[1]), u = new Uint8Array(bs.length); for (var i = 0; i < bs.length; i++) u[i] = bs.charCodeAt(i); return NC2.uploadFile(new File([u], 'n.jpg', { type: 'image/jpeg' })); }) : NC2.uploadFile(f);
+      go.then(function (u) { imgUrl = /^https?:/.test(u) ? u : base() + u; Q('#ntPickMsg', shell).textContent = 'Added'; Q('#ntClear', shell).style.display = ''; prev(); })
+        .catch(function (e) { Q('#ntPickMsg', shell).textContent = ''; toast(e.message || 'Upload failed', 'info'); });
+    };
     Q('#ntSend', shell).onclick = function () {
       var t = Q('#ntTitle', shell).value.trim(); if (!t) { toast('Add a title', 'info'); return; }
       var btn = this; btn.disabled = true; btn.textContent = 'Sending…';
-      api('/api/admin/notify', 'POST', { title: t, body: Q('#ntBody', shell).value.trim(), tab: Q('#ntTab', shell).value, audience: Q('#ntAud', shell).value }, true)
-        .then(function (r) { toast('Sent to ' + r.sent + ' phone' + (r.sent === 1 ? '' : 's'), 'checkCircle'); Q('#ntTitle', shell).value = ''; Q('#ntBody', shell).value = ''; load(); })
+      api('/api/admin/notify', 'POST', { title: t, body: Q('#ntBody', shell).value.trim(), tab: Q('#ntTab', shell).value, image: imgUrl, audience: Q('#ntAud', shell).value }, true)
+        .then(function (r) { toast('Sent to ' + r.sent + ' phone' + (r.sent === 1 ? '' : 's'), 'checkCircle'); Q('#ntTitle', shell).value = ''; Q('#ntBody', shell).value = ''; imgUrl = ''; Q('#ntClear', shell).style.display = 'none'; Q('#ntPickMsg', shell).textContent = ''; prev(); load(); })
         .catch(function (e) { toast(e.message, 'info'); })
         .then(function () { btn.disabled = false; btn.textContent = 'Send now'; });
     };

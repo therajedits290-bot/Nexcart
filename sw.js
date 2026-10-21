@@ -1,4 +1,4 @@
-const CACHE = 'nexcart-v69-live';
+const CACHE = 'nexcart-v70-live';
 const ASSETS = [
   './',
   './tokri-standalone.html',
@@ -87,6 +87,7 @@ self.addEventListener('push', (event) => {
     image: d.image || undefined,
     tag: d.tag || undefined,
     renotify: !!d.tag,
+    vibrate: [120, 60, 120],
     data: { tab: d.tab || 'home' }
   }));
 });
