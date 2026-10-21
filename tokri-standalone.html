@@ -2187,7 +2187,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v65-20oct';</script>
+const APP_BUILD = 'v66-20oct';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -13593,6 +13593,16 @@ html.fk.fk.fk body .fk-tiles{gap:8px !important;}
 html.fk.fk.fk body .fk-sg.flow{display:grid !important; grid-template-columns:repeat(5,minmax(0,1fr)) !important; grid-auto-flow:row !important; grid-template-rows:none !important; grid-auto-columns:auto !important; overflow:visible !important; gap:12px 8px !important;}
 html.fk.fk.fk body .fk-sgi-img{background:#F3EFF8 !important;}
 html.fk.fk.fk body .fk-sgi-img::after{display:none !important;}
+html.fk.fk.fk body .fk-tiles.sz-s{--w:42px !important;}
+html.fk.fk.fk body .fk-tiles.sz-m{--w:50px !important;}
+html.fk.fk.fk body .fk-tiles.sz-l{--w:62px !important;}
+html.fk.fk.fk body .fk-tiles, html.fk.fk.fk body .fk-tiles.sz-s, html.fk.fk.fk body .fk-tiles.sz-m, html.fk.fk.fk body .fk-tiles.sz-l{align-items:flex-start !important; gap:14px !important;}
+html.fk.fk.fk body .fk-t2{width:auto !important; min-width:calc(var(--w,42px) + 14px) !important; justify-content:flex-start !important; gap:4px !important;}
+html.fk.fk.fk body .fk-t2-img{display:block !important; position:relative !important; width:var(--w,42px) !important; height:var(--w,42px) !important; aspect-ratio:auto !important; flex:none !important; margin:0 auto !important; border-radius:50% !important; overflow:visible !important;}
+html.fk.fk.fk body .fk-t2-img img{position:absolute !important; left:0 !important; top:0 !important; width:100% !important; height:100% !important; border:1.5px solid #fff !important; box-shadow:0 1px 4px rgba(120,60,120,.3) !important; border-radius:50% !important; object-fit:cover !important;}
+html.fk.fk.fk body .fk-t2-txt{position:absolute !important; left:0 !important; top:0 !important; width:100% !important; height:100% !important; font-size:15px !important;}
+html.fk.fk.fk body .fk-t2-l{font-size:10px !important; line-height:1.2 !important; margin:0 !important; max-width:64px !important; text-align:center !important; color:#5A5670 !important;}
+html.fk.fk.fk body .fk-tiles-wrap{padding:8px 0 6px !important;}
 </style>
 <script id="nexcart-fk-js">
 /* ==========================================================================
@@ -14698,10 +14708,10 @@ html.fk.fk.fk body .fk-sgi-img::after{display:none !important;}
 
   /* ================================================================ BANNERS */
   var PRES = (typeof BANNER_PRESETS !== 'undefined') ? BANNER_PRESETS : ['linear-gradient(135deg,#FF3F6C 0%,#FF8FAE 100%)'];
-  window.bannerForm = function (bid, onSaved) {
+  window.bannerForm = function (bid, onSaved, preCats) {
     var b = bid ? (DB.banners || []).filter(function (x) { return x.id === bid; })[0] : null;
-    var st = { type: b ? (b.type || (b.video ? 'video' : (b.img ? 'image' : 'color'))) : 'image', img: b ? (b.img || '') : '', video: b ? (b.video || '') : '', bg: b ? (b.bg || PRES[0]) : PRES[0], cats: b && Array.isArray(b.cats) ? b.cats.slice() : [] };
-    var catChips = (DB.categories || []).map(function (c) {
+    var st = { type: b ? (b.type || (b.video ? 'video' : (b.img ? 'image' : 'color'))) : 'image', img: b ? (b.img || '') : '', video: b ? (b.video || '') : '', bg: b ? (b.bg || PRES[0]) : PRES[0], cats: b && Array.isArray(b.cats) ? b.cats.slice() : (preCats && preCats[0] !== 'all' ? preCats.slice() : (preCats ? ['all'] : [])) };
+    var catChips = [{ id: 'all', name: 'Home (ALL)' }].concat(DB.categories || []).map(function (c) {
       return '<button type="button" class="size-chip bf2-cat ' + (st.cats.indexOf(c.id) >= 0 ? 'selected' : '') + '" data-c="' + E(c.id) + '">' + E(c.name) + '</button>';
     }).join('');
     var inner =
@@ -14720,7 +14730,7 @@ html.fk.fk.fk body .fk-sgi-img::after{display:none !important;}
       field('Small label (pill)', 'bf2Badge', b && b.badge, 'e.g. Big Savings Days') + field('Title', 'bf2Title', b && b.title, 'e.g. Up to 70% off') +
       field('Subtitle', 'bf2Sub', b && b.sub, 'e.g. On fashion & electronics') + field('Button text', 'bf2Cta', b ? b.cta : 'Shop Now', 'Shop Now') +
       linkHTML('bf2L', b ? (b.link || (b.linkCategory ? { kind: 'category', value: b.linkCategory } : null)) : null) +
-      '<div class="form-group"><label class="form-label">Show on which home tabs? <span style="font-weight:400;color:var(--ink-faint)">(none selected = main For You tab)</span></label><div style="display:flex;gap:7px;flex-wrap:wrap;">' + catChips + '</div></div>' +
+      '<div class="form-group"><label class="form-label">Show on which tabs? <span style="font-weight:400;color:var(--ink-faint)">(tap to select — pick Home, MEN, WOMEN… as you like)</span></label><div style="display:flex;gap:7px;flex-wrap:wrap;">' + catChips + '</div></div>' +
       '<div style="display:flex;gap:10px;"><div style="flex:1;">' + field('Start (optional)', 'bf2Start', tsToInput(b && b.startAt), '', 'datetime-local') + '</div><div style="flex:1;">' + field('End (optional)', 'bf2End', tsToInput(b && b.endAt), '', 'datetime-local') + '</div></div>' +
       field('Seconds on screen (0 = automatic)', 'bf2Secs', b && b.seconds ? b.seconds : '', '0', 'number');
     sheet(b ? 'Edit banner' : 'Add banner', inner, b ? 'Save changes' : 'Add banner', function (ov) {
@@ -14766,14 +14776,13 @@ html.fk.fk.fk body .fk-sgi-img::after{display:none !important;}
       (hasKey ? '<button class="btn btn-secondary btn-sm" id="h2Publish">Publish to all phones now</button>' : '');
   }
 
-  function renderAdminHome(shell) {
-    var h = H(), banners = DB.banners || [];
-    var sale = h.sale || {}, svc = Array.isArray(h.services) ? h.services : [], tiles = Array.isArray(h.tiles) ? h.tiles : [], vids = Array.isArray(h.videos) ? h.videos : [];
-    var secs = h.sections || {};
-    var body =
-      statusHTML() +
-      sec('Banners (' + banners.length + ')', 'The big sliding banner at the top of Home. Photos, GIFs and videos all work. Use ↑ ↓ to reorder.') +
-      (banners.length ? banners.map(function (b, i) {
+  function bannerGroups() {
+    return [{ id: 'all', label: 'HOME (ALL tab)', short: 'ALL' }].concat((window.fkTabList ? fkTabList() : []).map(function (t) { return { id: t.cat, label: t.label + ' tab', short: t.label }; }));
+  }
+  function inGroup(b, g) { var c = Array.isArray(b.cats) ? b.cats : []; return g.id === 'all' ? (!c.length || c.indexOf('all') >= 0) : c.indexOf(g.id) >= 0; }
+  function bannerRow(b) {
+    var i = DB.banners.indexOf(b);
+
         var type = b.type || (b.video ? 'video' : (b.img ? 'image' : 'color'));
         var th = type === 'video' ? '<div style="width:100%;height:100%;background:#000;color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;">▶</div>' : (b.img ? '<img src="' + E(ncDirectMediaUrl(b.img)) + '" onerror="this.style.display=\'none\'">' : E((b.title || 'B').charAt(0)));
         var when = (b.startAt || b.endAt) ? ' · scheduled' : '';
@@ -14781,8 +14790,20 @@ html.fk.fk.fk body .fk-sgi-img::after{display:none !important;}
           '<div class="banner-row-info"><div class="banner-row-title">' + E(b.title || (type === 'video' ? 'Video banner' : 'Picture banner')) + '</div><div class="banner-row-sub">' + type + ' · ' + E(linkLabel(b.link)) + when + '</div></div>' +
           '<button class="icon-btn" style="width:26px;min-width:0;padding:0" data-bup="' + i + '" title="Up">↑</button><button class="icon-btn" style="width:26px;min-width:0;padding:0" data-bdn="' + i + '" title="Down">↓</button>' +
           '<button class="mini-switch ' + (b.active ? 'on' : '') + '" data-btoggle="' + b.id + '"></button><button class="icon-btn" data-bedit="' + b.id + '">' + icon('edit') + '</button><button class="icon-btn" data-bdel="' + b.id + '">' + icon('trash') + '</button></div>';
-      }).join('') : '<div class="empty-state"><h3>No banners yet</h3><p>Add one — it appears on every phone straight away.</p></div>') +
-      '<button class="btn btn-primary btn-block" id="h2AddBanner" style="margin:6px 0 4px;">' + icon('plus') + ' Add banner</button>' +
+  }
+  function renderAdminHome(shell) {
+    var h = H(), banners = DB.banners || [];
+    var sale = h.sale || {}, svc = Array.isArray(h.services) ? h.services : [], tiles = Array.isArray(h.tiles) ? h.tiles : [], vids = Array.isArray(h.videos) ? h.videos : [];
+    var secs = h.sections || {};
+    var body =
+      statusHTML() +
+      sec('Banners (' + banners.length + ')', 'The big sliding banner. Each tab has its own banners: ALL (home), MEN, WOMEN, KIDS… A tab with no banner of its own shows the home banners. Photos, GIFs and videos all work. Use ↑ ↓ to reorder.') +
+      bannerGroups().map(function (g) {
+        var rows = banners.filter(function (b) { return inGroup(b, g); });
+        return '<div style="margin:6px 0 16px;"><div style="font-weight:800;font-size:13px;letter-spacing:.6px;color:var(--brand);margin:0 0 6px;">' + E(g.label) + ' (' + rows.length + ')</div>' +
+          (rows.length ? rows.map(function (b) { return bannerRow(b); }).join('') : '<p style="font-size:12.5px;color:var(--ink-faint);margin:0 0 8px;">' + (g.id === 'all' ? 'No banners yet.' : 'No banners of its own — showing the home banners.') + '</p>') +
+          '<button class="btn btn-secondary btn-sm" data-addb="' + E(g.id) + '">' + icon('plus') + ' Add banner to ' + E(g.short) + '</button></div>';
+      }).join('') +
 
       sec('Top category tabs', 'The tabs under the search bar (like ALL · MEN · WOMEN · KIDS). Your other categories still appear as pictures in the row below. Leave empty and the app picks Men / Women / Kids automatically.') +
       (Array.isArray(h.tabs) && h.tabs.length ? h.tabs.map(function (t, i) {
@@ -14838,7 +14859,7 @@ html.fk.fk.fk body .fk-sgi-img::after{display:none !important;}
     if (pub) pub.onclick = function () { if (window.NC2) NC2.pull(true).then(function () { return NC2.push(false, true); }); showToast('Publishing…', 'info'); };
 
     /* banners */
-    on('#h2AddBanner', function () { bannerForm(null, again); });
+    on('[data-addb]', function (el) { bannerForm(null, again, [el.dataset.addb]); });
     on('[data-bedit]', function (el) { bannerForm(el.dataset.bedit, again); });
     on('[data-btoggle]', function (el) { var b = DB.banners.filter(function (x) { return x.id === el.dataset.btoggle; })[0]; if (b) { b.active = !b.active; save(); again(); } });
     on('[data-bdel]', function (el) { confirmAction('Delete banner?', 'It disappears from every phone.', function () { DB.banners = DB.banners.filter(function (x) { return x.id !== el.dataset.bdel; }); save(); again(); }); });
