@@ -1,4 +1,4 @@
-const CACHE = 'nexcart-v66-live';
+const CACHE = 'nexcart-v67-live';
 const ASSETS = [
   './',
   './tokri-standalone.html',

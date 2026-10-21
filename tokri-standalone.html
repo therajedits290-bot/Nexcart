@@ -2187,7 +2187,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v66-20oct';</script>
+const APP_BUILD = 'v67-20oct';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -13603,6 +13603,19 @@ html.fk.fk.fk body .fk-t2-img img{position:absolute !important; left:0 !importan
 html.fk.fk.fk body .fk-t2-txt{position:absolute !important; left:0 !important; top:0 !important; width:100% !important; height:100% !important; font-size:15px !important;}
 html.fk.fk.fk body .fk-t2-l{font-size:10px !important; line-height:1.2 !important; margin:0 !important; max-width:64px !important; text-align:center !important; color:#5A5670 !important;}
 html.fk.fk.fk body .fk-tiles-wrap{padding:8px 0 6px !important;}
+html.fk.fk.fk body .fk-tiles.sz-s{--w:34px !important;}
+html.fk.fk.fk body .fk-tiles.sz-m{--w:42px !important;}
+html.fk.fk.fk body .fk-tiles.sz-l{--w:54px !important;}
+html.fk.fk.fk body .fk-tiles, html.fk.fk.fk body .fk-tiles.sz-s, html.fk.fk.fk body .fk-tiles.sz-m, html.fk.fk.fk body .fk-tiles.sz-l{gap:8px !important; padding:0 10px !important;}
+html.fk.fk.fk body .fk-t2{min-width:calc(var(--w,34px) + 16px) !important; gap:3px !important;}
+html.fk.fk.fk body .fk-t2-l{font-size:9.5px !important; max-width:58px !important; white-space:normal !important; display:-webkit-box !important; -webkit-line-clamp:2 !important; -webkit-box-orient:vertical !important; overflow:hidden !important; line-height:1.15 !important;}
+html.fk.fk.fk body .fk-tiles-wrap{padding:6px 0 4px !important;}
+html.fk.fk.fk body .splash-loader{display:flex !important; width:auto !important; height:auto !important; gap:9px !important; margin-top:34px !important; background:none !important; box-shadow:none !important; overflow:visible !important; justify-content:center !important;}
+html.fk.fk.fk body .splash-loader::after{display:none !important;}
+html.fk.fk.fk body .splash-loader span{display:block !important; width:9px !important; height:9px !important; border-radius:50% !important; background:#fff !important; animation:fkDot 1s ease-in-out infinite !important;}
+html.fk.fk.fk body .splash-loader span:nth-child(2){background:#FFE27A !important; animation-delay:.18s !important;}
+html.fk.fk.fk body .splash-loader span:nth-child(3){animation-delay:.36s !important;}
+@keyframes fkDot{0%,80%,100%{ transform:translateY(0) scale(.7); opacity:.5; } 40%{ transform:translateY(-9px) scale(1.1); opacity:1; }}
 </style>
 <script id="nexcart-fk-js">
 /* ==========================================================================
@@ -14334,6 +14347,27 @@ html.fk.fk.fk body .fk-tiles-wrap{padding:8px 0 6px !important;}
   });
 
   /* ---- picture tiles ---- */
+  var DEF_SUBS = [
+    [/women|ladies|girls?\b/, ['Sarees','Kurta Sets','Dresses','Tops','Lehenga','Jeans','Night Wear','Leggings']],
+    [/\bmen|gents|boys?\b/, ['Shirts','T-Shirts','Jeans','Trousers','Track Pants','Jackets','Sweatshirts','Shorts']],
+    [/kid|child|baby/, ['Boys Wear','Girls Wear','Frocks','T-Shirts','Toys','Baby Care','School Bags']],
+    [/foot|shoe|sandal/, ['Sneakers','Sandals','Heels','Flats','Sports Shoes','Slippers']],
+    [/electron|mobile|gadget/, ['Mobiles','Headphones','Smart Watches','Chargers','Cables','Speakers','Power Banks']],
+    [/home|living|kitchen|decor/, ['Bedsheets','Cushions','Curtains','Decor','Cookware','Storage','Lighting']],
+    [/beauty|cosmetic/, ['Lipstick','Kajal','Perfume','Face Wash','Hair Oil','Creams']]
+  ];
+  function defaultSubs(catId) {
+    var cat = (D().categories || []).filter(function (c) { return c.id === catId; })[0]; if (!cat) return [];
+    var key = String(cat.name || '').toLowerCase(), names = null;
+    if (/women/.test(key)) names = DEF_SUBS[0][1];
+    else for (var i = 1; i < DEF_SUBS.length; i++) if (DEF_SUBS[i][0].test(key)) { names = DEF_SUBS[i][1]; break; }
+    if (!names) return [];
+    var prods = (D().products || []).filter(function (p) { return p.category === catId && p.img; });
+    return names.map(function (n) {
+      var w = n.toLowerCase().replace(/s$/, ''), hit = prods.filter(function (p) { return String(p.name || '').toLowerCase().indexOf(w) >= 0; })[0] || prods[0];
+      return { name: n, img: hit ? hit.img : (window.ncCatImage ? ncCatImage(cat) : '') };
+    });
+  }
   function tileItems(catId) {
     var items = [];
     if (catId === 'all') {
@@ -14342,6 +14376,7 @@ html.fk.fk.fk body .fk-tiles-wrap{padding:8px 0 6px !important;}
       return (D().categories || []).map(function (c) { return { label: c.name, img: window.ncCatImage ? ncCatImage(c) : (c.img || ''), link: { kind: 'category', value: c.id } }; });
     }
     var subs = window.ncSubsFor ? ncSubsFor(catId) : [];
+    if (!subs.length) subs = defaultSubs(catId);
     if (subs.length) return subs.map(function (s) { return { label: s.name, img: s.img, link: { kind: 'sub', value: catId + '|' + s.name } }; });
     return (D().products || []).filter(function (p) { return p.category === catId && p.img; }).slice(0, 10)
       .map(function (p) { return { label: p.name, img: p.img, link: { kind: 'product', value: p.id } }; });
