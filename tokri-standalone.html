@@ -2187,7 +2187,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v64-20oct';</script>
+const APP_BUILD = 'v65-20oct';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -13573,6 +13573,26 @@ html.fk.fk.fk body .splash-loader::after{width:100% !important; border-radius:6p
 html.fk.fk.fk body .fk-t2{width:auto !important; min-width:var(--w,52px) !important; align-items:center !important;}
 html.fk.fk.fk body .fk-t2-img{width:var(--w,52px) !important; flex:none !important;}
 html.fk.fk.fk body .fk-t2-l{overflow:visible !important; text-overflow:clip !important;}
+html.fk.fk.fk body .mtabs.fk-strip{background:#E6D8F8 !important;}
+html.fk.fk.fk body .mtabs.fk-strip::after{background:#FF3F6C !important;}
+html.fk.fk.fk body .fk-strip .mtab.active{border:2px solid #FF3F6C !important; border-bottom:0 !important; border-radius:18px 18px 0 0 !important; background:#E6D8F8 !important; z-index:2 !important;}
+html.fk.fk.fk body .fk-strip .mtab.active::before, html.fk.fk.fk body .fk-strip .mtab.active::after{display:block !important; content:'' !important; position:absolute !important; bottom:0 !important; width:19px !important; height:19px !important;}
+html.fk.fk.fk body .fk-strip .mtab.active::before{left:-19px !important; background:radial-gradient(circle at 0 0,transparent 17px,#FF3F6C 17px,#FF3F6C 19px,#E6D8F8 19px) !important;}
+html.fk.fk.fk body .fk-strip .mtab.active::after{right:-19px !important; background:radial-gradient(circle at 100% 0,transparent 17px,#FF3F6C 17px,#FF3F6C 19px,#E6D8F8 19px) !important;}
+html.fk.fk.fk body .fk-tabsvg{display:none !important;}
+html.fk.fk.fk body .fk-t2-img::before{display:none !important;}
+html.fk.fk.fk body .fk-tiles.sz-s{--w:54px !important;}
+html.fk.fk.fk body .fk-tiles.sz-m{--w:64px !important;}
+html.fk.fk.fk body .fk-tiles.sz-l{--w:76px !important;}
+html.fk.fk.fk body .fk-t2{min-width:var(--w,54px) !important; width:var(--w,54px) !important; gap:5px !important;}
+html.fk.fk.fk body .fk-t2-img{width:var(--w,54px) !important; aspect-ratio:1/1 !important; border-radius:50% !important; background:none !important;}
+html.fk.fk.fk body .fk-t2-img img{width:82% !important; height:82% !important; border:2px solid #fff !important; box-shadow:0 1px 5px rgba(120,60,120,.25) !important;}
+html.fk.fk.fk body .fk-t2-txt{width:82% !important; height:82% !important; border-radius:50% !important; background:#FFE0EA !important; display:flex !important; align-items:center !important; justify-content:center !important; color:#FF3F6C !important; font-size:16px !important;}
+html.fk.fk.fk body .fk-t2-l{font-size:10.5px !important; max-width:calc(var(--w,54px) + 8px) !important; overflow:hidden !important; text-overflow:ellipsis !important; white-space:nowrap !important; margin:0 -4px !important;}
+html.fk.fk.fk body .fk-tiles{gap:8px !important;}
+html.fk.fk.fk body .fk-sg.flow{display:grid !important; grid-template-columns:repeat(5,minmax(0,1fr)) !important; grid-auto-flow:row !important; grid-template-rows:none !important; grid-auto-columns:auto !important; overflow:visible !important; gap:12px 8px !important;}
+html.fk.fk.fk body .fk-sgi-img{background:#F3EFF8 !important;}
+html.fk.fk.fk body .fk-sgi-img::after{display:none !important;}
 </style>
 <script id="nexcart-fk-js">
 /* ==========================================================================
@@ -14332,7 +14352,7 @@ html.fk.fk.fk body .fk-t2-l{overflow:visible !important; text-overflow:clip !imp
   function gridHTML(catId) {
     var items = gridItems(catId); if (!items.length) return '';
     window.__fkGrid = items;
-    return '<div class="fk-sg-wrap"><div class="fk-sg">' + items.map(function (t, i) {
+    return '<div class="fk-sg-wrap"><div class="fk-sg' + (items.length <= 10 ? ' flow' : '') + '">' + items.map(function (t, i) {
       var pic = t.img ? '<img src="' + esc(media(t.img)) + '" alt="" loading="lazy" onerror="this.style.display=\'none\'">' : '<b>' + esc((t.label || '?').charAt(0)) + '</b>';
       return '<button type="button" class="fk-sgi" data-i="' + i + '"><span class="fk-sgi-img">' + pic + '</span><span class="fk-sgi-l">' + esc(t.label || '') + '</span></button>';
     }).join('') + '</div></div>';
@@ -14414,19 +14434,7 @@ html.fk.fk.fk body .fk-t2-l{overflow:visible !important; text-overflow:clip !imp
     var box = document.getElementById('mtabs'), sc = document.getElementById('mtabsScroll'), ink = document.getElementById('mtabsInk');
     if (!box || !sc) return;
     var gb = document.getElementById('fkGridBtn'); if (gb) gb.onclick = function () { viewStack = []; switchTab('categories'); };
-    function setGap() {
-      var a = box.querySelector('.mtab.active'); if (!a) return;
-      var br = box.getBoundingClientRect(), ar = a.getBoundingClientRect();
-      box.style.setProperty('--ax', Math.max(0, ar.left - br.left - 20) + 'px');
-      box.style.setProperty('--aw', (ar.width + 40) + 'px');
-      $A('.fk-tabsvg', box).forEach(function (n) { n.remove(); });
-      var w = a.offsetWidth, h = a.offsetHeight, R = 18;
-      var d = 'M0 ' + (h - 1) + ' H2 A' + R + ' ' + R + ' 0 0 0 20 ' + (h - 1 - R) + ' V' + (R + 1) + ' A' + R + ' ' + R + ' 0 0 1 ' + (20 + R) + ' 1 H' + (20 + w - R) + ' A' + R + ' ' + R + ' 0 0 1 ' + (20 + w) + ' ' + (R + 1) + ' V' + (h - 1 - R) + ' A' + R + ' ' + R + ' 0 0 0 ' + (38 + w) + ' ' + (h - 1) + ' H' + (40 + w);
-      var s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-      s.setAttribute('class', 'fk-tabsvg'); s.setAttribute('width', w + 40); s.setAttribute('height', h); s.setAttribute('viewBox', '0 0 ' + (w + 40) + ' ' + h);
-      s.innerHTML = '<path d="' + d + '" fill="none" stroke="#FF3F6C" stroke-width="2" stroke-linecap="round"/>';
-      a.appendChild(s);
-    }
+    function setGap() {}
     sc.addEventListener('scroll', setGap, { passive: true });
     function move(anim) {
       var a = box.querySelector('.mtab.active'); if (!a || !ink || !a.offsetWidth) return;
