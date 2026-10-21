@@ -1,16 +1,36 @@
 {
-  "name": "Nexcart — Online Store",
+  "name": "Nexcart \u2014 Online Store",
   "short_name": "Nexcart",
   "description": "Sasta shopping, full paisa vasool. Cash on Delivery available across India.",
   "start_url": "./tokri-standalone.html",
-  "scope": "/Nexcart/",
-  "id": "/Nexcart/",
+  "scope": "./",
+  "id": "./tokri-standalone.html",
   "display": "standalone",
   "theme_color": "#FF3F6C",
   "background_color": "#FFFFFF",
   "icons": [
-    { "sizes": "192x192", "src": "icon-192.png", "type": "image/png", "purpose": "any" },
-    { "sizes": "512x512", "src": "icon-512.png", "type": "image/png", "purpose": "any" },
-    { "sizes": "512x512", "src": "icon-maskable-512.png", "type": "image/png", "purpose": "maskable" }
+    {
+      "sizes": "192x192",
+      "src": "icon-192.png",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "sizes": "512x512",
+      "src": "icon-512.png",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "sizes": "512x512",
+      "src": "icon-maskable-512.png",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "orientation": "portrait",
+  "lang": "en-IN",
+  "categories": [
+    "shopping"
   ]
 }
