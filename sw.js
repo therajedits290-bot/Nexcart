@@ -1,6 +1,8 @@
-const CACHE = 'nexcart-v75-live';
+const CACHE = 'nexcart-v76-live';      // app files + small assets
+const IMG   = 'nexcart-img-v1';         // product / banner pictures seen so far (kept across versions)
 const ASSETS = [
   './',
+  './index.html',
   './tokri-standalone.html',
   './manifest.json',
   './icon-192.png',
@@ -9,11 +11,10 @@ const ASSETS = [
   './privacy.html',
   './delete-account.html'
 ];
+const IMG_MAX = 400;
+const NAV_TIMEOUT = 4000;   // slow / no network: fall back to the saved copy after 4 s
 
-/* install: fetch each file on its own.
-   v54 - this used to be cache.addAll(), which rejects the whole batch if a
-   single file is missing, so one absent file left the app with no offline
-   copy at all. Now a missing file is simply skipped. */
+/* install: fetch each file on its own, so one missing file never blocks the rest */
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE)
@@ -27,52 +28,72 @@ self.addEventListener('install', (event) => {
   );
 });
 
-/* activate: drop every older cache, then take over open pages */
+/* activate: drop old app caches (pictures cache is kept), take over open pages */
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(
-        keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))
-      ))
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== IMG).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
 
+function trim(cache) {
+  return cache.keys().then((keys) => {
+    if (keys.length > IMG_MAX) return Promise.all(keys.slice(0, keys.length - IMG_MAX).map((k) => cache.delete(k)));
+  });
+}
+
+/* pictures from anywhere (own site or the shop server): show the saved copy at once, refresh it quietly */
+function pictureStrategy(req) {
+  return caches.open(IMG).then((cache) =>
+    cache.match(req).then((hit) => {
+      const net = fetch(req).then((res) => {
+        if (res && (res.ok || res.type === 'opaque')) { cache.put(req, res.clone()).then(() => trim(cache)).catch(() => {}); }
+        return res;
+      }).catch(() => hit);
+      return hit || net;
+    })
+  );
+}
+
+/* pages / scripts / json: the network is always asked first (so updates arrive at once),
+   but when there is no network - or it is too slow - the saved copy opens instantly */
+function pageStrategy(req) {
+  const fromCache = () => caches.match(req, { ignoreSearch: true }).then((hit) => hit || caches.match('./tokri-standalone.html'));
+  return new Promise((resolve) => {
+    let done = false;
+    const timer = setTimeout(() => { if (!done) fromCache().then((r) => { if (r && !done) { done = true; resolve(r); } }); }, NAV_TIMEOUT);
+    fetch(req, { cache: 'reload' }).then((res) => {
+      clearTimeout(timer);
+      if (res && res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {}); }
+      if (!done) { done = true; resolve(res); }
+    }).catch(() => {
+      clearTimeout(timer);
+      if (!done) fromCache().then((r) => { done = true; resolve(r || Response.error()); });
+    });
+  });
+}
+
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
-
+  if (req.headers.has('range')) return;                 // video streaming: leave to the browser
   const url = new URL(req.url);
-  if (url.origin !== self.location.origin) return;   // never touch third-party requests
+  if (/\.(mp4|webm|mov)(\?|$)/i.test(url.pathname)) return;
+  if (/version\.json$/.test(url.pathname)) return;
+  if (/\/api\//.test(url.pathname) || /\/(media-stats)/.test(url.pathname)) return;   // live data is never cached here
 
-  const isAsset = /\.(png|jpg|jpeg|webp|svg|woff2?|ttf)$/i.test(url.pathname);
+  const isPicture = req.destination === 'image' || /\.(png|jpe?g|webp|gif|svg|avif)(\?|$)/i.test(url.pathname) || /\/media\//.test(url.pathname);
 
-  /* images + fonts: cache first, for speed */
-  if (isAsset) {
-    event.respondWith(
-      caches.match(req).then((hit) => hit || fetch(req).then((res) => {
-        if (res && res.ok) {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
-        }
-        return res;
-      }).catch(() => hit))
-    );
+  if (url.origin !== self.location.origin) {
+    if (isPicture) event.respondWith(pictureStrategy(req));
+    return;                                             // everything else from other sites: untouched
+  }
+  if (isPicture || /\.(woff2?|ttf)$/i.test(url.pathname)) {
+    event.respondWith(pictureStrategy(req));
     return;
   }
-
-  /* pages + JSON: ALWAYS read the real file, fall back to cache offline */
-  event.respondWith(
-    fetch(req, { cache: 'reload' })
-      .then((res) => {
-        if (res && res.ok) {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
-        }
-        return res;
-      })
-      .catch(() => caches.match(req).then((hit) => hit || caches.match('./tokri-standalone.html')))
-  );
+  event.respondWith(pageStrategy(req));
 });
 
 /* ---- push notifications (server.js v1.4.0 sends these) ---- */

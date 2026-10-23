@@ -2187,7 +2187,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v75-20oct';</script>
+const APP_BUILD = 'v76-20oct';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -13659,6 +13659,9 @@ html.fk.fk.fk body .fk-sgi-img img{position:absolute !important; left:50% !impor
 html.fk.fk.fk body .fk-sgi-img img.cut{width:112% !important; height:112% !important; filter:drop-shadow(0 4px 4px rgba(60,30,70,.22)) !important;}
 html.fk.fk.fk body .fk-sgi-img img.ph{width:92% !important; height:100% !important; border-radius:10px !important;}
 html.fk.fk.fk body .fk-sg-wrap{padding:8px 0 12px !important;}
+html.fk.fk.fk body #ncOffBar{position:fixed !important; left:12px !important; right:12px !important; bottom:calc(68px + env(safe-area-inset-bottom,0px)) !important; z-index:950 !important; padding:9px 12px !important; border-radius:12px !important; font-size:12px !important; font-weight:600 !important; text-align:center !important; color:#fff !important; background:#2A1730 !important; box-shadow:0 6px 20px rgba(0,0,0,.28) !important; opacity:0 !important; pointer-events:none !important;}
+html.fk.fk.fk body #ncOffBar.show{opacity:1 !important;}
+html.fk.fk.fk body #ncOffBar.on{background:#1B8F4C !important;}
 </style>
 <script id="nexcart-fk-js">
 /* ==========================================================================
@@ -15424,6 +15427,87 @@ html.fk.fk.fk body .fk-sg-wrap{padding:8px 0 12px !important;}
       return tabOrig.apply(this, arguments);
     };
   })();
+})();
+
+/* ==========================================================================
+   NEXCART offline + update helper
+   - works without network: shows saved shop, cart & wishlist keep working
+   - checkout / login need internet: friendly message instead of an error
+   - on launch / resume, checks version.json; if a newer build exists the
+     phone clears its old saved copy and reloads (fixes "old things" on some phones)
+   ========================================================================== */
+(function () {
+  'use strict';
+  function toast(m, i) { try { showToast(m, i || 'info'); } catch (e) {} }
+  var online = function () { return navigator.onLine !== false; };
+
+  /* ---------- offline bar ---------- */
+  var bar = null, hideT = null;
+  function ensureBar() {
+    if (bar) return bar;
+    bar = document.createElement('div'); bar.id = 'ncOffBar';
+    bar.setAttribute('role', 'status');
+    document.body.appendChild(bar); return bar;
+  }
+  function paint() {
+    var b = ensureBar(); clearTimeout(hideT);
+    if (!online()) { b.className = 'off show'; b.textContent = 'You are offline — showing saved items. Ordering needs internet.'; }
+    else if (b.classList.contains('show')) { b.className = 'on show'; b.textContent = 'Back online'; hideT = setTimeout(function () { b.className = ''; }, 2200); }
+  }
+  window.addEventListener('offline', paint);
+  window.addEventListener('online', function () { paint(); try { if (window.NC2) NC2.pull(false); } catch (e) {} setTimeout(versionCheck, 800); });
+  if (document.readyState !== 'loading') setTimeout(paint, 600); else document.addEventListener('DOMContentLoaded', function () { setTimeout(paint, 600); });
+
+  /* ---------- things that need the internet ---------- */
+  function guard(name, msg) {
+    var o = window[name]; if (typeof o !== 'function' || o.__off) return;
+    var w = function () {
+      if (!online()) { toast(msg, 'info'); return; }
+      return o.apply(this, arguments);
+    };
+    w.__off = true; window[name] = w; try { (0, eval)(name + ' = window.' + name); } catch (e) {}
+  }
+  function installGuards() {
+    guard('openCheckoutPayment', 'You are offline. Connect to the internet to place your order — your cart is saved.');
+    guard('placeOrder', 'You are offline. Connect to the internet to place your order.');
+    guard('showLoginScreen', 'You are offline. Connect to the internet to log in.');
+  }
+  installGuards(); setTimeout(installGuards, 1500);
+
+  /* ---------- keep the newest copy ---------- */
+  var lastCheck = 0;
+  function versionCheck() {
+    if (!online() || typeof APP_BUILD === 'undefined') return;
+    if (Date.now() - lastCheck < 30000) return; lastCheck = Date.now();
+    fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (v) {
+      if (!v || !v.build || v.build === APP_BUILD) return;
+      var tried = ''; try { tried = sessionStorage.getItem('ncVerTried') || ''; } catch (e) {}
+      if (tried === v.build) return;                       // already tried once this session: never loop
+      try { sessionStorage.setItem('ncVerTried', v.build); } catch (e) {}
+      toast('Updating to the latest version…', 'info');
+      var wipe = (window.caches && caches.keys) ? caches.keys().then(function (ks) { return Promise.all(ks.filter(function (k) { return k.indexOf('nexcart-img') !== 0; }).map(function (k) { return caches.delete(k); })); }) : Promise.resolve();
+      var unreg = (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) ? navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }) : Promise.resolve();
+      Promise.all([wipe, unreg]).catch(function () {}).then(function () { setTimeout(function () { location.reload(); }, 600); });
+    }).catch(function () {});
+  }
+  setTimeout(versionCheck, 4000);
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') { versionCheck(); try { navigator.serviceWorker.getRegistration().then(function (r) { r && r.update(); }); } catch (e) {} } });
+
+  /* ---------- warm the picture cache while online so it also opens offline ---------- */
+  function warm() {
+    try {
+      if (!online() || (navigator.connection && navigator.connection.saveData)) return;
+      var urls = [], seen = {};
+      function add(u) { u = String(u || ''); if (!u || /^data:/.test(u) || seen[u]) return; seen[u] = 1; urls.push(u); }
+      (DB.banners || []).forEach(function (b) { if (b.active !== false) add(b.img); });
+      (DB.categories || []).forEach(function (c) { add(c.img); });
+      (DB.products || []).slice(0, 30).forEach(function (p) { add(p.img); });
+      urls = urls.slice(0, 40);
+      var i = 0, run = function () { if (i >= urls.length || !online()) return; var im = new Image(); im.onload = im.onerror = function () { setTimeout(run, 120); }; im.src = (typeof ncDirectMediaUrl === 'function' ? ncDirectMediaUrl(urls[i++]) : urls[i++]); };
+      run(); run();
+    } catch (e) {}
+  }
+  setTimeout(warm, 9000);
 })();
 
 (function(){function fix(){try{var b=DB.branding;if(b&&typeof b.primaryColor==="string"&&b.primaryColor.toLowerCase()==="#2874"+"f0"){b.primaryColor="#FF3F6C";}}catch(e){}}window.__nxFixLogo=fix;var o=window.applyBranding;if(typeof o==="function"&&!o.__lg){var w=function(){fix();return o.apply(this,arguments);};w.__lg=true;window.applyBranding=w;try{applyBranding=w;}catch(e){}}})();
