@@ -813,6 +813,24 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { ok: true, user: publicUser(u) });
   }
 
+  /* In-app account deletion (Google Play requires this). Removes the account,
+     its sessions and push subscriptions. Order records are kept for tax and
+     accounting, but the personal details on them are wiped. */
+  if (p === '/api/auth/delete' && req.method === 'POST') {
+    const u = userFromReq(req);
+    if (!u) return send(res, 401, { error: 'Not signed in' });
+    db.users = db.users.filter((x) => x.id !== u.id);
+    db.sessions = db.sessions.filter((x) => x.userId !== u.id);
+    db.pushSubs = (db.pushSubs || []).filter((x) => x.userId !== u.id);
+    (db.orders || []).forEach((o) => {
+      if (o.userId === u.id) {
+        o.userId = ''; o.customerName = 'Deleted customer'; o.customerPhone = ''; o.customerEmail = '';
+        o.address = ''; o.trackKey = ''; o.clientOrderId = o.clientOrderId || '';
+      }
+    });
+    try { await queueSave(); } catch (e) { return send(res, 500, { error: 'Could not delete right now. Please try again.' }); }
+    return send(res, 200, { ok: true });
+  }
   if (p === '/api/auth/logout' && req.method === 'POST') {
     const h = String(req.headers['authorization'] || '');
     const token = h.startsWith('Bearer ') ? h.slice(7).trim() : '';
