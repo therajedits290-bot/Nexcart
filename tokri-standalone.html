@@ -2187,7 +2187,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v76-20oct';</script>
+const APP_BUILD = 'v78-24oct';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -13339,11 +13339,11 @@ html.fk.fk.fk body .fk-hero{position:relative !important; border-radius:18px !im
 html.fk.fk.fk body .fk-hero-track{display:flex !important; height:100% !important; overflow-x:auto !important; scroll-snap-type:x mandatory !important; scrollbar-width:none !important; -webkit-overflow-scrolling:touch !important; overscroll-behavior-x:contain !important;}
 html.fk.fk.fk body .fk-hero-track::-webkit-scrollbar{display:none !important;}
 html.fk.fk.fk body .fk-bn{flex:0 0 100% !important; height:100% !important; scroll-snap-align:center !important; position:relative !important; overflow:hidden !important; cursor:pointer !important;}
-html.fk.fk.fk body .fk-bn-i, html.fk.fk.fk body .fk-bn-v{width:100% !important; height:100% !important; object-fit:cover !important; display:block !important; animation:fkKen 9s ease-out both !important;}
+html.fk.fk.fk body .fk-bn-i, html.fk.fk.fk body .fk-bn-v{width:100% !important; height:100% !important; object-fit:cover !important; display:block !important;}
 html.fk.fk.fk body .fk-bn-v{animation:none !important; background:#000 !important;}
 html.fk.fk.fk body .fk-bn-c{position:absolute !important; inset:0 !important;}
 @keyframes fkKen{from{ transform:scale(1.07); } to{ transform:scale(1); }}
-html.fk.fk.fk body .fk-bn-shade{position:absolute !important; inset:0 !important; background:linear-gradient(90deg,rgba(0,0,0,.45) 0%,rgba(0,0,0,0) 70%) !important;}
+html.fk.fk.fk body .fk-bn-shade{position:absolute !important; inset:0 !important; background:linear-gradient(90deg,rgba(0,0,0,.32) 0%,rgba(0,0,0,0) 65%) !important;}
 html.fk.fk.fk body .fk-bn-copy{position:absolute !important; left:16px !important; bottom:32px !important; max-width:68% !important; color:#fff !important; animation:fkRise .7s .1s both !important;}
 @keyframes fkRise{from{ opacity:0; transform:translateY(16px); } to{ opacity:1; transform:none; }}
 html.fk.fk.fk body .fk-bn-badge{display:inline-block !important; background:#FFD60A !important; color:#1C1C1C !important; font-size:10.5px !important; font-weight:800 !important; letter-spacing:.5px !important; padding:3px 9px !important; border-radius:20px !important; margin-bottom:7px !important; text-transform:uppercase !important;}
@@ -14325,7 +14325,7 @@ html.fk.fk.fk body #ncOffBar.on{background:#1B8F4C !important;}
   }
   function slideHTML(b, i) {
     var type = b.type || (b.video ? 'video' : (b.img ? 'image' : 'color'));
-    var inner = '', showText = (type === 'color') || b.showText;
+    var inner = '', showText = ((type === 'color') || b.showText) && !!(b.badge || b.title || b.sub || b.cta);
     if (type === 'video' && b.video) {
       inner = '<video class="fk-bn-v" src="' + esc(media(b.video)) + '" ' + (b.img ? 'poster="' + esc(media(b.img)) + '" ' : '') +
         'muted loop playsinline webkit-playsinline preload="' + (i === 0 ? 'auto' : 'metadata') + '"></video>';
@@ -14528,10 +14528,10 @@ html.fk.fk.fk body #ncOffBar.on{background:#1B8F4C !important;}
     var cat = (typeof ncActiveCat !== 'undefined' && ncActiveCat) || 'all';
     var banners = bannersFor(cat);
     var h = sectionOn('tiles') ? tilesHTML(cat) : '';
+    if (sectionOn('tiles')) h += gridHTML(cat);
     h += heroHTML(banners);
     h += saleHTML();
     if (cat === 'all' && sectionOn('ticker')) { var t = ''; try { t = buildAnnounceBar(); } catch (e) {} if (t) h += '<div class="offer-wrap">' + t + '</div>'; }
-    if (sectionOn('tiles')) h += gridHTML(cat);
     if (cat === 'all') {
       if (sectionOn('rails')) { try { h += buildRails(); } catch (e) {} }
       if (sectionOn('offers') && typeof mqSlot === 'function') h += mqSlot('vip') + mqSlot('fee');
@@ -14901,7 +14901,7 @@ html.fk.fk.fk body #ncOffBar.on{background:#1B8F4C !important;}
       QA('.bf2-type', ov).forEach(function (t) { t.onclick = function () { st.type = t.dataset.t; QA('.bf2-type', ov).forEach(function (x) { x.classList.toggle('selected', x === t); }); vis(); }; });
       QA('.bf2-bg', ov).forEach(function (t) { t.onclick = function () { st.bg = t.dataset.bg; QA('.bf2-bg', ov).forEach(function (x) { x.style.boxShadow = x === t ? '0 0 0 2.5px var(--ink)' : 'none'; }); }; });
       QA('.bf2-cat', ov).forEach(function (t) { t.onclick = function () { var i = st.cats.indexOf(t.dataset.c); if (i >= 0) st.cats.splice(i, 1); else st.cats.push(t.dataset.c); t.classList.toggle('selected'); }; });
-      pickImage(ov, '#bf2PickImg', '#bf2ImgPv', 1400, 170, function (u) { st.img = u; });
+      pickImage(ov, '#bf2PickImg', '#bf2ImgPv', 1800, 700, function (u) { st.img = u; });
       pickVideo(ov, '#bf2PickVid', '#bf2VidSt', function (u) { st.video = u; Q('#bf2VidUrl', ov).value = u; });
       linkBind(ov, 'bf2L');
     });
@@ -15257,7 +15257,25 @@ html.fk.fk.fk body #ncOffBar.on{background:#1B8F4C !important;}
   function token() { try { return localStorage.getItem('nc_token') || ''; } catch (e) { return ''; } }
   function toast(m, i) { try { showToast(m, i || 'checkCircle'); } catch (e) {} }
   function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) {} return null; }
-  var supported = ('serviceWorker' in navigator) && ('PushManager' in window) && ('Notification' in window);
+  /* inside the Android app (Capacitor) push goes through Firebase; in a browser it uses Web Push */
+  var NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  var NP = NATIVE && window.Capacitor.Plugins ? window.Capacitor.Plugins.PushNotifications : null;
+  var supported = NP ? true : (('serviceWorker' in navigator) && ('PushManager' in window) && ('Notification' in window));
+  var nativeTok = ls('nc_fcm') || '';
+  function nativePerm() { return NP.checkPermissions().then(function (r) { return r.receive; }).catch(function () { return 'denied'; }); }
+  function nativeSend(tok) { nativeTok = tok; ls('nc_fcm', tok); return api('/api/push/subscribe', 'POST', { fcm: tok }, !!akey()).catch(function () {}); }
+  function nativeRegister() {
+    return new Promise(function (resolve, reject) {
+      var done = false, t = setTimeout(function () { if (!done) { done = true; reject(new Error('Firebase is not set up in this build')); } }, 15000);
+      NP.addListener('registration', function (r) { if (done) { nativeSend(r.value); return; } done = true; clearTimeout(t); nativeSend(r.value).then(function () { resolve(r.value); }); });
+      NP.addListener('registrationError', function (e) { if (!done) { done = true; clearTimeout(t); reject(new Error((e && e.error) || 'registration failed')); } });
+      NP.register().catch(function (e) { if (!done) { done = true; clearTimeout(t); reject(e); } });
+    });
+  }
+  if (NP) {
+    NP.addListener('pushNotificationActionPerformed', function (a) { var d = (a && a.notification && a.notification.data) || {}; setTimeout(function () { openTab(d.tab); }, 600); });
+    NP.addListener('pushNotificationReceived', function (n) { toast((n && n.title) ? n.title + (n.body ? ' - ' + n.body : '') : 'New notification', 'bell'); });
+  }
 
   function api(path, method, body, admin) {
     var h = { 'Content-Type': 'application/json' };
@@ -15280,6 +15298,15 @@ html.fk.fk.fk body #ncOffBar.on{background:#1B8F4C !important;}
     }).then(function (sub) { return api('/api/push/subscribe', 'POST', { subscription: sub.toJSON() }, !!akey()).then(function () { return sub; }); });
   }
   function enable() {
+    if (NP) {
+      return NP.requestPermissions().then(function (r) {
+        if (r.receive !== 'granted') { ls('nc_push_off', '1'); toast('Notifications are blocked. Allow them in your phone settings for this app.', 'info'); return false; }
+        ls('nc_push_off', '');
+        nativeGranted = true;
+        return nativeRegister().then(function () { toast('Notifications turned on', 'checkCircle'); return true; })
+          .catch(function (e) { toast('Could not turn on notifications: ' + e.message, 'info'); return false; });
+      });
+    }
     if (!supported) { toast('This browser does not support notifications', 'info'); return Promise.resolve(false); }
     return Notification.requestPermission().then(function (p) {
       if (p !== 'granted') { ls('nc_push_off', '1'); toast('Notifications are blocked. Allow them in your phone settings for this app.', 'info'); return false; }
@@ -15289,6 +15316,11 @@ html.fk.fk.fk body #ncOffBar.on{background:#1B8F4C !important;}
     });
   }
   function disable() {
+    if (NP) {
+      ls('nc_push_off', '1');
+      var tk = nativeTok; nativeTok = ''; ls('nc_fcm', '');
+      return api('/api/push/unsubscribe', 'POST', { endpoint: 'fcm:' + tk }).catch(function () {}).then(function () { toast('Notifications turned off', 'checkCircle'); });
+    }
     return regReady().then(function (reg) { return reg.pushManager.getSubscription(); }).then(function (sub) {
       ls('nc_push_off', '1');
       if (!sub) return;
@@ -15296,7 +15328,9 @@ html.fk.fk.fk body #ncOffBar.on{background:#1B8F4C !important;}
       return sub.unsubscribe().then(function () { return api('/api/push/unsubscribe', 'POST', { endpoint: ep }); });
     }).then(function () { toast('Notifications turned off', 'checkCircle'); }).catch(function () {});
   }
-  function isOn() { return supported && Notification.permission === 'granted' && ls('nc_push_off') !== '1'; }
+  var nativeGranted = false;
+  if (NP) nativePerm().then(function (p) { nativeGranted = p === 'granted'; });
+  function isOn() { return NP ? (nativeGranted && !!nativeTok && ls('nc_push_off') !== '1') : (supported && Notification.permission === 'granted' && ls('nc_push_off') !== '1'); }
 
   window.ncNotif = {
     supported: supported, isOn: isOn, enable: enable, disable: disable,
@@ -15307,7 +15341,7 @@ html.fk.fk.fk body #ncOffBar.on{background:#1B8F4C !important;}
   /* soft prompt (shown once a week until the customer decides) */
   function softPrompt() {
     if (!supported || document.getElementById('ncPushAsk')) return;
-    if (Notification.permission !== 'default') return;
+    if (!NP && Notification.permission !== 'default') return;
     var last = Number(ls('nc_push_ask') || 0); if (last && Date.now() - last < 2 * 864e5) return;
     var d = document.createElement('div'); d.id = 'ncPushAsk';
     d.innerHTML = '<div class="ncp-ic">' + (typeof icon === 'function' ? icon('bell') : '') + '</div><div class="ncp-t"><b>Never miss an offer</b><span>Get order updates and new deals on your phone</span></div><button type="button" class="ncp-no">Not now</button><button type="button" class="ncp-yes">Turn on</button>';
@@ -15316,17 +15350,25 @@ html.fk.fk.fk body #ncOffBar.on{background:#1B8F4C !important;}
     Q('.ncp-yes', d).onclick = function () { ls('nc_push_ask', String(Date.now())); d.remove(); enable(); };
   }
   function boot() {
+    if (NP) {
+      nativePerm().then(function (p) {
+        nativeGranted = p === 'granted';
+        if (nativeGranted && ls('nc_push_off') !== '1') nativeRegister().catch(function () {});
+        else if (!akey() && p !== 'denied' && !(p === 'granted')) setTimeout(softPrompt, 5000);
+      });
+      return;
+    }
     if (!supported || akey()) { if (akey() && supported && Notification.permission === 'granted') subscribe().catch(function () {}); return; }
     if (Notification.permission === 'granted' && ls('nc_push_off') !== '1') subscribe().catch(function () {});
     else setTimeout(softPrompt, 5000);
   }
   /* keep the subscription tied to the signed-in customer */
   var lastTok = token();
-  setInterval(function () { var t = token(); if (t !== lastTok) { lastTok = t; if (isOn()) subscribe().catch(function () {}); } }, 4000);
+  setInterval(function () { var t = token(); if (t !== lastTok) { lastTok = t; if (isOn()) { if (NP) { if (nativeTok) nativeSend(nativeTok); } else subscribe().catch(function () {}); } } }, 4000);
 
   /* open the right page when a notification is tapped */
   function openTab(tab) { try { viewStack = []; switchTab(tab === 'profile' ? 'profile' : tab || 'home'); } catch (e) {} }
-  if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', function (e) { if (e.data && e.data.type === 'nc-open') openTab(e.data.tab); });
+  if (!NP && 'serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', function (e) { if (e.data && e.data.type === 'nc-open') openTab(e.data.tab); });
   var hm = /^#(home|orders|categories|cart|profile)$/.exec(location.hash || ''); if (hm) setTimeout(function () { openTab(hm[1]); }, 3500);
   setTimeout(boot, 2500);
 
