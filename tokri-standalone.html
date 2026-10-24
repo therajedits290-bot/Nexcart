@@ -2187,7 +2187,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v84-24oct';</script>
+const APP_BUILD = 'v85-24oct';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -13665,6 +13665,12 @@ html.fk.fk.fk body #ncOffBar{position:fixed !important; left:12px !important; ri
 html.fk.fk.fk body #ncOffBar.show{opacity:1 !important;}
 html.fk.fk.fk body #ncOffBar.on{background:#1B8F4C !important;}
 html.fk.fk.fk body .fk-gridbtn{display:none !important;}
+html.fk.fk.fk body .fk-hero-wrap{padding:10px 14px 2px !important; background:#fff !important;}
+html.fk.fk.fk body .fk-hero{border-radius:16px !important; box-shadow:0 2px 10px rgba(0,0,0,.14) !important;}
+html.fk.fk.fk body .fk-dots{position:static !important; bottom:auto !important; justify-content:center !important; gap:5px !important; padding:10px 0 4px !important;}
+html.fk.fk.fk body .fk-dots i{width:22px !important; height:4px !important; border-radius:4px !important; background:#D6D6DC !important;}
+html.fk.fk.fk body .fk-dots i.on{width:46px !important; background:#D6D6DC !important;}
+html.fk.fk.fk body .fk-dots i b{background:#1C1C1C !important;}
 </style>
 <script id="nexcart-fk-js">
 /* ==========================================================================
@@ -14347,7 +14353,8 @@ html.fk.fk.fk body .fk-gridbtn{display:none !important;}
   }
   function heroHTML(list) {
     if (!list.length) return '';
-    return '<div class="fk-hero-wrap"><div class="fk-hero" id="fkHero">' +
+    var ar = ''; try { ar = localStorage.getItem('nc_ar_' + (list[0].id || '')) || ''; } catch (e) {}
+    return '<div class="fk-hero-wrap"><div class="fk-hero" id="fkHero"' + (ar ? ' style="aspect-ratio:' + esc(ar) + ' !important"' : '') + '>' +
       '<div class="fk-hero-track" id="fkHeroTrack">' + list.map(slideHTML).join('') + '</div>' +
       '</div><div class="fk-dots" id="fkDots">' + (list.length > 1 ? list.map(function (_, i) { return '<i class="' + (i === 0 ? 'on' : '') + '"><b></b></i>'; }).join('') : '') + '</div></div>';
   }
@@ -14356,6 +14363,16 @@ html.fk.fk.fk body .fk-gridbtn{display:none !important;}
     heroStop();
     var track = document.getElementById('fkHeroTrack'); if (!track || !list.length) return;
     var slides = $A('.fk-bn', track), dots = $A('#fkDots i'), cur = 0, touching = false;
+    (function () {
+      var hero = document.getElementById('fkHero'), im = $1('img.fk-bn-i', track); if (!hero || !im) return;
+      function fit() {
+        if (!im.naturalWidth || !im.naturalHeight) return;
+        var r = Math.max(1, Math.min(2.2, im.naturalWidth / im.naturalHeight)); r = Math.round(r * 100) / 100;
+        hero.style.setProperty('aspect-ratio', String(r), 'important');
+        try { localStorage.setItem('nc_ar_' + (list[0].id || ''), String(r)); } catch (e) {}
+      }
+      if (im.complete) fit(); else im.addEventListener('load', fit);
+    })();
     $A('video', track).forEach(function (v) {
       function show() { v.classList.add('on'); }
       v.addEventListener('playing', show); v.addEventListener('timeupdate', function () { if (v.currentTime > 0.05) show(); });
@@ -14871,7 +14888,7 @@ html.fk.fk.fk body .fk-gridbtn{display:none !important;}
       [['image', 'Photo / GIF'], ['video', 'Video'], ['color', 'Colour + text']].map(function (t) { return '<button type="button" class="size-chip bf2-type ' + (st.type === t[0] ? 'selected' : '') + '" data-t="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div></div>' +
       '<div id="bf2Img" class="form-group"><label class="form-label">Photo or GIF <span style="font-weight:400;color:var(--ink-faint)">(best size 1400×800)</span></label>' +
       '<img id="bf2ImgPv" style="max-height:110px;border-radius:10px;display:' + (st.img ? 'block' : 'none') + ';margin-bottom:8px;" src="' + E(st.img ? ncDirectMediaUrl(st.img) : '') + '">' +
-      '<button type="button" class="btn btn-secondary btn-sm" id="bf2PickImg">' + icon('upload') + ' Choose picture</button></div>' +
+      '<button type="button" class="btn btn-secondary btn-sm" id="bf2PickImg">' + icon('upload') + ' Choose picture</button><div style="font-size:11.5px;color:var(--ink-faint);margin-top:6px;">Best size: <b>1000 × 900</b> (tall card like Flipkart) or <b>1400 × 800</b> (wide). The first banner decides the shape for the whole row.</div></div>' +
       '<div id="bf2Vid" class="form-group"><label class="form-label">Video <span style="font-weight:400;color:var(--ink-faint)">(MP4, up to 28 MB, plays muted &amp; looping)</span></label>' +
       '<button type="button" class="btn btn-secondary btn-sm" id="bf2PickVid">' + icon('upload') + ' Upload video</button> <span id="bf2VidSt" style="font-size:12px;color:var(--ink-faint);">' + (st.video ? 'Video set ✓' : '') + '</span>' +
       '<input class="form-input" id="bf2VidUrl" style="margin-top:8px;" placeholder="…or paste a video link (https://…mp4)" value="' + E(st.video && /^https?:/.test(st.video) ? st.video : '') + '">' +
