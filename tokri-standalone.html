@@ -2187,7 +2187,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v78-24oct';</script>
+const APP_BUILD = 'v79-24oct';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -14499,7 +14499,7 @@ html.fk.fk.fk body #ncOffBar.on{background:#1B8F4C !important;}
   function gridItems(catId) {
     if (catId === 'all') return allSubsFlat().slice(0, 30);
     var items = tileItems(catId);
-    return items.length > 5 && (items[0].link || {}).kind === 'sub' ? items.slice(5, 40) : [];
+    return [];
   }
   function CUT_OK(src) { return typeof src === 'string' && window.nc3dCut && nc3dCut(src) !== src; }
   function gridHTML(catId) {
@@ -14513,7 +14513,6 @@ html.fk.fk.fk body #ncOffBar.on{background:#1B8F4C !important;}
   }
   function tilesHTML(catId) {
     var items = tileItems(catId); if (!items.length) return '';
-    if (catId !== 'all' && items.length > 5 && (items[0].link || {}).kind === 'sub') items = items.slice(0, 5);
     window.__fkTiles = items;
     var base = cfg().tileColor || '';
     return '<div class="fk-tiles-wrap"><div class="fk-tiles sz-' + (cfg().tileSize || 's') + '"' + (base ? ' style="--fk-base:' + esc(base) + '"' : '') + '>' + items.map(function (t, i) {
