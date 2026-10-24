@@ -2187,7 +2187,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v79-24oct';</script>
+const APP_BUILD = 'v80-24oct';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -14527,8 +14527,8 @@ html.fk.fk.fk body #ncOffBar.on{background:#1B8F4C !important;}
     var cat = (typeof ncActiveCat !== 'undefined' && ncActiveCat) || 'all';
     var banners = bannersFor(cat);
     var h = sectionOn('tiles') ? tilesHTML(cat) : '';
-    if (sectionOn('tiles')) h += gridHTML(cat);
     h += heroHTML(banners);
+    if (sectionOn('tiles')) h += gridHTML(cat);
     h += saleHTML();
     if (cat === 'all' && sectionOn('ticker')) { var t = ''; try { t = buildAnnounceBar(); } catch (e) {} if (t) h += '<div class="offer-wrap">' + t + '</div>'; }
     if (cat === 'all') {
