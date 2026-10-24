@@ -2187,7 +2187,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v80-24oct';</script>
+const APP_BUILD = 'v81-24oct';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -13340,7 +13340,9 @@ html.fk.fk.fk body .fk-hero-track{display:flex !important; height:100% !importan
 html.fk.fk.fk body .fk-hero-track::-webkit-scrollbar{display:none !important;}
 html.fk.fk.fk body .fk-bn{flex:0 0 100% !important; height:100% !important; scroll-snap-align:center !important; position:relative !important; overflow:hidden !important; cursor:pointer !important;}
 html.fk.fk.fk body .fk-bn-i, html.fk.fk.fk body .fk-bn-v{width:100% !important; height:100% !important; object-fit:cover !important; display:block !important;}
-html.fk.fk.fk body .fk-bn-v{animation:none !important; background:#000 !important;}
+html.fk.fk.fk body .fk-bn-v{animation:none !important; background:transparent !important; position:absolute !important; left:0 !important; top:0 !important; opacity:0 !important; transition:opacity .4s ease !important;}
+html.fk.fk.fk body .fk-bn-v.on{opacity:1 !important;}
+html.fk.fk.fk body .fk-bn-poster{position:absolute !important; left:0 !important; top:0 !important;}
 html.fk.fk.fk body .fk-bn-c{position:absolute !important; inset:0 !important;}
 @keyframes fkKen{from{ transform:scale(1.07); } to{ transform:scale(1); }}
 html.fk.fk.fk body .fk-bn-shade{position:absolute !important; inset:0 !important; background:linear-gradient(90deg,rgba(0,0,0,.32) 0%,rgba(0,0,0,0) 65%) !important;}
@@ -14327,8 +14329,9 @@ html.fk.fk.fk body #ncOffBar.on{background:#1B8F4C !important;}
     var type = b.type || (b.video ? 'video' : (b.img ? 'image' : 'color'));
     var inner = '', showText = ((type === 'color') || b.showText) && !!(b.badge || b.title || b.sub || b.cta);
     if (type === 'video' && b.video) {
-      inner = '<video class="fk-bn-v" src="' + esc(media(b.video)) + '" ' + (b.img ? 'poster="' + esc(media(b.img)) + '" ' : '') +
-        'muted loop playsinline webkit-playsinline preload="' + (i === 0 ? 'auto' : 'metadata') + '"></video>';
+      inner = (b.img ? '<img class="fk-bn-i fk-bn-poster" src="' + esc(media(b.img)) + '" alt="" decoding="async">' : '<div class="fk-bn-c fk-bn-poster" style="background:linear-gradient(135deg,#FFE0EC,#E6DBFF)"></div>') +
+        '<video class="fk-bn-v" src="' + esc(media(b.video)) + '" ' +
+        'muted loop playsinline webkit-playsinline preload="auto"></video>';
     } else if (type === 'image' && b.img) {
       inner = '<img class="fk-bn-i" src="' + esc(media(b.img)) + '" alt="" ' + (i === 0 ? '' : 'loading="lazy" ') + 'decoding="async" onerror="this.style.opacity=0">';
     } else {
@@ -14352,6 +14355,11 @@ html.fk.fk.fk body #ncOffBar.on{background:#1B8F4C !important;}
     heroStop();
     var track = document.getElementById('fkHeroTrack'); if (!track || !list.length) return;
     var slides = $A('.fk-bn', track), dots = $A('#fkDots i'), cur = 0, touching = false;
+    $A('video', track).forEach(function (v) {
+      function show() { v.classList.add('on'); }
+      v.addEventListener('playing', show); v.addEventListener('timeupdate', function () { if (v.currentTime > 0.05) show(); });
+      v.addEventListener('error', function () { v.style.display = 'none'; });
+    });
     heroIdx = 0;
 
     function dur(i) {
