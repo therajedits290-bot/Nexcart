@@ -2187,7 +2187,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v83-24oct';</script>
+const APP_BUILD = 'v84-24oct';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -14959,11 +14959,12 @@ html.fk.fk.fk body .fk-gridbtn{display:none !important;}
       }).join('') +
 
       sec('Top category tabs', 'The tabs under the search bar (like ALL · MEN · WOMEN · KIDS). Your other categories still appear as pictures in the row below. Leave empty and the app picks Men / Women / Kids automatically.') +
-      (Array.isArray(h.tabs) && h.tabs.length ? h.tabs.map(function (t, i) {
+      curTabs().map(function (t, i) {
         var c = (DB.categories || []).filter(function (x) { return x.id === t.cat; })[0];
         return '<div class="banner-row"><div class="banner-row-info"><div class="banner-row-title">' + E(t.label) + '</div><div class="banner-row-sub">Category: ' + E(c ? c.name : '?') + '</div></div>' +
           '<button class="icon-btn" style="width:26px;min-width:0;padding:0" data-tabup="' + i + '">↑</button><button class="icon-btn" style="width:26px;min-width:0;padding:0" data-tabdn="' + i + '">↓</button><button class="icon-btn" data-tabedit="' + i + '">' + icon('edit') + '</button><button class="icon-btn" data-tabdel="' + i + '">' + icon('trash') + '</button></div>';
-      }).join('') : '<p style="font-size:12.5px;color:var(--ink-faint);margin:0 0 8px;">Now showing: ' + E(['ALL'].concat((window.fkTabList ? fkTabList() : []).map(function (t) { return t.label; })).join(' · ')) + ' (automatic)</p>') +
+      }).join('') +
+      '<p style="font-size:12px;color:var(--ink-faint);margin:2px 0 8px;">The first tab (' + E(h.forYouLabel || 'ALL') + ') shows everything. Rename it in “Name of the first category tab” below.</p>' +
       '<div style="display:flex;gap:8px;margin-top:6px;"><button class="btn btn-secondary btn-sm" id="h2AddTab"' + ((h.tabs || []).length >= 6 ? ' disabled' : '') + '>' + icon('plus') + ' Add tab</button>' + ((h.tabs || []).length ? '<button class="btn btn-secondary btn-sm" id="h2ResetTabs">Use automatic</button>' : '') + '</div>' +
 
       sec('Sale countdown bar', 'The “Sale starts in 02:14:33” strip under the banner. It counts down by itself on every phone.') +
@@ -15041,9 +15042,9 @@ html.fk.fk.fk body .fk-gridbtn{display:none !important;}
     /* tabs */
     on('#h2AddTab', function () { tabForm(-1); });
     on('[data-tabedit]', function (el) { tabForm(Number(el.dataset.tabedit)); });
-    on('[data-tabdel]', function (el) { h.tabs.splice(Number(el.dataset.tabdel), 1); save(); again(); });
-    on('[data-tabup]', function (el) { move(h.tabs, Number(el.dataset.tabup), -1); save(); again(); });
-    on('[data-tabdn]', function (el) { move(h.tabs, Number(el.dataset.tabdn), 1); save(); again(); });
+    on('[data-tabdel]', function (el) { matTabs(); h.tabs.splice(Number(el.dataset.tabdel), 1); save(); again(); });
+    on('[data-tabup]', function (el) { matTabs(); move(h.tabs, Number(el.dataset.tabup), -1); save(); again(); });
+    on('[data-tabdn]', function (el) { matTabs(); move(h.tabs, Number(el.dataset.tabdn), 1); save(); again(); });
     on('#h2ResetTabs', function () { h.tabs = []; save(); again(); });
 
     /* sale */
@@ -15111,8 +15112,10 @@ html.fk.fk.fk body .fk-gridbtn{display:none !important;}
   }
 
   var SVC_ICONS = [['logo', 'My shop logo'], ['tag', 'Price tag'], ['flash', 'Lightning'], ['basket', 'Basket'], ['gift', 'Gift'], ['phone', 'Mobile'], ['shirt', 'Fashion'], ['laptop', 'Electronics'], ['beauty', 'Beauty'], ['kids', 'Kids'], ['star', 'Star'], ['plane', 'Travel']];
+  function curTabs() { var h = H(); return (Array.isArray(h.tabs) && h.tabs.length) ? h.tabs : (window.fkTabList ? fkTabList() : []); }
+  function matTabs() { var h = H(); if (!Array.isArray(h.tabs) || !h.tabs.length) h.tabs = curTabs().map(function (t) { return { cat: t.cat, label: t.label }; }); return h.tabs; }
   function tabForm(i) {
-    var h = H(); h.tabs = Array.isArray(h.tabs) ? h.tabs : [];
+    var h = H(); matTabs();
     var t = i >= 0 ? h.tabs[i] : null;
     var opts = (DB.categories || []).map(function (c) { return '<option value="' + E(c.id) + '" ' + (t && t.cat === c.id ? 'selected' : '') + '>' + E(c.name) + '</option>'; }).join('');
     sheet(t ? 'Edit tab' : 'Add tab', '<div class="form-group"><label class="form-label">Category</label><select class="form-input" id="tfCat">' + opts + '</select></div>' + field('Tab name (short, e.g. MEN)', 'tfName', t && t.label, 'MEN'), 'Save', function (ov) {
