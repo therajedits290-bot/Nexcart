@@ -2187,7 +2187,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v85-24oct';</script>
+const APP_BUILD = 'v86-24oct';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -14364,14 +14364,20 @@ html.fk.fk.fk body .fk-dots i b{background:#1C1C1C !important;}
     var track = document.getElementById('fkHeroTrack'); if (!track || !list.length) return;
     var slides = $A('.fk-bn', track), dots = $A('#fkDots i'), cur = 0, touching = false;
     (function () {
-      var hero = document.getElementById('fkHero'), im = $1('img.fk-bn-i', track); if (!hero || !im) return;
-      function fit() {
-        if (!im.naturalWidth || !im.naturalHeight) return;
-        var r = Math.max(1, Math.min(2.2, im.naturalWidth / im.naturalHeight)); r = Math.round(r * 100) / 100;
+      var hero = document.getElementById('fkHero'), first = $1('.fk-bn', track); if (!hero || !first) return;
+      var vid = $1('video', first), im = $1('img.fk-bn-i', first);
+      function put(w, h) {
+        if (!w || !h) return;
+        var r = Math.max(1, Math.min(2.2, w / h)); r = Math.round(r * 100) / 100;
         hero.style.setProperty('aspect-ratio', String(r), 'important');
         try { localStorage.setItem('nc_ar_' + (list[0].id || ''), String(r)); } catch (e) {}
       }
-      if (im.complete) fit(); else im.addEventListener('load', fit);
+      if (vid) {
+        if (vid.videoWidth) put(vid.videoWidth, vid.videoHeight);
+        vid.addEventListener('loadedmetadata', function () { put(vid.videoWidth, vid.videoHeight); });
+        if (vid.readyState >= 1 && vid.videoWidth) put(vid.videoWidth, vid.videoHeight);
+        else if (im) { if (im.complete) put(im.naturalWidth, im.naturalHeight); else im.addEventListener('load', function () { if (!vid.videoWidth) put(im.naturalWidth, im.naturalHeight); }); }
+      } else if (im) { if (im.complete) put(im.naturalWidth, im.naturalHeight); else im.addEventListener('load', function () { put(im.naturalWidth, im.naturalHeight); }); }
     })();
     $A('video', track).forEach(function (v) {
       function show() { v.classList.add('on'); }
