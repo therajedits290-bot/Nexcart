@@ -2187,7 +2187,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v81-24oct';</script>
+const APP_BUILD = 'v83-24oct';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -13664,6 +13664,7 @@ html.fk.fk.fk body .fk-sg-wrap{padding:8px 0 12px !important;}
 html.fk.fk.fk body #ncOffBar{position:fixed !important; left:12px !important; right:12px !important; bottom:calc(68px + env(safe-area-inset-bottom,0px)) !important; z-index:950 !important; padding:9px 12px !important; border-radius:12px !important; font-size:12px !important; font-weight:600 !important; text-align:center !important; color:#fff !important; background:#2A1730 !important; box-shadow:0 6px 20px rgba(0,0,0,.28) !important; opacity:0 !important; pointer-events:none !important;}
 html.fk.fk.fk body #ncOffBar.show{opacity:1 !important;}
 html.fk.fk.fk body #ncOffBar.on{background:#1B8F4C !important;}
+html.fk.fk.fk body .fk-gridbtn{display:none !important;}
 </style>
 <script id="nexcart-fk-js">
 /* ==========================================================================
@@ -14323,7 +14324,7 @@ html.fk.fk.fk body #ncOffBar.on{background:#1B8F4C !important;}
     var mine = all.filter(function (b) { return Array.isArray(b.cats) && b.cats.length && b.cats.indexOf(catId) >= 0; });
     var general = all.filter(function (b) { return !Array.isArray(b.cats) || !b.cats.length || b.cats.indexOf('all') >= 0; });
     if (catId === 'all') return general;
-    return mine.length ? mine : general;
+    return mine;
   }
   function slideHTML(b, i) {
     var type = b.type || (b.video ? 'video' : (b.img ? 'image' : 'color'));
@@ -14953,7 +14954,7 @@ html.fk.fk.fk body #ncOffBar.on{background:#1B8F4C !important;}
       bannerGroups().map(function (g) {
         var rows = banners.filter(function (b) { return inGroup(b, g); });
         return '<div style="margin:6px 0 16px;"><div style="font-weight:800;font-size:13px;letter-spacing:.6px;color:var(--brand);margin:0 0 6px;">' + E(g.label) + ' (' + rows.length + ')</div>' +
-          (rows.length ? rows.map(function (b) { return bannerRow(b); }).join('') : '<p style="font-size:12.5px;color:var(--ink-faint);margin:0 0 8px;">' + (g.id === 'all' ? 'No banners yet.' : 'No banners of its own — showing the home banners.') + '</p>') +
+          (rows.length ? rows.map(function (b) { return bannerRow(b); }).join('') : '<p style="font-size:12.5px;color:var(--ink-faint);margin:0 0 8px;">' + (g.id === 'all' ? 'No banners yet.' : 'No banners yet — this tab shows no banner until you add one.') + '</p>') +
           '<button class="btn btn-secondary btn-sm" data-addb="' + E(g.id) + '">' + icon('plus') + ' Add banner to ' + E(g.short) + '</button></div>';
       }).join('') +
 
