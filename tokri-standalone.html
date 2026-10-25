@@ -2187,7 +2187,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v91-25oct';</script>
+const APP_BUILD = 'v92-25oct';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -4349,6 +4349,7 @@ function openCheckoutAddress(){
                   </span>
                 </div>
                 <div class="addr-line">${a.line}, ${a.city}, ${a.state} - ${a.pincode}</div>
+                <div class="addr-actions" style="margin-top:8px;"><button class="danger" data-cdel="${a.id}">Delete</button></div>
               </div>`).join('')}
             <button class="btn btn-outline btn-block" id="caNewBtn" style="margin:4px 0 18px;">
               ${icon('plus')} Deliver to a new address
@@ -4382,6 +4383,16 @@ function openCheckoutAddress(){
       $$('[data-pick]', main).forEach(el=> el.addEventListener('click', ()=>{
         selectedAddressId = el.dataset.pick;
         render();
+      }));
+      $$('[data-cdel]', main).forEach(b=> b.addEventListener('click', (ev)=>{
+        ev.stopPropagation();
+        const a = list.find(x=>x.id===b.dataset.cdel); if(!a) return;
+        confirmAction('Delete address?', (a.label||'Home')+' — '+a.line+', '+a.city, ()=>{
+          const i = list.findIndex(x=>x.id===a.id); if(i>=0) list.splice(i,1);
+          if(list.length && !list.some(x=>x.isDefault)) list[0].isDefault = true;
+          if(selectedAddressId===a.id){ const d = list.find(x=>x.isDefault) || list[0]; selectedAddressId = d ? d.id : null; }
+          persist(); render(); showToast('Address deleted','checkCircle');
+        });
       }));
       const nb = $('#caNewBtn');
       if(nb) nb.addEventListener('click', ()=>{ selectedAddressId = '__new__'; render(); });
@@ -5204,7 +5215,7 @@ function openAddresses(){
               <div class="addr-actions">
                 ${a.isDefault?'':`<button data-def="${a.id}">Set as Default</button>`}
                 <button data-edit="${a.id}">Edit</button>
-                ${list.length>1?`<button class="danger" data-del="${a.id}">Delete</button>`:''}
+                <button class="danger" data-del="${a.id}">Delete</button>
               </div>
             </div>`).join('')
           : `<div class="empty-state">${icon('mapPin')}<h3>No saved addresses</h3><p>Add an address to speed up checkout.</p></div>`}
