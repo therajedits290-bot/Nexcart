@@ -2187,7 +2187,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v88-24oct';</script>
+const APP_BUILD = 'v90-25oct';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -15588,6 +15588,213 @@ html.fk.fk.fk body .fk-t2{min-width:calc(var(--w,56px) + 14px) !important;}
     } catch (e) {}
   }
   setTimeout(warm, 9000);
+})();
+
+/* ==========================================================================
+   NEXCART language option (English, Hindi, Telugu, Tamil, Kannada)
+   Translates the app's fixed words (menus, buttons, headings). Product names,
+   banners and offers you type in the admin panel stay as you wrote them.
+   ========================================================================== */
+(function () {
+  'use strict';
+  var LANGS = [['en', 'English', 'English'], ['hi', 'हिंदी', 'Hindi'], ['te', 'తెలుగు', 'Telugu'], ['ta', 'தமிழ்', 'Tamil'], ['kn', 'ಕನ್ನಡ', 'Kannada']];
+  /* [English, Hindi, Telugu, Tamil, Kannada] */
+  var D = [
+    ['Home', 'होम', 'హోమ్', 'முகப்பு', 'ಮುಖಪುಟ'],
+    ['Categories', 'श्रेणियाँ', 'వర్గాలు', 'வகைகள்', 'ವರ್ಗಗಳು'],
+    ['All Categories', 'सभी श्रेणियाँ', 'అన్ని వర్గాలు', 'அனைத்து வகைகள்', 'ಎಲ್ಲಾ ವರ್ಗಗಳು'],
+    ['Cart', 'कार्ट', 'కార్ట్', 'கார்ட்', 'ಕಾರ್ಟ್'],
+    ['My Orders', 'मेरे ऑर्डर', 'నా ఆర్డర్లు', 'என் ஆர்டர்கள்', 'ನನ್ನ ಆರ್ಡರ್‌ಗಳು'],
+    ['Orders', 'ऑर्डर', 'ఆర్డర్లు', 'ஆர்டர்கள்', 'ಆರ್ಡರ್‌ಗಳು'],
+    ['Account', 'अकाउंट', 'ఖాతా', 'கணக்கு', 'ಖಾತೆ'],
+    ['Deliver to', 'यहाँ डिलीवर करें', 'ఇక్కడికి డెలివరీ', 'இங்கே டெலிவரி', 'ಇಲ್ಲಿಗೆ ಡೆಲಿವರಿ'],
+    ['Add your delivery address', 'अपना डिलीवरी पता जोड़ें', 'మీ డెలివరీ చిరునామా జోడించండి', 'உங்கள் டெலிவரி முகவரியைச் சேர்க்கவும்', 'ನಿಮ್ಮ ಡೆಲಿವರಿ ವಿಳಾಸ ಸೇರಿಸಿ'],
+    ['Everything you need, delivered.', 'आपकी ज़रूरत की हर चीज़, आपके घर तक।', 'మీకు కావలసినవన్నీ, ఇంటికే డెలివరీ.', 'உங்களுக்கு வேண்டிய அனைத்தும், வீடு தேடி.', 'ನಿಮಗೆ ಬೇಕಾದ ಎಲ್ಲವೂ, ಮನೆಗೇ ಡೆಲಿವರಿ.'],
+    ['All', 'सभी', 'అన్నీ', 'அனைத்தும்', 'ಎಲ್ಲಾ'],
+    ['Men', 'पुरुष', 'పురుషులు', 'ஆண்கள்', 'ಪುರುಷರು'],
+    ['Women', 'महिला', 'మహిళలు', 'பெண்கள்', 'ಮಹಿಳೆಯರು'],
+    ['Kids', 'बच्चे', 'పిల్లలు', 'குழந்தைகள்', 'ಮಕ್ಕಳು'],
+    ["Men's Wear", 'पुरुषों के कपड़े', 'పురుషుల దుస్తులు', 'ஆண்கள் உடைகள்', 'ಪುರುಷರ ಉಡುಪು'],
+    ["Women's", 'महिलाओं के कपड़े', 'మహిళల దుస్తులు', 'பெண்கள் உடைகள்', 'ಮಹಿಳೆಯರ ಉಡುಪು'],
+    ["Kid's Wear", 'बच्चों के कपड़े', 'పిల్లల దుస్తులు', 'குழந்தைகள் உடைகள்', 'ಮಕ್ಕಳ ಉಡುಪು'],
+    ['Foot Wear', 'जूते-चप्पल', 'పాదరక్షలు', 'காலணிகள்', 'ಪಾದರಕ್ಷೆಗಳು'],
+    ['Fashion', 'फ़ैशन', 'ఫ్యాషన్', 'ஃபேஷன்', 'ಫ್ಯಾಷನ್'],
+    ['Electronics', 'इलेक्ट्रॉनिक्स', 'ఎలక్ట్రానిక్స్', 'எலக்ட்ரானிக்ஸ்', 'ಎಲೆಕ್ಟ್ರಾನಿಕ್ಸ್'],
+    ['Beauty', 'ब्यूटी', 'బ్యూటీ', 'அழகு', 'ಸೌಂದರ್ಯ'],
+    ['Grocery', 'किराना', 'కిరాణా', 'மளிகை', 'ದಿನಸಿ'],
+    ['Suggested For You', 'आपके लिए सुझाव', 'మీ కోసం సూచనలు', 'உங்களுக்கான பரிந்துரைகள்', 'ನಿಮಗಾಗಿ ಸಲಹೆಗಳು'],
+    ['Top Picks For You', 'आपके लिए खास पसंद', 'మీ కోసం ప్రత్యేక ఎంపికలు', 'உங்களுக்கான சிறப்புத் தேர்வுகள்', 'ನಿಮಗಾಗಿ ವಿಶೇಷ ಆಯ್ಕೆಗಳು'],
+    ['Deals of the Day', 'आज के डील', 'నేటి డీల్స్', 'இன்றைய டீல்கள்', 'ಇಂದಿನ ಡೀಲ್ಸ್'],
+    ['Top Deals', 'टॉप डील', 'టాప్ డీల్స్', 'சிறந்த டீல்கள்', 'ಟಾಪ್ ಡೀಲ್ಸ್'],
+    ['See all', 'सभी देखें', 'అన్నీ చూడండి', 'அனைத்தையும் பார்க்க', 'ಎಲ್ಲವನ್ನೂ ನೋಡಿ'],
+    ['View all', 'सभी देखें', 'అన్నీ చూడండి', 'அனைத்தையும் பார்க்க', 'ಎಲ್ಲವನ್ನೂ ನೋಡಿ'],
+    ['Sale ends in', 'सेल खत्म होने में', 'సేల్ ముగిసేది', 'சேல் முடிய', 'ಸೇಲ್ ಮುಗಿಯಲು'],
+    ['Ends in', 'खत्म होने में', 'ముగిసేది', 'முடிய', 'ಮುಗಿಯಲು'],
+    ['Days', 'दिन', 'రోజులు', 'நாட்கள்', 'ದಿನ'],
+    ['Hrs', 'घंटे', 'గంటలు', 'மணி', 'ಗಂಟೆ'],
+    ['Min', 'मिनट', 'నిమి', 'நிமி', 'ನಿಮಿ'],
+    ['Sec', 'सेकंड', 'సెక', 'வினாடி', 'ಸೆಕ'],
+    ['Offers', 'ऑफर', 'ఆఫర్లు', 'ஆஃபர்கள்', 'ಆಫರ್‌ಗಳು'],
+    ['Offers for you', 'आपके लिए ऑफर', 'మీ కోసం ఆఫర్లు', 'உங்களுக்கான ஆஃபர்கள்', 'ನಿಮಗಾಗಿ ಆಫರ್‌ಗಳು'],
+    ['Free Delivery', 'फ्री डिलीवरी', 'ఉచిత డెలివరీ', 'இலவச டெலிவரி', 'ಉಚಿತ ಡೆಲಿವರಿ'],
+    ['FREE', 'फ्री', 'ఉచితం', 'இலவசம்', 'ಉಚಿತ'],
+    ['Cash on Delivery', 'कैश ऑन डिलीवरी', 'క్యాష్ ఆన్ డెలివరీ', 'கேஷ் ஆன் டெலிவரி', 'ಕ್ಯಾಶ್ ಆನ್ ಡೆಲಿವರಿ'],
+    ['Cash on Delivery available', 'कैश ऑन डिलीवरी उपलब्ध', 'క్యాష్ ఆన్ డెలివరీ అందుబాటులో ఉంది', 'கேஷ் ஆன் டெலிவரி உண்டு', 'ಕ್ಯಾಶ್ ಆನ್ ಡೆಲಿವರಿ ಲಭ್ಯ'],
+    ['Cash on Delivery available across India', 'पूरे भारत में कैश ऑन डिलीवरी उपलब्ध', 'భారతదేశమంతటా క్యాష్ ఆన్ డెలివరీ అందుబాటులో ఉంది', 'இந்தியா முழுவதும் கேஷ் ஆன் டெலிவரி உண்டு', 'ಭಾರತದಾದ್ಯಂತ ಕ್ಯಾಶ್ ಆನ್ ಡೆಲಿವರಿ ಲಭ್ಯ'],
+    ['Free delivery on all orders above ₹499', '₹499 से ऊपर के सभी ऑर्डर पर फ्री डिलीवरी', '₹499 పైన అన్ని ఆర్డర్లకు ఉచిత డెలివరీ', '₹499க்கு மேல் அனைத்து ஆர்டர்களுக்கும் இலவச டெலிவரி', '₹499 ಮೇಲಿನ ಎಲ್ಲಾ ಆರ್ಡರ್‌ಗಳಿಗೆ ಉಚಿತ ಡೆಲಿವರಿ'],
+    ['Shop Now', 'अभी खरीदें', 'ఇప్పుడే కొనండి', 'இப்போதே வாங்குங்கள்', 'ಈಗ ಖರೀದಿಸಿ'],
+    ['Buy Now', 'अभी खरीदें', 'ఇప్పుడే కొనండి', 'இப்போதே வாங்கு', 'ಈಗ ಖರೀದಿಸಿ'],
+    ['Start Shopping', 'खरीदारी शुरू करें', 'షాపింగ్ ప్రారంభించండి', 'ஷாப்பிங் தொடங்குங்கள்', 'ಶಾಪಿಂಗ್ ಪ್ರಾರಂಭಿಸಿ'],
+    ['Keep browsing', 'देखते रहें', 'బ్రౌజ్ చేస్తూ ఉండండి', 'தொடர்ந்து பாருங்கள்', 'ಬ್ರೌಸ್ ಮಾಡುತ್ತಿರಿ'],
+    ['Continue Shopping', 'खरीदारी जारी रखें', 'షాపింగ్ కొనసాగించండి', 'ஷாப்பிங்கைத் தொடரவும்', 'ಶಾಪಿಂಗ್ ಮುಂದುವರಿಸಿ'],
+    ['Your cart is empty', 'आपका कार्ट खाली है', 'మీ కార్ట్ ఖాళీగా ఉంది', 'உங்கள் கார்ட் காலியாக உள்ளது', 'ನಿಮ್ಮ ಕಾರ್ಟ್ ಖಾಲಿಯಾಗಿದೆ'],
+    ["Looks like you haven't added anything yet. Start exploring products!", 'लगता है आपने अभी कुछ नहीं जोड़ा। प्रोडक्ट देखना शुरू करें!', 'మీరు ఇంకా ఏమీ జోడించలేదు. ఉత్పత్తులను చూడటం ప్రారంభించండి!', 'நீங்கள் இன்னும் எதையும் சேர்க்கவில்லை. பொருட்களைப் பாருங்கள்!', 'ನೀವು ಇನ್ನೂ ಏನನ್ನೂ ಸೇರಿಸಿಲ್ಲ. ಉತ್ಪನ್ನಗಳನ್ನು ನೋಡಿ!'],
+    ['Add to Cart', 'कार्ट में जोड़ें', 'కార్ట్‌కు జోడించండి', 'கார்ட்டில் சேர்', 'ಕಾರ್ಟ್‌ಗೆ ಸೇರಿಸಿ'],
+    ['Place Order', 'ऑर्डर करें', 'ఆర్డర్ చేయండి', 'ஆர்டர் செய்', 'ಆರ್ಡರ್ ಮಾಡಿ'],
+    ['Select Size', 'साइज़ चुनें', 'సైజ్ ఎంచుకోండి', 'அளவைத் தேர்ந்தெடு', 'ಗಾತ್ರ ಆಯ್ಕೆಮಾಡಿ'],
+    ['Price Details', 'कीमत का विवरण', 'ధర వివరాలు', 'விலை விவரங்கள்', 'ಬೆಲೆ ವಿವರಗಳು'],
+    ['Total Amount', 'कुल राशि', 'మొత్తం', 'மொத்தத் தொகை', 'ಒಟ್ಟು ಮೊತ್ತ'],
+    ['Delivery Charges', 'डिलीवरी शुल्क', 'డెలివరీ ఛార్జీలు', 'டெலிவரி கட்டணம்', 'ಡೆಲಿವರಿ ಶುಲ್ಕ'],
+    ['Discount', 'छूट', 'డిస్కౌంట్', 'தள்ளுபடி', 'ರಿಯಾಯಿತಿ'],
+    ['Login or create account', 'लॉगिन या अकाउंट बनाएं', 'లాగిన్ లేదా ఖాతా సృష్టించండి', 'உள்நுழை அல்லது கணக்கை உருவாக்கு', 'ಲಾಗಿನ್ ಅಥವಾ ಖಾತೆ ರಚಿಸಿ'],
+    ['Login to see your orders', 'ऑर्डर देखने के लिए लॉगिन करें', 'మీ ఆర్డర్లు చూడటానికి లాగిన్ చేయండి', 'ஆர்டர்களைப் பார்க்க உள்நுழையவும்', 'ನಿಮ್ಮ ಆರ್ಡರ್‌ಗಳನ್ನು ನೋಡಲು ಲಾಗಿನ್ ಮಾಡಿ'],
+    ['Login to see your profile', 'प्रोफ़ाइल देखने के लिए लॉगिन करें', 'మీ ప్రొఫైల్ చూడటానికి లాగిన్ చేయండి', 'சுயவிவரத்தைப் பார்க்க உள்நுழையவும்', 'ನಿಮ್ಮ ಪ್ರೊಫೈಲ್ ನೋಡಲು ಲಾಗಿನ್ ಮಾಡಿ'],
+    ['Logout', 'लॉग आउट', 'లాగ్ అవుట్', 'வெளியேறு', 'ಲಾಗ್ ಔಟ್'],
+    ['Wishlist', 'विशलिस्ट', 'విష్‌లిస్ట్', 'விருப்பப்பட்டியல்', 'ವಿಶ್‌ಲಿಸ್ಟ್'],
+    ['Addresses', 'पते', 'చిరునామాలు', 'முகவரிகள்', 'ವಿಳಾಸಗಳು'],
+    ['Saved Addresses', 'सेव किए हुए पते', 'సేవ్ చేసిన చిరునామాలు', 'சேமித்த முகவரிகள்', 'ಉಳಿಸಿದ ವಿಳಾಸಗಳು'],
+    ['Edit Profile', 'प्रोफ़ाइल बदलें', 'ప్రొఫైల్ సవరించండి', 'சுயவிவரத்தைத் திருத்து', 'ಪ್ರೊಫೈಲ್ ಸಂಪಾದಿಸಿ'],
+    ['Name, phone, email', 'नाम, फ़ोन, ईमेल', 'పేరు, ఫోన్, ఇమెయిల్', 'பெயர், போன், மின்னஞ்சல்', 'ಹೆಸರು, ಫೋನ್, ಇಮೇಲ್'],
+    ['Track, cancel or return', 'ट्रैक, कैंसिल या रिटर्न करें', 'ట్రాక్, రద్దు లేదా రిటర్న్', 'கண்காணி, ரத்து அல்லது திருப்பு', 'ಟ್ರ್ಯಾಕ್, ರದ್ದು ಅಥವಾ ರಿಟರ್ನ್'],
+    ['Dark Mode', 'डार्क मोड', 'డార్క్ మోడ్', 'டார்க் மோட்', 'ಡಾರ್ಕ್ ಮೋಡ್'],
+    ['Install App', 'ऐप इंस्टॉल करें', 'యాప్ ఇన్‌స్టాల్ చేయండి', 'ஆப்பை நிறுவு', 'ಆ್ಯಪ್ ಇನ್‌ಸ್ಟಾಲ್ ಮಾಡಿ'],
+    ['Privacy Policy', 'गोपनीयता नीति', 'గోప్యతా విధానం', 'தனியுரிமைக் கொள்கை', 'ಗೌಪ್ಯತಾ ನೀತಿ'],
+    ['Notifications', 'सूचनाएँ', 'నోటిఫికేషన్లు', 'அறிவிப்புகள்', 'ಅಧಿಸೂಚನೆಗಳು'],
+    ['Language', 'भाषा', 'భాష', 'மொழி', 'ಭಾಷೆ'],
+    ['Search', 'खोजें', 'వెతకండి', 'தேடு', 'ಹುಡುಕಿ'],
+    ['Continue', 'जारी रखें', 'కొనసాగించండి', 'தொடரவும்', 'ಮುಂದುವರಿಸಿ'],
+    ['Cancel', 'रद्द करें', 'రద్దు', 'ரத்து', 'ರದ್ದು'],
+    ['Save', 'सेव करें', 'సేవ్', 'சேமி', 'ಉಳಿಸಿ'],
+    ['Apply', 'लागू करें', 'వర్తింపజేయండి', 'பயன்படுத்து', 'ಅನ್ವಯಿಸಿ'],
+    ['Remove', 'हटाएँ', 'తొలగించు', 'நீக்கு', 'ತೆಗೆದುಹಾಕಿ'],
+    ['Back', 'वापस', 'వెనుకకు', 'பின்', 'ಹಿಂದೆ'],
+    ['Edit', 'बदलें', 'సవరించు', 'திருத்து', 'ಸಂಪಾದಿಸಿ'],
+    ['Delete', 'हटाएँ', 'తొలగించు', 'நீக்கு', 'ಅಳಿಸಿ'],
+    ['Coupon', 'कूपन', 'కూపన్', 'கூப்பன்', 'ಕೂಪನ್'],
+    ['Payment', 'पेमेंट', 'చెల్లింపు', 'கட்டணம்', 'ಪಾವತಿ'],
+    ['Online Payment', 'ऑनलाइन पेमेंट', 'ఆన్‌లైన్ చెల్లింపు', 'ஆன்லைன் கட்டணம்', 'ಆನ್‌ಲೈನ್ ಪಾವತಿ'],
+    ['Delivery Address', 'डिलीवरी पता', 'డెలివరీ చిరునామా', 'டெலிவரி முகவரி', 'ಡೆಲಿವರಿ ವಿಳಾಸ'],
+    ['Full name', 'पूरा नाम', 'పూర్తి పేరు', 'முழு பெயர்', 'ಪೂರ್ಣ ಹೆಸರು'],
+    ['Phone number', 'फ़ोन नंबर', 'ఫోన్ నంబర్', 'தொலைபேசி எண்', 'ಫೋನ್ ಸಂಖ್ಯೆ'],
+    ['Pincode', 'पिनकोड', 'పిన్‌కోడ్', 'அஞ்சல் குறியீடு', 'ಪಿನ್‌ಕೋಡ್'],
+    ['City', 'शहर', 'నగరం', 'நகரம்', 'ನಗರ'],
+    ['State', 'राज्य', 'రాష్ట్రం', 'மாநிலம்', 'ರಾಜ್ಯ'],
+    ['No orders yet', 'अभी तक कोई ऑर्डर नहीं', 'ఇంకా ఆర్డర్లు లేవు', 'இன்னும் ஆர்டர்கள் இல்லை', 'ಇನ್ನೂ ಆರ್ಡರ್‌ಗಳಿಲ್ಲ'],
+    ['No products found', 'कोई प्रोडक्ट नहीं मिला', 'ఉత్పత్తులు కనబడలేదు', 'பொருட்கள் எதுவும் இல்லை', 'ಯಾವುದೇ ಉತ್ಪನ್ನ ಕಂಡುಬಂದಿಲ್ಲ'],
+    ['Your wishlist is empty', 'आपकी विशलिस्ट खाली है', 'మీ విష్‌లిస్ట్ ఖాళీగా ఉంది', 'உங்கள் விருப்பப்பட்டியல் காலியாக உள்ளது', 'ನಿಮ್ಮ ವಿಶ್‌ಲಿಸ್ಟ್ ಖಾಲಿಯಾಗಿದೆ'],
+    ['Your order is on the way', 'आपका ऑर्डर रास्ते में है', 'మీ ఆర్డర్ దారిలో ఉంది', 'உங்கள் ஆர்டர் வந்து கொண்டிருக்கிறது', 'ನಿಮ್ಮ ಆರ್ಡರ್ ದಾರಿಯಲ್ಲಿದೆ'],
+    ['Recent searches', 'हाल की खोजें', 'ఇటీవలి శోధనలు', 'சமீபத்திய தேடல்கள்', 'ಇತ್ತೀಚಿನ ಹುಡುಕಾಟಗಳು'],
+    ['Say what you are looking for', 'बोलकर खोजें', 'మీకు కావలసింది చెప్పండి', 'தேடுவதைச் சொல்லுங்கள்', 'ನಿಮಗೆ ಬೇಕಾದದ್ದನ್ನು ಹೇಳಿ'],
+    ['Delete my account', 'मेरा अकाउंट डिलीट करें', 'నా ఖాతాను తొలగించండి', 'என் கணக்கை நீக்கு', 'ನನ್ನ ಖಾತೆಯನ್ನು ಅಳಿಸಿ'],
+    ['Lowest Prices', 'सबसे कम कीमतें', 'అతి తక్కువ ధరలు', 'மிகக் குறைந்த விலைகள்', 'ಅತಿ ಕಡಿಮೆ ಬೆಲೆಗಳು'],
+    ['Budget Store — Under ₹299', 'बजट स्टोर — ₹299 से कम', 'బడ్జెట్ స్టోర్ — ₹299 లోపు', 'பட்ஜெட் ஸ்டோர் — ₹299க்குள்', 'ಬಜೆಟ್ ಸ್ಟೋರ್ — ₹299 ಒಳಗೆ'],
+    ['Mega Sale Days', 'मेगा सेल डेज़', 'మెగా సేల్ డేస్', 'மெகா சேல் நாட்கள்', 'ಮೆಗಾ ಸೇಲ್ ಡೇಸ್'],
+    ['Super Saver Days', 'सुपर सेवर डेज़', 'సూపర్ సేవర్ డేస్', 'சூப்பர் சேவர் நாட்கள்', 'ಸೂಪರ್ ಸೇವರ್ ಡೇಸ್']
+  ];
+  var IDX = {}; D.forEach(function (r) { IDX[r[0].toLowerCase()] = r; });
+  var SUFFIX = { off: ['छूट', 'తగ్గింపు', 'தள்ளுபடி', 'ರಿಯಾಯಿತಿ'], products: ['उत्पाद', 'ఉత్పత్తులు', 'பொருட்கள்', 'ಉತ್ಪನ್ನಗಳು'], product: ['उत्पाद', 'ఉత్పత్తి', 'பொருள்', 'ಉತ್ಪನ್ನ'], items: ['आइटम', 'వస్తువులు', 'பொருட்கள்', 'ವಸ್ತುಗಳು'], item: ['आइटम', 'వస్తువు', 'பொருள்', 'ವಸ್ತು'] };
+  function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) {} return null; }
+  var cur = ls('nc_lang') || 'en'; if (!LANGS.some(function (l) { return l[0] === cur; })) cur = 'en';
+  function col() { return Math.max(0, LANGS.findIndex(function (l) { return l[0] === cur; })); }  /* 1..4 in D rows */
+
+  function lookup(txt) {
+    var c = col(); if (!c) return null;
+    var k = txt.toLowerCase().replace(/[\s:]+$/, ''), tail = /:\s*$/.test(txt) ? ':' : '';
+    var r = IDX[k]; if (r) return r[c] + tail;
+    var mm = /^Min\.\s*(\d+)%\s*off$/i.exec(txt);
+    if (mm) return ['न्यूनतम ' + mm[1] + '% छूट', 'కనీసం ' + mm[1] + '% తగ్గింపు', 'குறைந்தது ' + mm[1] + '% தள்ளுபடி', 'ಕನಿಷ್ಠ ' + mm[1] + '% ರಿಯಾಯಿತಿ'][c - 1];
+    mm = /^From\s*(₹\s?[\d,]+)$/i.exec(txt);
+    if (mm) return [mm[1] + ' से शुरू', mm[1] + ' నుండి', mm[1] + ' முதல்', mm[1] + ' ರಿಂದ'][c - 1];
+    mm = /^Best of (.+)$/i.exec(txt);
+    if (mm) { var inner = IDX[mm[1].toLowerCase()]; var w = inner ? inner[c] : mm[1]; return [ 'बेस्ट ऑफ ' + w, w + ' లో ఉత్తమమైనవి', 'சிறந்த ' + w, 'ಅತ್ಯುತ್ತಮ ' + w ][c - 1]; }
+    var m = /^(\d[\d,]*)%?\s*(off|products?|items?)$/i.exec(txt);
+    if (m) { var sw = SUFFIX[m[2].toLowerCase()]; if (sw) return (/%/.test(txt) ? m[1] + '% ' : m[1] + ' ') + sw[c - 1]; }
+    return null;
+  }
+  var orig = new WeakMap(), mine = new WeakMap(), origPh = new WeakMap();
+  function doNode(n) {
+    var v = n.nodeValue; if (mine.get(n) === v) return;
+    var t = v.replace(/\s+/g, ' ').trim(); if (!t) return;
+    if (cur === 'en') { return; }
+    var tr = lookup(t); if (!tr) return;
+    orig.set(n, v); var nv = v.replace(v.trim(), tr); n.nodeValue = nv; mine.set(n, nv);
+  }
+  function walk(root) {
+    if (cur === 'en') return;
+    var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null), n, list = [];
+    while ((n = w.nextNode())) { var p = n.parentNode; if (p && /^(SCRIPT|STYLE|TEXTAREA|INPUT)$/.test(p.tagName)) continue; if (p && p.closest && p.closest('[data-nolang],#adminShell')) continue; list.push(n); }
+    list.forEach(doNode);
+    if (root.querySelectorAll) root.querySelectorAll('[placeholder]').forEach(function (e) {
+      var ph = origPh.has(e) ? origPh.get(e) : e.getAttribute('placeholder'); var tr = lookup(ph || '');
+      if (tr) { origPh.set(e, ph); e.setAttribute('placeholder', tr); }
+    });
+  }
+  function restore() {
+    var w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null), n, list = [];
+    while ((n = w.nextNode())) list.push(n);
+    list.forEach(function (n) { if (orig.has(n) && mine.get(n) === n.nodeValue) n.nodeValue = orig.get(n); orig.delete(n); mine.delete(n); });
+    document.querySelectorAll('[placeholder]').forEach(function (e) { if (origPh.has(e)) { e.setAttribute('placeholder', origPh.get(e)); origPh.delete(e); } });
+  }
+  var pend = false;
+  function later() { if (pend || cur === 'en') return; pend = true; requestAnimationFrame(function () { pend = false; walk(document.body); }); }
+  var mo = new MutationObserver(later);
+  function start() { mo.observe(document.body, { childList: true, subtree: true, characterData: true }); document.documentElement.setAttribute('lang', cur === 'en' ? 'en' : cur); if (cur !== 'en') walk(document.body); }
+
+  function setLang(code) {
+    if (!LANGS.some(function (l) { return l[0] === code; })) return;
+    if (code === 'en' || cur !== 'en') restore();
+    cur = code; ls('nc_lang', code);
+    document.documentElement.setAttribute('lang', code);
+    if (code !== 'en') walk(document.body);
+    try { if (window.fkRefresh) window.fkRefresh(); } catch (e) {}
+    try { if (typeof renderProfilePage === 'function' && document.querySelector('.fk-acc-card')) { var m = document.querySelector('#mainContent,.main-content,main'); } } catch (e) {}
+    var h = document.getElementById('ncLangHint'); if (h) h.textContent = nameOf(cur);
+  }
+  function nameOf(c) { var l = LANGS.filter(function (x) { return x[0] === c; })[0]; return l ? l[1] : 'English'; }
+
+  function openPicker() {
+    var ov = document.createElement('div'); ov.setAttribute('data-nolang', '1');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;';
+    var card = document.createElement('div'); card.style.cssText = 'background:#fff;color:#1c1c1c;width:100%;max-width:520px;border-radius:18px 18px 0 0;padding:16px 16px 22px;font-family:Roboto,system-ui,sans-serif;';
+    card.innerHTML = '<div style="font-weight:800;font-size:17px;margin:2px 4px 12px;">Choose language</div>' +
+      LANGS.map(function (l) { return '<button type="button" data-l="' + l[0] + '" style="display:flex;width:100%;align-items:center;justify-content:space-between;padding:14px 12px;margin:0 0 8px;border-radius:12px;border:1.5px solid ' + (l[0] === cur ? '#FF3F6C' : '#E6E6EE') + ';background:' + (l[0] === cur ? '#FFF1F5' : '#fff') + ';font-size:17px;font-weight:600;color:#1c1c1c;"><span>' + l[1] + '</span><span style="font-size:12.5px;font-weight:500;color:#777;">' + l[2] + (l[0] === cur ? ' ✓' : '') + '</span></button>'; }).join('');
+    ov.appendChild(card); document.body.appendChild(ov);
+    ov.onclick = function (e) { if (e.target === ov) ov.remove(); };
+    card.querySelectorAll('[data-l]').forEach(function (b) { b.onclick = function () { setLang(b.getAttribute('data-l')); ov.remove(); }; });
+  }
+  window.ncLang = { set: setLang, get: function () { return cur; }, open: openPicker, list: LANGS };
+
+  /* Account page row (works logged in or out) */
+  (function () {
+    var ro = window.renderProfilePage; if (typeof ro !== 'function') return;
+    var w = function (main) {
+      var r = ro.apply(this, arguments);
+      try {
+        if (main.querySelector('[data-act="language"]')) return r;
+        var card = main.querySelector('.fk-acc-card'), row = document.createElement('div');
+        row.className = 'fk-acc-row'; row.setAttribute('data-act', 'language');
+        row.innerHTML = '<span class="fk-acc-ic" style="background:#FFEAF1;color:#2F6BE0">' + (typeof icon === 'function' ? icon('globe') || '🌐' : '🌐') + '</span><span class="fk-acc-t"><b>Language</b><i id="ncLangHint">' + nameOf(cur) + '</i></span><span style="color:#999;font-size:18px;padding-right:6px;">›</span>';
+        row.onclick = openPicker;
+        if (card) { var rows = card.parentNode.querySelectorAll('.fk-acc-card'); (rows[1] || card).insertBefore(row, (rows[1] || card).firstChild); }
+        else { var c = document.createElement('div'); c.className = 'fk-acc-card'; c.appendChild(row); main.appendChild(c); }
+        if (cur !== 'en') walk(main);
+      } catch (e) {}
+      return r;
+    };
+    w.__lg = true; try { renderProfilePage = w; } catch (e) {} window.renderProfilePage = w;
+  })();
+
+  if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
 })();
 
 (function(){function fix(){try{var b=DB.branding;if(b&&typeof b.primaryColor==="string"&&b.primaryColor.toLowerCase()==="#2874"+"f0"){b.primaryColor="#FF3F6C";}}catch(e){}}window.__nxFixLogo=fix;var o=window.applyBranding;if(typeof o==="function"&&!o.__lg){var w=function(){fix();return o.apply(this,arguments);};w.__lg=true;window.applyBranding=w;try{applyBranding=w;}catch(e){}}})();
