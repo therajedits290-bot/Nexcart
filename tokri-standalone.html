@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Nexcart — Online Store</title>
 <!-- PWA / installable-app meta -->
-<meta name="theme-color" content="#FF3F6C">
+<meta name="theme-color" content="#FFFFFF">
 <script>document.documentElement.classList.add('fk');</script>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2187,7 +2187,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v93-11nov';</script>
+const APP_BUILD = 'v93b-11nov';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -3106,7 +3106,7 @@ function applyTheme(){
   const t = 'light';
   document.documentElement.setAttribute('data-theme', t);
   const meta = document.querySelector('meta[name="theme-color"]');
-  if(meta) meta.setAttribute('content', t === 'dark' ? '#101014' : '#FF3F6C');
+  if(meta) meta.setAttribute('content', t === 'dark' ? '#101014' : '#FFFFFF');
 }
 function toggleTheme(){
   DB.settings.theme = ((DB.settings.theme || 'light') === 'dark') ? 'light' : 'dark';

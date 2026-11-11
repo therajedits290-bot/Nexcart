@@ -6,7 +6,7 @@
   "scope": "./",
   "id": "./tokri-standalone.html",
   "display": "standalone",
-  "theme_color": "#FF3F6C",
+  "theme_color": "#FFFFFF",
   "background_color": "#FFFFFF",
   "icons": [
     {
