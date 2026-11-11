@@ -2187,7 +2187,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v93c-11nov';</script>
+const APP_BUILD = 'v93d-11nov';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -13893,6 +13893,11 @@ html.fk.fk.fk body .splash-loader span{background:#E6C98A !important;}
 html.fk.fk.fk body .splash::before, html.fk.fk.fk body .splash::after{display:none !important;}
 html.fk.fk.fk body .splash-tagline{font-style:normal !important;}
 html.fk.fk.fk body .splash-title{font-style:normal !important; margin-top:26px !important;}
+html.fk.fk.fk body .fk-sg2{display:flex !important; flex-direction:column !important; gap:14px !important; padding:4px 0 6px !important;}
+html.fk.fk.fk body .fk-sgrow{display:flex !important; gap:10px !important; overflow-x:auto !important; padding:0 12px !important; scrollbar-width:none !important; -webkit-overflow-scrolling:touch !important;}
+html.fk.fk.fk body .fk-sgrow::-webkit-scrollbar{display:none !important;}
+html.fk.fk.fk body .fk-sgrow .fk-sgi{flex:0 0 74px !important; width:74px !important;}
+html.fk.fk.fk body .fk-sgrow .fk-sgi-img{width:68px !important; height:80px !important;}
 </style>
 <script id="nexcart-fk-js">
 /* ==========================================================================
@@ -14759,11 +14764,15 @@ html.fk.fk.fk body .splash-title{font-style:normal !important; margin-top:26px !
   function gridHTML(catId) {
     var items = gridItems(catId); if (!items.length) return '';
     window.__fkGrid = items;
-    return '<div class="fk-sg-wrap"><div class="fk-sg' + (items.length <= 10 ? ' flow' : '') + '">' + items.map(function (t, i) {
+    function one(t, i) {
       var cutOut = window.nc3dCut && CUT_OK(t.img);
       var pic = t.img ? '<img class="' + (cutOut ? 'cut' : 'ph') + '" src="' + esc(cutOut ? nc3dCut(t.img) : media(t.img)) + '" alt="" loading="lazy" onerror="this.style.display=\'none\'">' : '<b>' + esc((t.label || '?').charAt(0)) + '</b>';
       return '<button type="button" class="fk-sgi" data-i="' + i + '"><span class="fk-sgi-img">' + pic + '</span><span class="fk-sgi-l">' + esc(t.label || '') + '</span></button>';
-    }).join('') + '</div></div>';
+    }
+    if (items.length <= 10) return '<div class="fk-sg-wrap"><div class="fk-sg flow">' + items.map(one).join('') + '</div></div>';
+    var r1 = '', r2 = '';
+    items.forEach(function (t, i) { if (i % 2 === 0) r1 += one(t, i); else r2 += one(t, i); });
+    return '<div class="fk-sg-wrap"><div class="fk-sg2"><div class="fk-sgrow">' + r1 + '</div><div class="fk-sgrow">' + r2 + '</div></div></div>';
   }
   function tilesHTML(catId) {
     var items = tileItems(catId); if (!items.length) return '';
