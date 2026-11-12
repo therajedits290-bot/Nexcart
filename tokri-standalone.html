@@ -2187,7 +2187,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v94-12nov';</script>
+const APP_BUILD = 'v93-11nov';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -14405,6 +14405,7 @@ html.fk.fk.fk body .nx-bname{display:block !important; margin-top:7px !important
     var el = document.createElement('span'); el.setAttribute(attr, val); el.style.display = 'none';
     document.body.appendChild(el); el.click(); el.remove();
   }
+  window.fkGo = function (l) { return go(l); };
   function go(link) {
     if (!link) return;
     if (typeof link === 'string') link = { kind: 'category', value: link };
@@ -15063,24 +15064,41 @@ html.fk.fk.fk body .nx-bname{display:block !important; margin-top:7px !important
   try{ if(typeof checkoutStepBar==='function') checkoutStepBar=function(){return '';}; }catch(e){}
 
   function escH(x){ return String(x==null?'':x).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function offerCards(){
+    var D=(typeof DB!=='undefined')?DB:null; if(!D||!D.products||!D.categories) return [];
+    var h=D.home||{};
+    if(h.sections && h.sections.topoffers===false) return [];
+    var custom=(h.offerCards||[]).filter(function(c){return c && c.active!==false && (c.label||c.pct);});
+    var cust=custom.map(function(c){return {label:c.label||'',pct:c.pct,link:c.link};});
+    if(cust.length>=5) return cust;
+    function off(p){ var m=Number(p.mrp)||0, pr=Number(p.price)||0; return (m>pr&&pr>0)?Math.round((1-pr/m)*100):0; }
+    var overall=0; D.products.forEach(function(p){ overall=Math.max(overall,off(p)); });
+    if(overall<5) return cust;
+    var cats=[], subs=[];
+    D.categories.forEach(function(c){
+      var best=0; D.products.forEach(function(p){ if(p.category===c.id) best=Math.max(best,off(p)); });
+      var pct=best>=5?best:overall;
+      cats.push({label:c.name,pct:pct,link:{kind:'category',value:c.id}});
+      var ss=[]; try{ ss=(typeof ncSubsFor==='function')?ncSubsFor(c.id):[]; }catch(e){}
+      (ss||[]).forEach(function(s){ subs.push({label:s.name,pct:pct,link:{kind:'sub',value:c.id+'|'+s.name}}); });
+    });
+    cats.sort(function(a,b){return b.pct-a.pct;}); subs.sort(function(a,b){return b.pct-a.pct;});
+    var seen={}; cust.forEach(function(c){seen[String(c.label).toLowerCase()]=1;});
+    var auto=cats.concat(subs).filter(function(c){var k=String(c.label).toLowerCase(); if(seen[k]) return false; seen[k]=1; return true;});
+    return cust.concat(auto).slice(0,Math.max(10,cust.length));
+  }
   function homeExtras(){
     var sg=$('.fk-sg-wrap');
-    if(sg && !$('.nx-brands') ){
-      var D=(typeof DB!=='undefined')?DB:null; if(!D||!D.products||!D.categories) return;
-      var rows=[];
-      D.categories.forEach(function(c){
-        var ps=D.products.filter(function(p){return p.category===c.id;});
-        var best=0;
-        ps.forEach(function(p){ var m=Number(p.mrp)||0, pr=Number(p.price)||0; if(m>pr&&pr>0){ var d=Math.round((1-pr/m)*100); if(d>best){best=d;} } });
-        if(ps.length && best>=5) rows.push({id:c.id,name:c.name,pct:best});
-      });
-      rows.sort(function(a,b){return b.pct-a.pct;}); rows=rows.slice(0,6);
-      if(rows.length<2) return;
-      var h='<div class="nx-brands"><div class="nx-bt">Top Categories · Big Offers</div><div class="nx-brow">'+rows.map(function(r){
-        return '<button type="button" class="nx-bcard" data-cat="'+escH(r.id)+'"><span class="nx-bbox"><small>UP TO</small><b>'+r.pct+'</b><i>% OFF</i></span><span class="nx-bname">'+escH(r.name)+'</span></button>';
+    if(sg && !$('.nx-brands')){
+      var rows=offerCards(); if(!rows.length) return;
+      var h='<div class="nx-brands"><div class="nx-bt">Top Categories · Big Offers</div><div class="nx-brow">'+rows.map(function(r,i){
+        return '<button type="button" class="nx-bcard" data-i="'+i+'"><span class="nx-bbox"><small>UP TO</small><b>'+escH(String(r.pct).replace(/[^0-9]/g,''))+'</b><i>% OFF</i></span><span class="nx-bname">'+escH(r.label)+'</span></button>';
       }).join('')+'</div></div>';
       sg.insertAdjacentHTML('afterend',h);
-      $('.nx-brands').addEventListener('click',function(e){ var b=e.target.closest('.nx-bcard'); if(b&&typeof openCategoryProducts==='function') openCategoryProducts(b.getAttribute('data-cat')); });
+      $('.nx-brands').addEventListener('click',function(e){
+        var b=e.target.closest('.nx-bcard'); if(!b) return; var r=rows[Number(b.getAttribute('data-i'))]; if(!r) return;
+        if(window.fkGo&&r.link) window.fkGo(r.link); else if(r.link&&r.link.value&&typeof openCategoryProducts==='function') openCategoryProducts(String(r.link.value).split('|')[0]);
+      });
     }
   }
   var pend=false;
@@ -15318,8 +15336,15 @@ html.fk.fk.fk body .nx-bname{display:block !important; margin-top:7px !important
       }).join('') +
       '<div style="display:flex;gap:8px;margin-top:6px;"><button class="btn btn-secondary btn-sm" id="h2AddTile">' + icon('plus') + ' Add tile</button>' + (tiles.length ? '<button class="btn btn-secondary btn-sm" id="h2ResetTiles">Use categories</button>' : '') + '</div>' +
 
+      sec('Pink offer cards', 'The pink “UP TO 50% OFF” cards on Home (at least 5, scroll sideways). Leave empty = automatic, made from your products and categories. Add your own to choose the name, the percentage and where it opens.') +
+      (h.offerCards || []).map(function (t, i) {
+        return '<div class="banner-row ' + (t.active === false ? 'banner-off' : '') + '"><div class="banner-row-info"><div class="banner-row-title">' + E(t.label || '(no name)') + ' — ' + E(t.pct || '') + '% OFF</div><div class="banner-row-sub">' + E(linkLabel(t.link)) + '</div></div>' +
+          '<button class="icon-btn" data-oup="' + i + '">↑</button><button class="icon-btn" data-odn="' + i + '">↓</button><button class="mini-switch ' + (t.active === false ? '' : 'on') + '" data-otoggle="' + i + '"></button><button class="icon-btn" data-oedit="' + i + '">' + icon('edit') + '</button><button class="icon-btn" data-odel="' + i + '">' + icon('trash') + '</button></div>';
+      }).join('') +
+      '<div style="display:flex;gap:8px;margin-top:6px;"><button class="btn btn-secondary btn-sm" id="h2AddOffer">' + icon('plus') + ' Add card</button>' + ((h.offerCards || []).length ? '<button class="btn btn-secondary btn-sm" id="h2ResetOffers">Use automatic</button>' : '') + '</div>' +
+
       sec('Home page sections', 'Switch parts of the Home page on or off.') +
-      [['tiles', 'Picture tiles'], ['ticker', 'Scrolling announcement strip'], ['rails', 'Product rows (Suggested / Deals / Budget)'], ['offers', 'Offer cards'], ['deals', 'Top deals blocks']].map(function (r) {
+      [['tiles', 'Picture tiles'], ['ticker', 'Scrolling announcement strip'], ['rails', 'Product rows (Suggested / Deals / Budget)'], ['offers', 'Offer cards'], ['topoffers', 'Pink offer cards (Top Categories · Big Offers)'], ['deals', 'Top deals blocks']].map(function (r) {
         return '<div class="admin-list-item"><div class="ali-info"><div class="ali-title">' + r[1] + '</div></div>' + switchHTML('h2sec_' + r[0], secs[r[0]] !== false) + '</div>';
       }).join('') +
 
@@ -15404,6 +15429,13 @@ html.fk.fk.fk body .nx-bname{display:block !important; margin-top:7px !important
     on('#h2ResetSvc', function () { h.services = []; save(); again(); });
 
     /* tiles */
+    on('#h2AddOffer', function () { offerForm(-1); });
+    on('[data-oedit]', function (el) { offerForm(Number(el.dataset.oedit)); });
+    on('[data-otoggle]', function (el) { var t = h.offerCards[Number(el.dataset.otoggle)]; t.active = t.active === false; save(); again(); });
+    on('[data-odel]', function (el) { h.offerCards.splice(Number(el.dataset.odel), 1); save(); again(); });
+    on('[data-oup]', function (el) { move(h.offerCards, Number(el.dataset.oup), -1); save(); again(); });
+    on('[data-odn]', function (el) { move(h.offerCards, Number(el.dataset.odn), 1); save(); again(); });
+    on('#h2ResetOffers', function () { h.offerCards = []; save(); again(); });
     on('#h2AddTile', function () { tileForm(-1); });
     on('[data-tedit]', function (el) { tileForm(Number(el.dataset.tedit)); });
     on('[data-ttoggle]', function (el) { var t = h.tiles[Number(el.dataset.ttoggle)]; t.active = t.active === false; save(); again(); });
@@ -15474,6 +15506,18 @@ html.fk.fk.fk body .nx-bname{display:block !important; margin-top:7px !important
       if (s) h.services[i] = d; else h.services.push(d);
       save(); again();
     }, function (ov) { linkBind(ov, 'sfL'); pickImage(ov, '#sfPick', '#sfPv', 160, 30, function (u) { st.img = u; }); });
+  }
+  function offerForm(i) {
+    var h = H(); h.offerCards = Array.isArray(h.offerCards) ? h.offerCards : [];
+    var t = i >= 0 ? h.offerCards[i] : null;
+    var inner = field('Name under the card', 'ofLabel', t && t.label, 'e.g. Sarees') + field('Percentage (number only, e.g. 50)', 'ofPct', t && t.pct, '50', 'number') + linkHTML('ofL', t ? t.link : null);
+    sheet(t ? 'Edit offer card' : 'Add offer card', inner, 'Save', function (ov) {
+      var pct = String(Q('#ofPct', ov).value).replace(/[^0-9]/g, '');
+      var d = { label: Q('#ofLabel', ov).value.trim(), pct: pct, link: linkRead(ov, 'ofL'), active: t ? t.active !== false : true };
+      if (!d.label || !pct) { showToast('Add a name and a percentage'); return false; }
+      if (t) h.offerCards[i] = d; else h.offerCards.push(d);
+      save(); again();
+    }, function (ov) { linkBind(ov, 'ofL'); });
   }
   function tileForm(i) {
     var h = H(); h.tiles = Array.isArray(h.tiles) ? h.tiles : [];
