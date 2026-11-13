@@ -1107,6 +1107,7 @@ const server = http.createServer(async (req, res) => {
       .map((o) => ({
         key: o.trackKey,
         status: o.status,
+        cancelReason: o.cancelReason || '',
         currentCity: o.currentCity || '',
         trackingId: o.trackingId || '',
         trackingDetail: o.trackingDetail || '',
@@ -1115,6 +1116,38 @@ const server = http.createServer(async (req, res) => {
         updatedAt: o.updatedAt || o.placedAt || 0
       }));
     return send(res, 200, { orders: out, serverTime: Date.now() });
+  }
+
+  /* Customer cancels their OWN order. The phone sends the private trackKey it
+     was given at checkout (same idea as /api/track), plus the reason. Without
+     this, a cancel only changed the phone's local copy, and the next status
+     check (every 30 s) saw "Placed" on the server and flipped it back. */
+  if (p === '/api/orders/cancel' && req.method === 'POST') {
+    const b = await readBody(req);
+    if (b.__tooBig) return send(res, 413, { error: 'Request too large' });
+    const key = String(b.trackKey || '').slice(0, 80);
+    if (!key) return send(res, 400, { error: 'Missing order key' });
+    const order = db.orders.find((o) => o && o.trackKey && o.trackKey === key);
+    if (!order) return send(res, 404, { error: 'Order not found' });
+    if (order.status === 'Cancelled') return send(res, 200, { ok: true, already: true, status: 'Cancelled' });
+    if (order.status !== 'Placed' && order.status !== 'Confirmed')
+      return send(res, 409, { error: 'This order can no longer be cancelled', status: order.status });
+    const reason = String(b.reason || '').trim().slice(0, 200);
+    order.status = 'Cancelled';
+    order.cancelReason = reason;
+    order.cancelledAt = Date.now();
+    order.cancelledBy = 'customer';
+    order.updatedAt = Date.now();
+    order.timeline = Array.isArray(order.timeline) ? order.timeline : [];
+    order.timeline.push({ stage: 'Cancelled', at: Date.now(), city: order.currentCity || '', note: reason ? 'Cancelled by customer: ' + reason : 'Cancelled by customer' });
+    /* give the stock back */
+    (order.items || []).forEach((it) => {
+      const prod = db.products.find((x) => x.id === it.productId);
+      if (prod) prod.stock = Number(prod.stock) + (Number(it.qty) || 0);
+    });
+    save();
+    pushNotify((x) => x.admin, { title: 'Order cancelled ' + order.id, body: (order.customerName || 'Customer') + ' · ₹' + order.total + (reason ? ' · ' + reason : ''), tab: 'orders', tag: 'cancel-' + order.id });
+    return send(res, 200, { ok: true, status: 'Cancelled' });
   }
 
   const m = p.match(/^\/api\/orders\/([A-Za-z0-9]+)$/);
