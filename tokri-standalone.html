@@ -2972,6 +2972,7 @@ function findCoupon(code){
 /* Returns {ok, amount, reason} for a coupon against a subtotal */
 function couponValue(coupon, subtotal){
   if(!coupon) return { ok:false, amount:0, reason:'Invalid coupon code' };
+  if(coupon.oncePerCustomer && (DB.orders||[]).some(o=> o.couponCode === coupon.code && o.status !== 'Cancelled')) return { ok:false, amount:0, reason:'You have already used this offer' };
   if(subtotal < coupon.minOrder) return { ok:false, amount:0, reason:`Minimum order ${formatMoney(coupon.minOrder)} required` };
   let amount = coupon.type === 'percent'
     ? Math.round(subtotal * coupon.value / 100)
@@ -7361,6 +7362,7 @@ function couponForm(cid, onSaved){
           <input class="form-input" id="cfMax" inputmode="numeric" placeholder="200" value="${c?(c.maxDiscount||''):''}"></div>
         <div class="form-group"><label class="form-label">Description shown to customers</label>
           <input class="form-input" id="cfDesc" placeholder="e.g. 10% off on orders above ₹499" value="${c?(c.desc||''):''}"></div>
+        <label style="display:flex;gap:10px;align-items:flex-start;font-size:13px;margin:6px 0 4px;"><input type="checkbox" id="cfOnce" ${c&&c.oncePerCustomer?'checked':''} style="margin-top:3px;width:18px;height:18px;"><span><b>One time per customer</b><br><span style="color:var(--ink-faint);font-size:12px;">Each customer can use this coupon on only one order. After they order with it, it stops working for them (unless that order is cancelled).</span></span></label>
       </div>
       <button class="btn btn-primary btn-block" id="cfSave" style="margin-top:10px;">${c?'Save Changes':'Add Coupon'}</button>
     </div>`;
@@ -7393,7 +7395,7 @@ function couponForm(cid, onSaved){
     const dup = DB.coupons.find(x=> x.code === code && (!c || x.id !== c.id));
     if(dup){ showToast('That code already exists', 'xCircle'); return; }
 
-    const data = { code, type:chosenType, value, minOrder, maxDiscount,
+    const data = { code, type:chosenType, value, minOrder, maxDiscount, oncePerCustomer: overlay.querySelector('#cfOnce').checked,
                    desc: desc || (chosenType==='percent'
                      ? `${value}% off on orders above ₹${minOrder}`
                      : `₹${value} off on orders above ₹${minOrder}`) };
@@ -15064,12 +15066,12 @@ html.fk.fk.fk body .nx-bname{display:block !important; margin-top:7px !important
   try{ if(typeof checkoutStepBar==='function') checkoutStepBar=function(){return '';}; }catch(e){}
 
   function escH(x){ return String(x==null?'':x).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
-  function offerCards(){
+  function offerCards(forceAuto){
     var D=(typeof DB!=='undefined')?DB:null; if(!D||!D.products||!D.categories) return [];
     var h=D.home||{};
-    if(h.sections && h.sections.topoffers===false) return [];
-    var custom=(h.offerCards||[]).filter(function(c){return c && c.active!==false && (c.label||c.pct);});
-    var cust=custom.map(function(c){return {label:c.label||'',pct:c.pct,link:c.link};});
+    if(!forceAuto && h.sections && h.sections.topoffers===false) return [];
+    var custom=forceAuto?[]:(h.offerCards||[]).filter(function(c){return c && c.active!==false && (c.label||c.pct);});
+    var cust=custom.map(function(c){return {label:c.label||'',pct:c.pct,link:c.link,coupon:c.coupon||''};});
     if(cust.length>=5) return cust;
     function off(p){ var m=Number(p.mrp)||0, pr=Number(p.price)||0; return (m>pr&&pr>0)?Math.round((1-pr/m)*100):0; }
     var overall=0; D.products.forEach(function(p){ overall=Math.max(overall,off(p)); });
@@ -15087,6 +15089,7 @@ html.fk.fk.fk body .nx-bname{display:block !important; margin-top:7px !important
     var auto=cats.concat(subs).filter(function(c){var k=String(c.label).toLowerCase(); if(seen[k]) return false; seen[k]=1; return true;});
     return cust.concat(auto).slice(0,Math.max(10,cust.length));
   }
+  window.nxAutoOfferCards=function(){ try{ return offerCards(true); }catch(e){ return []; } };
   function homeExtras(){
     var sg=$('.fk-sg-wrap');
     if(sg && !$('.nx-brands')){
@@ -15097,6 +15100,7 @@ html.fk.fk.fk body .nx-bname{display:block !important; margin-top:7px !important
       sg.insertAdjacentHTML('afterend',h);
       $('.nx-brands').addEventListener('click',function(e){
         var b=e.target.closest('.nx-bcard'); if(!b) return; var r=rows[Number(b.getAttribute('data-i'))]; if(!r) return;
+        if(r.coupon && typeof findCoupon==='function'){ try{ var cp=findCoupon(r.coupon); if(cp){ var v=couponValue(cp,(typeof cartTotal==='function'?cartTotal():0)||cp.minOrder||0); if(v.ok||String(v.reason).indexOf('Minimum')===0){ appliedCouponCode=cp.code; showToast('Offer '+cp.code+' will apply at checkout','checkCircle'); } else { showToast(v.reason,'info'); } } }catch(err){} }
         if(window.fkGo&&r.link) window.fkGo(r.link); else if(r.link&&r.link.value&&typeof openCategoryProducts==='function') openCategoryProducts(String(r.link.value).split('|')[0]);
       });
     }
@@ -15337,8 +15341,8 @@ html.fk.fk.fk body .nx-bname{display:block !important; margin-top:7px !important
       '<div style="display:flex;gap:8px;margin-top:6px;"><button class="btn btn-secondary btn-sm" id="h2AddTile">' + icon('plus') + ' Add tile</button>' + (tiles.length ? '<button class="btn btn-secondary btn-sm" id="h2ResetTiles">Use categories</button>' : '') + '</div>' +
 
       sec('Pink offer cards', 'The pink “UP TO 50% OFF” cards on Home (at least 5, scroll sideways). Leave empty = automatic, made from your products and categories. Add your own to choose the name, the percentage and where it opens.') +
-      (h.offerCards || []).map(function (t, i) {
-        return '<div class="banner-row ' + (t.active === false ? 'banner-off' : '') + '"><div class="banner-row-info"><div class="banner-row-title">' + E(t.label || '(no name)') + ' — ' + E(t.pct || '') + '% OFF</div><div class="banner-row-sub">' + E(linkLabel(t.link)) + '</div></div>' +
+      offerRows(h).map(function (t, i) {
+        return '<div class="banner-row ' + (t.active === false ? 'banner-off' : '') + '"><div class="banner-row-info"><div class="banner-row-title">' + E(t.label || '(no name)') + ' — ' + E(t.pct || '') + '% OFF' + (t.auto ? ' <span style="font-size:11px;color:var(--ink-faint);font-weight:500;">(automatic)</span>' : '') + '</div><div class="banner-row-sub">' + E(linkLabel(t.link)) + '</div></div>' +
           '<button class="icon-btn" data-oup="' + i + '">↑</button><button class="icon-btn" data-odn="' + i + '">↓</button><button class="mini-switch ' + (t.active === false ? '' : 'on') + '" data-otoggle="' + i + '"></button><button class="icon-btn" data-oedit="' + i + '">' + icon('edit') + '</button><button class="icon-btn" data-odel="' + i + '">' + icon('trash') + '</button></div>';
       }).join('') +
       '<div style="display:flex;gap:8px;margin-top:6px;"><button class="btn btn-secondary btn-sm" id="h2AddOffer">' + icon('plus') + ' Add card</button>' + ((h.offerCards || []).length ? '<button class="btn btn-secondary btn-sm" id="h2ResetOffers">Use automatic</button>' : '') + '</div>' +
@@ -15429,12 +15433,12 @@ html.fk.fk.fk body .nx-bname{display:block !important; margin-top:7px !important
     on('#h2ResetSvc', function () { h.services = []; save(); again(); });
 
     /* tiles */
-    on('#h2AddOffer', function () { offerForm(-1); });
+    on('#h2AddOffer', function () { matOffers(h); offerForm(-1); });
     on('[data-oedit]', function (el) { offerForm(Number(el.dataset.oedit)); });
-    on('[data-otoggle]', function (el) { var t = h.offerCards[Number(el.dataset.otoggle)]; t.active = t.active === false; save(); again(); });
-    on('[data-odel]', function (el) { h.offerCards.splice(Number(el.dataset.odel), 1); save(); again(); });
-    on('[data-oup]', function (el) { move(h.offerCards, Number(el.dataset.oup), -1); save(); again(); });
-    on('[data-odn]', function (el) { move(h.offerCards, Number(el.dataset.odn), 1); save(); again(); });
+    on('[data-otoggle]', function (el) { matOffers(h); var t = h.offerCards[Number(el.dataset.otoggle)]; t.active = t.active === false; save(); again(); });
+    on('[data-odel]', function (el) { matOffers(h); h.offerCards.splice(Number(el.dataset.odel), 1); save(); again(); });
+    on('[data-oup]', function (el) { matOffers(h); move(h.offerCards, Number(el.dataset.oup), -1); save(); again(); });
+    on('[data-odn]', function (el) { matOffers(h); move(h.offerCards, Number(el.dataset.odn), 1); save(); again(); });
     on('#h2ResetOffers', function () { h.offerCards = []; save(); again(); });
     on('#h2AddTile', function () { tileForm(-1); });
     on('[data-tedit]', function (el) { tileForm(Number(el.dataset.tedit)); });
@@ -15507,13 +15511,15 @@ html.fk.fk.fk body .nx-bname{display:block !important; margin-top:7px !important
       save(); again();
     }, function (ov) { linkBind(ov, 'sfL'); pickImage(ov, '#sfPick', '#sfPv', 160, 30, function (u) { st.img = u; }); });
   }
+  function offerRows(h) { var oc = h.offerCards || []; return oc.length ? oc : (window.nxAutoOfferCards ? nxAutoOfferCards().map(function (c) { return { auto: true, label: c.label, pct: c.pct, link: c.link, active: true }; }) : []); }
+  function matOffers(h) { if (!Array.isArray(h.offerCards) || !h.offerCards.length) h.offerCards = offerRows(h).map(function (c) { return { label: c.label, pct: String(c.pct), link: c.link, coupon: c.coupon || '', active: true }; }); return h.offerCards; }
   function offerForm(i) {
-    var h = H(); h.offerCards = Array.isArray(h.offerCards) ? h.offerCards : [];
+    var h = H(); matOffers(h);
     var t = i >= 0 ? h.offerCards[i] : null;
-    var inner = field('Name under the card', 'ofLabel', t && t.label, 'e.g. Sarees') + field('Percentage (number only, e.g. 50)', 'ofPct', t && t.pct, '50', 'number') + linkHTML('ofL', t ? t.link : null);
+    var inner = field('Name under the card', 'ofLabel', t && t.label, 'e.g. Sarees') + field('Percentage (number only, e.g. 50)', 'ofPct', t && t.pct, '50', 'number') + field('Coupon code to apply when tapped (optional — create it in Coupons, tick “One time per customer” there)', 'ofCoupon', t && t.coupon, 'e.g. FIRST60') + linkHTML('ofL', t ? t.link : null);
     sheet(t ? 'Edit offer card' : 'Add offer card', inner, 'Save', function (ov) {
       var pct = String(Q('#ofPct', ov).value).replace(/[^0-9]/g, '');
-      var d = { label: Q('#ofLabel', ov).value.trim(), pct: pct, link: linkRead(ov, 'ofL'), active: t ? t.active !== false : true };
+      var d = { label: Q('#ofLabel', ov).value.trim(), pct: pct, link: linkRead(ov, 'ofL'), coupon: Q('#ofCoupon', ov).value.trim().toUpperCase(), active: t ? t.active !== false : true };
       if (!d.label || !pct) { showToast('Add a name and a percentage'); return false; }
       if (t) h.offerCards[i] = d; else h.offerCards.push(d);
       save(); again();
