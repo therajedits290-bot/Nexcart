@@ -4514,7 +4514,14 @@ function openCheckoutPaymentStep(addr){
       showToast('Coupon removed');
     });
 
-    $('#placeOrderBtn').addEventListener('click', ()=> placeOrder(grand, addr));
+    $('#placeOrderBtn').addEventListener('click', function(){
+      // One tap = one order. Ignore any further taps (double-tap, slow phone).
+      if(this.dataset.busy === '1') return;
+      this.dataset.busy = '1';
+      this.disabled = true;
+      this.style.opacity = '.6';
+      placeOrder(grand, addr);
+    });
   });
 }
 
@@ -4901,16 +4908,17 @@ function buildOrderDetail(main, order){
   `;
 
   if(canCancel){
-    $('#cancelOrderBtn').addEventListener('click', ()=> confirmAction(
-      'Cancel this order?', 'This action cannot be undone. Your order will be cancelled.',
-      ()=>{
-        order.status = 'Cancelled';
-        order.timeline.push({ stage:'Cancelled', at: Date.now(), city: order.currentCity });
-        persist();
-        showToast('Order cancelled', 'checkCircle');
-        buildOrderDetail(main, order);
-      }
-    ));
+    $('#cancelOrderBtn').addEventListener('click', ()=> cancelReasonSheet((reason)=>{
+      if(order.status === 'Cancelled') return;
+      order.status = 'Cancelled';
+      order.cancelReason = reason;
+      order.cancelPending = true;          // until the server confirms
+      order.timeline.push({ stage:'Cancelled', at: Date.now(), city: order.currentCity, note: 'Cancelled by you: ' + reason });
+      persist();
+      if(window.ncCancelOrder) window.ncCancelOrder(order);
+      showToast('Order cancelled', 'checkCircle');
+      buildOrderDetail(main, order);
+    }));
   }
   const rateBtn = $('#rateOrderBtn');
   if(rateBtn) rateBtn.addEventListener('click', ()=>{
@@ -5044,6 +5052,44 @@ function openReturnSheet(order, onDone){
     overlay.remove();
     showToast(`${selectedType} request submitted`, 'checkCircle');
     onDone();
+  });
+}
+
+// Cancel-reason sheet: the customer must pick a reason before the order is cancelled
+function cancelReasonSheet(onDone){
+  const reasons = ['Ordered by mistake','Found a cheaper price elsewhere','Delivery is taking too long','Want to change size / colour / address','Changed my mind','Other'];
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.style.zIndex = '500';
+  overlay.innerHTML = `
+    <div class="modal-card">
+      <h3>Why do you want to cancel?</h3>
+      <p class="muted" style="margin-top:6px;">Please select a reason. This cannot be undone.</p>
+      <div style="margin-top:12px;display:flex;flex-direction:column;gap:4px;">
+        ${reasons.map((r,i)=>`<label style="display:flex;gap:10px;align-items:center;padding:8px 2px;font-size:14px;"><input type="radio" name="cxReason" value="${r}" style="width:18px;height:18px;"><span>${r}</span></label>`).join('')}
+      </div>
+      <input id="cxOther" type="text" maxlength="120" placeholder="Tell us more (optional)" style="display:none;width:100%;margin-top:8px;padding:10px;border:1px solid var(--line,#ddd);border-radius:8px;font-size:14px;">
+      <p id="cxErr" style="color:var(--danger,#d33);font-size:12px;margin-top:8px;display:none;">Please select a reason.</p>
+      <div style="display:flex;gap:10px;margin-top:16px;">
+        <button class="btn btn-secondary btn-block" id="cxKeep">No, Keep it</button>
+        <button class="btn btn-primary btn-block" id="cxOk">Cancel Order</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const other = overlay.querySelector('#cxOther');
+  overlay.querySelectorAll('input[name=cxReason]').forEach(r=> r.addEventListener('change', ()=>{
+    other.style.display = (r.value === 'Other' && r.checked) ? 'block' : 'none';
+    overlay.querySelector('#cxErr').style.display = 'none';
+  }));
+  overlay.querySelector('#cxKeep').addEventListener('click', ()=> overlay.remove());
+  overlay.addEventListener('click', (e)=>{ if(e.target===overlay) overlay.remove(); });
+  overlay.querySelector('#cxOk').addEventListener('click', ()=>{
+    const sel = overlay.querySelector('input[name=cxReason]:checked');
+    if(!sel){ overlay.querySelector('#cxErr').style.display = 'block'; return; }
+    let reason = sel.value;
+    if(reason === 'Other' && other.value.trim()) reason = 'Other: ' + other.value.trim();
+    overlay.remove();
+    onDone(reason);
   });
 }
 
@@ -8501,6 +8547,27 @@ function renderAdminSettings(shell){
     q.forEach(function (entry) { submitOrder(entry.order); });
   }
 
+  /* ---------- 3a. customer cancels: tell the server (with the reason) ---------- */
+  window.ncCancelOrder = function (order) {
+    if (!order || !order.trackKey || !BASE) return Promise.resolve(false);
+    return api('/api/orders/cancel', {
+      method: 'POST',
+      body: { trackKey: order.trackKey, reason: order.cancelReason || '' }
+    }).then(function () {
+      order.cancelPending = false;
+      try { if (typeof persist === 'function') persist(); } catch (e) {}
+      return true;
+    }).catch(function (e) {
+      // 409 = the owner already shipped it: stop retrying, the next status
+      // check will bring the real status back to this phone.
+      if (e && (e.status === 409 || e.status === 404)) {
+        order.cancelPending = false;
+        try { if (typeof persist === 'function') persist(); } catch (e2) {}
+      }
+      return false;
+    });
+  };
+
   /* ---------- 3b. the owner's status change goes up to the server ----------
      This is what makes "Push Update" reach the buyer: the customer's phone asks
      the server for its own order's status (below), and the server only knows
@@ -8545,6 +8612,15 @@ function renderAdminSettings(shell){
       mine.forEach(function (o) {
         var r = byKey[o.trackKey];
         if (!r) return;
+        /* The customer cancelled here but the server has not heard yet:
+           never let the old "Placed" status overwrite it - send the cancel again. */
+        if (o.status === 'Cancelled' && r.status !== 'Cancelled' && o.cancelPending) {
+          if (window.ncCancelOrder) window.ncCancelOrder(o);
+          return;
+        }
+        if (o.status === 'Cancelled' && r.status === 'Cancelled' && o.cancelPending) {
+          o.cancelPending = false; changed++;
+        }
         var moved = (r.status && r.status !== o.status) ||
                     (r.currentCity && r.currentCity !== o.currentCity) ||
                     (r.trackingId && r.trackingId !== o.trackingId) ||
@@ -8573,9 +8649,21 @@ function renderAdminSettings(shell){
     busy = true;
     api('/api/orders?since=' + lastOrderSeen, { admin: true }).then(function (d) {
       var D = db(); if (!D) return;
-      var existing = {};
-      (D.orders || []).forEach(function (o) { existing[o.id] = true; });
-      var fresh = (d.orders || []).filter(function (o) { return !existing[o.id]; });
+      var existing = {}, existingKeys = {};
+      (D.orders || []).forEach(function (o) {
+        existing[o.id] = true;
+        if (o.trackKey) existingKeys[o.trackKey] = true;
+        if (o.clientOrderId) existing[o.clientOrderId] = true;
+      });
+      /* An order placed on THIS phone already exists here under its TKR number;
+         the server copy has an ORD number but the same trackKey / clientOrderId.
+         Matching only on id made it look "new" and added it a second time. */
+      var fresh = (d.orders || []).filter(function (o) {
+        if (existing[o.id]) return false;
+        if (o.clientOrderId && existing[o.clientOrderId]) return false;
+        if (o.trackKey && existingKeys[o.trackKey]) return false;
+        return true;
+      });
       if (fresh.length) {
         D.orders = fresh.concat(D.orders || []);
         if (typeof persist === 'function') persist();
