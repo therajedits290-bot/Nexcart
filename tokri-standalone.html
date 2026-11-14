@@ -2176,7 +2176,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 .nx-truck{position:absolute;top:50%;transform:translate(-50%,-50%);width:32px;height:22px;z-index:3;background:transparent;display:flex;align-items:center;justify-content:center;transition:left 1s ease;}
 .nx-truck svg{width:28px;height:18px;display:block;}
 .nx-fill{transition:width 1s ease;}
-.nx-ahead{position:absolute;top:50%;height:3px;margin-top:-1.5px;z-index:1;transition:left 1s ease,width 1s ease;background:repeating-linear-gradient(90deg,#2563eb 0 7px,rgba(37,99,235,.18) 7px 14px);background-size:14px 3px;animation:nxFlow 1s linear infinite;}
+.nx-ahead{position:absolute;top:50%;height:3px;margin-top:-1.5px;z-index:1;transition:left 1s ease,width 1s ease;background:repeating-linear-gradient(90deg,#2563eb 0 7px,rgba(37,99,235,.18) 7px 14px);background-size:14px 3px;animation:none;}
 @keyframes nxFlow{from{background-position:0 0}to{background-position:14px 0}}
 .nx-dot.on{z-index:2}
 .nx-tip{cursor:pointer;transition:left 1s ease;}
@@ -4862,7 +4862,7 @@ function nxTop(order){
   var pos='calc(11px + (100% - 22px) * '+pf+')';
   var tip=!done?'<div class="nx-tip" data-oid="'+esc(order.id)+'" style="left:clamp(62px,'+pos+',calc(100% - 62px))"><em></em>'+esc(nxCity(order))+'<u>View Details ›</u></div>':'';
   var nxt=Math.min(3,Math.floor(p)+1);
-  var ahead=done?'':'<div class="nx-ahead" style="left:'+pos+';width:calc((100% - 22px) * '+((nxt-p)/3).toFixed(4)+')"></div>';
+  var ahead='';
   var tr=done?'':ahead+'<div class="nx-truck" style="left:'+pos+'">'+truck+'</div>';
   var stp='<div class="nx-stp'+(tip?'':' notip')+'" data-oid="'+esc(order.id)+'">'+tip+'<div class="nx-line"><div class="nx-fill" style="width:calc((100% - 22px) * '+pf+')"></div>'+dots+tr+'</div><div class="nx-lbl">'+lbl+'</div></div>';
   var note=done?'Delivered. Easy returns within '+DB.settings.returnWindowDays+' days.':canCancelOrder(order)?'You can cancel this order until it ships.':'Order shipped, cancel unavailable.';
