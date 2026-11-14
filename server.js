@@ -1155,7 +1155,10 @@ const server = http.createServer(async (req, res) => {
     if (!isAdmin(req)) return send(res, 401, { error: 'unauthorised' });
     const b = await readBody(req);
     if (b.__tooBig) return send(res, 413, { error: 'Request too large' });
-    const order = db.orders.find((o) => o.id === m[1]);
+    /* The owner's phone knows the order by its own number (TKR...), the server by
+       its ORD... number. Accept either, or the private trackKey. */
+    const tk = String(b.trackKey || '').slice(0, 80);
+    const order = db.orders.find((o) => o.id === m[1] || (o.clientOrderId && o.clientOrderId === m[1]) || (tk && o.trackKey === tk));
     if (!order) return send(res, 404, { error: 'Order not found' });
     /* The owner can move the parcel: status, city, courier and the timeline the
        customer sees when they track the order. */

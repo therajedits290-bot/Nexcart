@@ -7201,6 +7201,7 @@ function renderAdminOrders(shell){
       if(newCourier) order.trackingDetail = newCourier;
       if(newStatus==='Delivered') order.deliveredAt = order.deliveredAt || Date.now();
       order.timeline.push({ stage: newStatus, at: Date.now(), city: newCity });
+      order.adminPending = true;     // keep it until the server has it
       persist();
       /* Send the change to the server too. Without this the customer's phone
          has nothing to fetch and would sit on "Placed" for ever. */
@@ -8664,6 +8665,7 @@ function renderAdminSettings(shell){
     return api('/api/orders/' + encodeURIComponent(order.id), {
       method: 'PATCH', admin: true,
       body: {
+        trackKey:       order.trackKey || '',
         status:         order.status,
         currentCity:    order.currentCity || '',
         trackingId:     order.trackingId || '',
@@ -8671,7 +8673,11 @@ function renderAdminSettings(shell){
         deliveredAt:    Number(order.deliveredAt) || 0,
         timeline:       order.timeline || []
       }
-    }).then(function () { return true; }).catch(function () { return false; });
+    }).then(function () {
+      order.adminPending = false;
+      try { if (typeof persist === 'function') persist(); } catch (e) {}
+      return true;
+    }).catch(function () { return false; });
   };
 
   /* ---------- 3c. customer: my orders update themselves ----------
@@ -8718,6 +8724,12 @@ function renderAdminSettings(shell){
         if (!r) return;
         /* The customer cancelled here but the server has not heard yet:
            never let the old "Placed" status overwrite it - send the cancel again. */
+        if (o.adminPending) {
+          // The owner changed this order here and the server has not received it
+          // yet: keep the owner's version and send it again.
+          if (window.ncUpdateOrder) window.ncUpdateOrder(o);
+          return;
+        }
         var srvOpen = !r.status || r.status === 'Placed' || r.status === 'Confirmed';
         if (o.status === 'Cancelled' && srvOpen) {
           // Covers orders cancelled by an older version of the app too:
