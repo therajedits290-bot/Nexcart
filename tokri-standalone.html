@@ -8560,7 +8560,8 @@ function renderAdminSettings(shell){
     }).catch(function (e) {
       // 409 = the owner already shipped it: stop retrying, the next status
       // check will bring the real status back to this phone.
-      if (e && (e.status === 409 || e.status === 404)) {
+      // (A 404 means the server is still the old version - keep retrying.)
+      if (e && e.status === 409) {
         order.cancelPending = false;
         try { if (typeof persist === 'function') persist(); } catch (e2) {}
       }
@@ -8614,7 +8615,12 @@ function renderAdminSettings(shell){
         if (!r) return;
         /* The customer cancelled here but the server has not heard yet:
            never let the old "Placed" status overwrite it - send the cancel again. */
-        if (o.status === 'Cancelled' && r.status !== 'Cancelled' && o.cancelPending) {
+        var srvOpen = !r.status || r.status === 'Placed' || r.status === 'Confirmed';
+        if (o.status === 'Cancelled' && srvOpen) {
+          // Covers orders cancelled by an older version of the app too:
+          // keep it cancelled here and keep telling the server until it accepts.
+          o.cancelPending = true;
+          if (!o.cancelReason) o.cancelReason = 'Cancelled by customer';
           if (window.ncCancelOrder) window.ncCancelOrder(o);
           return;
         }
