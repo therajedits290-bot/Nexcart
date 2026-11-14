@@ -2173,6 +2173,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 .snap-counts{ font-size:11.5px; color:var(--ink-faint); margin-top:2px; }
 </style>
 <style>
+#splash{display:none !important;}
 .nx-truck{position:absolute;top:50%;transform:translate(-50%,-50%);width:32px;height:22px;z-index:3;background:transparent;display:flex;align-items:center;justify-content:center;transition:left 1s ease;}
 .nx-truck svg{width:28px;height:18px;display:block;}
 .nx-fill{transition:width 1s ease;}
@@ -6128,15 +6129,10 @@ function launchApp(){
     }
   }catch(e){}
 
-  setTimeout(()=>{
-    splash.style.animation = 'fadeOut .4s ease forwards';
-    setTimeout(()=>{
-      splash.style.display = 'none';
-      $('#app').style.display = 'flex';
-      const m = splash.querySelector('.splash-media');
-      if(m && m.tagName === 'VIDEO'){ try{ m.pause(); }catch(e){} }
-    }, 380);
-  }, hold);
+  /* Splash removed: the shop opens straight away. */
+  splash.style.display = 'none';
+  $('#app').style.display = 'flex';
+  try{ const m = splash.querySelector('.splash-media'); if(m){ if(m.tagName === 'VIDEO'){ try{ m.pause(); }catch(e){} } m.remove(); } }catch(e){}
 }
 
 /* ============================================================

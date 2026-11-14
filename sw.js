@@ -1,4 +1,4 @@
-const CACHE = 'nexcart-v100-tracking';      // app files + small assets
+const CACHE = 'nexcart-v101-nosplash';      // app files + small assets
 const IMG   = 'nexcart-img-v1';         // product / banner pictures seen so far (kept across versions)
 const ASSETS = [
   './',
