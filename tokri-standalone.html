@@ -8600,6 +8600,23 @@ function renderAdminSettings(shell){
     var D = db(); if (!D || !BASE) return;
     var now = Date.now();
     if (now - lastTrackCheck < 20000) return;
+    /* Clean up duplicates: one real order must appear once. Older versions added
+       the server's copy (ORD...) next to the phone's own copy (TKR...) - both
+       carry the same trackKey. Keep the phone's own copy, drop the extra. */
+    try {
+      var seenKey = {}, before = (D.orders || []).length;
+      (D.orders || []).slice().sort(function (a, b) {
+        return (/^TKR/.test(a.id) ? 0 : 1) - (/^TKR/.test(b.id) ? 0 : 1);
+      }).forEach(function (o) {
+        if (!o || !o.trackKey) return;
+        if (seenKey[o.trackKey]) o.__dup = true; else seenKey[o.trackKey] = true;
+      });
+      D.orders = (D.orders || []).filter(function (o) { return !(o && o.__dup); });
+      if (D.orders.length !== before) {
+        if (typeof persist === 'function') persist();
+        try { if (typeof renderTab === 'function' && currentTab === 'orders') renderTab('orders'); } catch (e) {}
+      }
+    } catch (e) {}
     var mine = (D.orders || []).filter(function (o) { return o && o.trackKey; });
     if (!mine.length) return;
     lastTrackCheck = now;
