@@ -2172,6 +2172,13 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 .snap-when{ font-size:13px; font-weight:700; color:var(--ink); }
 .snap-counts{ font-size:11.5px; color:var(--ink-faint); margin-top:2px; }
 </style>
+<style>
+.nx-truck{position:absolute;top:50%;transform:translate(-50%,-50%);width:36px;height:22px;z-index:3;background:#fff;display:flex;align-items:center;justify-content:center;transition:left 1s ease;}
+.nx-truck svg{width:28px;height:18px;display:block;}
+.nx-fill{transition:width 1s ease;}
+.nx-tip{cursor:pointer;transition:left 1s ease;}
+.nx-tip u{cursor:pointer;}
+</style>
 </head>
 <body>
 
@@ -4750,6 +4757,80 @@ function openOrderDetail(oid, replaceStack){
   if(replaceStack) viewStack = [];
   pushView('Order #' + oid, (main)=> buildOrderDetail(main, order));
 }
+/* ---- live tracking bar: the truck moves by itself with time ---- */
+function nxProgress(order){
+  var s=order.status, now=Date.now();
+  if(s==='Delivered') return 3;
+  var at=function(stages){var e=0;(order.timeline||[]).forEach(function(t){if(stages.indexOf(t.stage)>-1) e=t.at||e;});return e;};
+  var fr=function(a,b,lo,hi){ if(!(b>a)) return (lo+hi)/2; return Math.max(lo,Math.min(hi,(now-a)/(b-a))); };
+  var days=8; try{ days=Number(order.etaMax)||deliveryWindow().max||8; }catch(e){}
+  var etaEnd=(order.placedAt||now)+days*86400000;
+  if(s==='Out for Delivery'){ var o=at(['Out for Delivery'])||order.updatedAt||now; return 2+fr(o,o+8*3600000,0.1,0.9); }
+  if(s==='Shipped'||s==='In Transit'){
+    var sh=at(['Shipped'])||order.updatedAt||order.placedAt||now;
+    return 1+fr(sh,Math.max(etaEnd-86400000,sh+2*86400000),0.1,0.9);
+  }
+  return s==='Packed'?0.6:0.3;
+}
+function nxCity(order){
+  var c=order.currentCity||'';
+  if(!c){ var tl=order.timeline||[]; for(var i=tl.length-1;i>=0;i--){ if(tl[i]&&tl[i].city){ c=tl[i].city; break; } } }
+  if(!c&&order.addressObj&&order.addressObj.city) c=order.addressObj.city;
+  if(!c){ var m=String(order.address||'').match(/,\s*([A-Za-z .]+),\s*[A-Za-z .]+\s*-?\s*\d{6}/); if(m) c=m[1].trim(); }
+  if(c.indexOf(',')>-1) c=c.split(',')[0].trim();
+  return c||'In transit';
+}
+function nxTick(){
+  try{
+    document.querySelectorAll('.nx-stp[data-oid]').forEach(function(el){
+      var o=(DB.orders||[]).find(function(x){return x.id===el.getAttribute('data-oid');}); if(!o) return;
+      var f=(nxProgress(o)/3).toFixed(4), pos='calc(11px + (100% - 22px) * '+f+')';
+      var a=el.querySelector('.nx-fill'); if(a) a.style.width='calc((100% - 22px) * '+f+')';
+      var b=el.querySelector('.nx-truck'); if(b) b.style.left=pos;
+      var c=el.querySelector('.nx-tip'); if(c) c.style.left='clamp(62px,'+pos+',calc(100% - 62px))';
+    });
+  }catch(e){}
+}
+setInterval(nxTick,20000);
+
+/* "View Details" - full tracking history, like Meesho */
+function nxTrackSheet(order){
+  var esc=function(x){return String(x==null?'':x).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
+  var label={Placed:'Order placed',Packed:'Packed',Shipped:'Shipped','In Transit':'In transit','Out for Delivery':'Out for delivery',Delivered:'Delivered',Cancelled:'Cancelled'};
+  var when=function(t){try{return new Date(t).toLocaleString('en-IN',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'});}catch(e){return '';}};
+  var tl=(order.timeline||[]).slice().reverse();
+  var rows=tl.map(function(t,i){
+    return '<div style="display:flex;gap:12px;"><div style="display:flex;flex-direction:column;align-items:center;"><span style="width:12px;height:12px;border-radius:50%;background:'+(i===0?'#14803c':'#b8b8c0')+';margin-top:4px;"></span>'+(i<tl.length-1?'<span style="flex:1;width:2px;background:#e1e1e6;"></span>':'')+'</div>'+
+      '<div style="padding-bottom:16px;"><b style="font-size:14px;">'+esc(label[t.stage]||t.stage)+'</b>'+
+      (t.city?'<div style="font-size:12.5px;color:#555;margin-top:2px;">'+esc(t.city)+'</div>':'')+
+      (t.note?'<div style="font-size:12px;color:#777;margin-top:2px;">'+esc(t.note)+'</div>':'')+
+      '<div style="font-size:11.5px;color:#999;margin-top:2px;">'+esc(when(t.at))+'</div></div></div>';
+  }).join('');
+  var eta=''; try{ eta=etaRangeLabel(order); }catch(e){}
+  var overlay=document.createElement('div');
+  overlay.className='modal-overlay'; overlay.style.zIndex='500';
+  overlay.innerHTML='<div class="modal-card" style="max-height:82vh;overflow:auto;text-align:left;">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;"><h3 style="margin:0;">Tracking details</h3><button class="text-btn" id="nxClose">Close</button></div>'+
+    '<div style="margin:12px 0;padding:10px 12px;background:#f5f5f7;border-radius:8px;font-size:13px;line-height:1.6;">'+
+      '<div><b>Order</b> #'+esc(order.id)+'</div>'+
+      '<div><b>Status</b> '+esc(label[order.status]||order.status)+'</div>'+
+      '<div><b>Current location</b> '+esc(nxCity(order))+'</div>'+
+      (order.trackingId?'<div><b>Tracking ID</b> '+esc(order.trackingId)+'</div>':'')+
+      (order.trackingDetail?'<div><b>Courier</b> '+esc(order.trackingDetail)+'</div>':'')+
+      (eta&&order.status!=='Delivered'?'<div><b>Delivery by</b> '+esc(eta)+'</div>':'')+
+    '</div>'+
+    '<div style="margin-top:6px;">'+(rows||'<p class="muted">No tracking updates yet.</p>')+'</div></div>';
+  document.body.appendChild(overlay);
+  overlay.querySelector('#nxClose').addEventListener('click',function(){overlay.remove();});
+  overlay.addEventListener('click',function(e){if(e.target===overlay) overlay.remove();});
+}
+document.addEventListener('click',function(e){
+  var t=e.target&&e.target.closest?e.target.closest('.nx-tip'):null;
+  if(!t) return;
+  var o=(DB.orders||[]).find(function(x){return x.id===t.getAttribute('data-oid');});
+  if(o) nxTrackSheet(o);
+});
+
 function nxTop(order){
   var esc=function(x){return String(x==null?'':x).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});};
   var p=null; try{ p=getProduct(order.items[0].productId); }catch(e){}
@@ -4770,11 +4851,13 @@ function nxTop(order){
   var box='<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#E6A23C" stroke-width="1.7" stroke-linejoin="round"><path d="M3 8l9-5 9 5v8l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>';
   var truck='<svg viewBox="0 0 26 18"><rect x="0" y="2" width="15" height="11" rx="1.5" fill="#2563eb"/><path d="M15 5h6l4 4v4H15z" fill="#2563eb"/><circle cx="6" cy="14" r="2.5" fill="#fff" stroke="#2563eb" stroke-width="1.6"/><circle cx="20" cy="14" r="2.5" fill="#fff" stroke="#2563eb" stroke-width="1.6"/></svg>';
   var tick='<svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>';
-  var dots=names.map(function(n,i){var on=i<st||done, cur=(i===st&&!done); return '<div class="nx-dot '+(cur?'cur':on?'on':'')+'">'+(cur?truck:tick)+'</div>';}).join('');
+  var p=nxProgress(order), pf=(p/3).toFixed(4);
+  var dots=names.map(function(n,i){var on=done||(i<p+0.001); return '<div class="nx-dot '+(on?'on':'')+'">'+tick+'</div>';}).join('');
   var lbl=names.map(function(n,i){var a=i===0?'left':i===3?'right':'center';return '<div class="'+(i<=st||done?'on':'')+'" style="text-align:'+a+'"><b>'+n[0]+'</b><span>'+d2(n[1])+'</span></div>';}).join('');
-  var pos='calc(11px + (100% - 22px) * '+(done?3:st)+' / 3)';
-  var tip=(!done&&order.currentCity)?'<div class="nx-tip" style="left:clamp(62px,'+pos+',calc(100% - 62px))"><em></em>'+esc(order.currentCity)+'<u>View Details ›</u></div>':'';
-  var stp='<div class="nx-stp'+(tip?'':' notip')+'">'+tip+'<div class="nx-line"><div class="nx-fill" style="width:calc((100% - 22px) * '+(done?3:st)+' / 3)"></div>'+dots+'</div><div class="nx-lbl">'+lbl+'</div></div>';
+  var pos='calc(11px + (100% - 22px) * '+pf+')';
+  var tip=!done?'<div class="nx-tip" data-oid="'+esc(order.id)+'" style="left:clamp(62px,'+pos+',calc(100% - 62px))"><em></em>'+esc(nxCity(order))+'<u>View Details ›</u></div>':'';
+  var tr=done?'':'<div class="nx-truck" style="left:'+pos+'">'+truck+'</div>';
+  var stp='<div class="nx-stp'+(tip?'':' notip')+'" data-oid="'+esc(order.id)+'">'+tip+'<div class="nx-line"><div class="nx-fill" style="width:calc((100% - 22px) * '+pf+')"></div>'+dots+tr+'</div><div class="nx-lbl">'+lbl+'</div></div>';
   var note=done?'Delivered. Easy returns within '+DB.settings.returnWindowDays+' days.':canCancelOrder(order)?'You can cancel this order until it ships.':'Order shipped, cancel unavailable.';
   return card+'<div class="nx-ow"><div class="bx">'+box+'</div><div><b>'+head+'</b><span>'+esc(sub)+'</span></div></div>'+stp+'<div class="nx-note"><span>'+note+'</span></div>';
 }
