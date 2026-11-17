@@ -2173,7 +2173,6 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 .snap-counts{ font-size:11.5px; color:var(--ink-faint); margin-top:2px; }
 </style>
 <style>
-#splash{display:none !important;}
 .nx-truck{position:absolute;top:50%;transform:translate(-50%,-50%);width:32px;height:22px;z-index:3;background:transparent;display:flex;align-items:center;justify-content:center;transition:left 1s ease;}
 .nx-truck svg{width:28px;height:18px;display:block;}
 .nx-fill{transition:width 1s ease;}
@@ -2198,7 +2197,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v93-11nov';</script>
+const APP_BUILD = 'v103-fix';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -6129,10 +6128,15 @@ function launchApp(){
     }
   }catch(e){}
 
-  /* Splash removed: the shop opens straight away. */
-  splash.style.display = 'none';
-  $('#app').style.display = 'flex';
-  try{ const m = splash.querySelector('.splash-media'); if(m){ if(m.tagName === 'VIDEO'){ try{ m.pause(); }catch(e){} } m.remove(); } }catch(e){}
+  setTimeout(()=>{
+    splash.style.animation = 'fadeOut .4s ease forwards';
+    setTimeout(()=>{
+      splash.style.display = 'none';
+      $('#app').style.display = 'flex';
+      const m = splash.querySelector('.splash-media');
+      if(m && m.tagName === 'VIDEO'){ try{ m.pause(); }catch(e){} }
+    }, 380);
+  }, hold);
 }
 
 /* ============================================================
@@ -8589,7 +8593,7 @@ function renderAdminSettings(shell){
 
   /* ---------- 3. send an order to the server ---------- */
 
-  function submitOrder(order) {
+  function submitOrder(order, quiet) {
     var D = db(); if (!D || !order) return;
     var items = (order.items || []).filter(function (i) { return i && i.productId; })
       .map(function (i) { return { productId: i.productId, qty: i.qty }; });
@@ -8614,6 +8618,7 @@ function renderAdminSettings(shell){
         couponCode:    order.couponCode || null
       }
     }).catch(function (e) {
+      if (quiet) return;      // a background re-send: no queue, no toast
       // Queue for retry instead of losing the order.
       try {
         var q = JSON.parse(localStorage.getItem('nc_order_queue') || '[]');
@@ -8715,9 +8720,26 @@ function renderAdminSettings(shell){
     var keys = mine.slice(0, 40).map(function (o) { return o.trackKey; });
     api('/api/track', { method: 'POST', body: { keys: keys } }).then(function (res) {
       var list = (res && res.orders) || [];
-      if (!list.length) return;
       var byKey = {};
       list.forEach(function (r) { if (r && r.key) byKey[r.key] = r; });
+      /* Safety net: an order this phone placed that the server does not know about
+         (it never arrived, or the server was reset) is sent again, quietly, at
+         most once every 10 minutes. The server ignores repeats of the same order. */
+      try {
+        window.__ncResub = window.__ncResub || {};
+        var nowT = Date.now();
+        mine.forEach(function (o) {
+          if (byKey[o.trackKey]) return;
+          if (o.status === 'Cancelled' || o.status === 'Delivered') return;
+          if (/^ORD/.test(String(o.id))) return;
+          var t = o.placedAt || o.createdAt || 0;
+          if (t && nowT - t > 14 * 86400000) return;
+          if (window.__ncResub[o.trackKey] && nowT - window.__ncResub[o.trackKey] < 600000) return;
+          window.__ncResub[o.trackKey] = nowT;
+          submitOrder(o, true);
+        });
+      } catch (e) {}
+      if (!list.length) return;
       var changed = 0;
       mine.forEach(function (o) {
         var r = byKey[o.trackKey];
@@ -16128,9 +16150,9 @@ html.fk.fk.fk body .nx-bname{display:block !important; margin-top:7px !important
     if (Date.now() - lastCheck < 30000) return; lastCheck = Date.now();
     fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (v) {
       if (!v || !v.build || v.build === APP_BUILD) return;
-      var tried = ''; try { tried = sessionStorage.getItem('ncVerTried') || ''; } catch (e) {}
+      var tried = ''; try { tried = localStorage.getItem('ncVerTried') || ''; } catch (e) {}
       if (tried === v.build) return;                       // already tried once this session: never loop
-      try { sessionStorage.setItem('ncVerTried', v.build); } catch (e) {}
+      try { localStorage.setItem('ncVerTried', v.build); } catch (e) {}
       toast('Updating to the latest version…', 'info');
       var wipe = (window.caches && caches.keys) ? caches.keys().then(function (ks) { return Promise.all(ks.filter(function (k) { return k.indexOf('nexcart-img') !== 0; }).map(function (k) { return caches.delete(k); })); }) : Promise.resolve();
       var unreg = (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) ? navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }) : Promise.resolve();

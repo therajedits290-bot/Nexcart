@@ -981,6 +981,12 @@ const server = http.createServer(async (req, res) => {
     const b = await readBody(req);
     if (b.__tooBig) return send(res, 413, { error: 'Request too large' });
     const user = userFromReq(req);
+    /* The same order sent twice (a retry, a double tap) is stored once. */
+    const tkey = String(b.trackKey || '').slice(0, 80);
+    if (tkey) {
+      const dup = db.orders.find((o) => o.trackKey === tkey);
+      if (dup) return send(res, 200, { ok: true, order: dup, duplicate: true });
+    }
     const name = String(b.customerName || (user && user.name) || '').trim();
     const phone = digits(b.customerPhone || (user && user.phone) || '');
     if (name.length < 2) return send(res, 400, { error: 'Name is required' });
