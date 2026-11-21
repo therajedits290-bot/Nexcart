@@ -2197,7 +2197,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v103-fix';</script>
+const APP_BUILD = 'v105-orders';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -8618,6 +8618,13 @@ function renderAdminSettings(shell){
         couponCode:    order.couponCode || null
       }
     }).catch(function (e) {
+      if (e && e.status >= 400 && e.status < 500 && e.status !== 401 && e.status !== 408 && e.status !== 429) {
+        // The server understood the order but refused it (out of stock, missing
+        // phone number, unknown product...). Retrying will not help: say why.
+        try { order.uploadError = e.message || ('HTTP ' + e.status); if (typeof persist === 'function') persist(); } catch (e3) {}
+        if (!quiet) toast('Order NOT sent to the shop: ' + (e.message || 'error') + '. Please contact the shop.', 'warn');
+        return;
+      }
       if (quiet) return;      // a background re-send: no queue, no toast
       // Queue for retry instead of losing the order.
       try {
@@ -8974,9 +8981,13 @@ function renderAdminSettings(shell){
 
   function startPolling() {
     window.setInterval(function () {
-      if (typeof adminUnlocked === 'undefined' || !adminUnlocked) return;
-      // Backup path, in case the admin panel was opened some other way.
-      if (!getKey() && !keyAsked) { keyAsked = true; askForKey(false); return; }
+      var unlocked = (typeof adminUnlocked !== 'undefined' && adminUnlocked);
+      // Owner phone: once the owner key is saved, new orders keep arriving even
+      // when the admin panel is closed or locked.
+      if (!getKey()) {
+        if (unlocked && !keyAsked) { keyAsked = true; askForKey(false); }
+        return;
+      }
       pollOrders();
     }, POLL_MS);
   }
