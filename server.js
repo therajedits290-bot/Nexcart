@@ -1093,7 +1093,11 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/orders' && req.method === 'GET') {
     if (!isAdmin(req)) return send(res, 401, { error: 'unauthorised' });
     const since = Number(url.searchParams.get('since')) || 0;
-    return send(res, 200, { orders: db.orders.filter((o) => o.placedAt > since), serverTime: Date.now() });
+    /* updates: orders that CHANGED after this time (a customer cancelled, asked
+       for a return...). The owner's phone merges them into its own list. */
+    const upd = url.searchParams.get('updatedSince');
+    const updates = upd === null ? [] : db.orders.filter((o) => (o.updatedAt || o.placedAt || 0) > (Number(upd) || 0));
+    return send(res, 200, { orders: db.orders.filter((o) => o.placedAt > since), updates, serverTime: Date.now() });
   }
 
   /* The customer's phone asks about its OWN orders. It sends only the private
@@ -1154,6 +1158,41 @@ const server = http.createServer(async (req, res) => {
     save();
     pushNotify((x) => x.admin, { title: 'Order cancelled ' + order.id, body: (order.customerName || 'Customer') + ' · ₹' + order.total + (reason ? ' · ' + reason : ''), tab: 'orders', tag: 'cancel-' + order.id });
     return send(res, 200, { ok: true, status: 'Cancelled' });
+  }
+
+  /* Customer asks to return / refund a delivered order. Same idea as cancel:
+     the phone sends its private trackKey. Without this the request lived only
+     on the customer's phone, the next status check said "Delivered" again, and
+     the owner never saw it. */
+  if (p === '/api/orders/return' && req.method === 'POST') {
+    const b = await readBody(req);
+    if (b.__tooBig) return send(res, 413, { error: 'Request too large' });
+    const key = String(b.trackKey || '').slice(0, 80);
+    if (!key) return send(res, 400, { error: 'Missing order key' });
+    const order = db.orders.find((o) => o && o.trackKey && o.trackKey === key);
+    if (!order) return send(res, 404, { error: 'Order not found' });
+    if (order.status === 'Return Requested') return send(res, 200, { ok: true, already: true, status: order.status });
+    if (order.status !== 'Delivered')
+      return send(res, 409, { error: 'A return can only be requested after delivery', status: order.status });
+    const type = String(b.type || 'Return').slice(0, 20);
+    const reason = String(b.reason || '').trim().slice(0, 400);
+    order.status = 'Return Requested';
+    order.returnType = type;
+    order.returnReason = reason;
+    order.returnRequestedAt = Date.now();
+    if (b.refundDetails && typeof b.refundDetails === 'object') {
+      const rd = {};
+      ['method', 'upiId', 'accountName', 'accountNo', 'ifsc', 'bankName'].forEach((k) => {
+        if (b.refundDetails[k] !== undefined) rd[k] = String(b.refundDetails[k]).slice(0, 120);
+      });
+      order.refundDetails = rd;
+    }
+    order.updatedAt = Date.now();
+    order.timeline = Array.isArray(order.timeline) ? order.timeline : [];
+    order.timeline.push({ stage: type + ' Requested', at: Date.now(), city: order.currentCity || '' });
+    save();
+    pushNotify((x) => x.admin, { title: type + ' requested ' + order.id, body: (order.customerName || 'Customer') + ' · ₹' + order.total + (reason ? ' · ' + reason : ''), tab: 'orders', tag: 'return-' + order.id });
+    return send(res, 200, { ok: true, status: order.status });
   }
 
   const m = p.match(/^\/api\/orders\/([A-Za-z0-9]+)$/);

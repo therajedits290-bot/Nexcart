@@ -2197,7 +2197,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v105-orders';</script>
+const APP_BUILD = 'v106-returns';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -5138,7 +5138,9 @@ function openReturnSheet(order, onDone){
     order.returnReason = selectedReason.value + (note ? ' — ' + note : '');
     if(refundDetails) order.refundDetails = refundDetails;
     order.timeline.push({ stage:`${selectedType} Requested`, at: Date.now(), city: order.currentCity });
+    order.returnPending = true;           // until the shop's server confirms it
     persist();
+    if(window.ncReturnOrder) window.ncReturnOrder(order);
     overlay.remove();
     showToast(`${selectedType} request submitted`, 'checkCircle');
     onDone();
@@ -8646,6 +8648,26 @@ function renderAdminSettings(shell){
     q.forEach(function (entry) { submitOrder(entry.order); });
   }
 
+  /* ---------- 3a-2. customer asks for a return / refund: tell the server ---------- */
+  window.ncReturnOrder = function (order) {
+    if (!order || !order.trackKey || !BASE) return Promise.resolve(false);
+    return api('/api/orders/return', {
+      method: 'POST',
+      body: { trackKey: order.trackKey, type: order.returnType || 'Return', reason: order.returnReason || '', refundDetails: order.refundDetails || null }
+    }).then(function () {
+      order.returnPending = false;
+      try { if (typeof persist === 'function') persist(); } catch (e) {}
+      return true;
+    }).catch(function (e) {
+      // 409 (not delivered yet) / 404: stop retrying, the next status check shows the truth.
+      if (e && (e.status === 409 || e.status === 404)) {
+        order.returnPending = false;
+        try { if (typeof persist === 'function') persist(); } catch (e2) {}
+      }
+      return false;
+    });
+  };
+
   /* ---------- 3a. customer cancels: tell the server (with the reason) ---------- */
   window.ncCancelOrder = function (order) {
     if (!order || !order.trackKey || !BASE) return Promise.resolve(false);
@@ -8759,6 +8781,16 @@ function renderAdminSettings(shell){
           if (window.ncUpdateOrder) window.ncUpdateOrder(o);
           return;
         }
+        if (o.returnPending) {
+          // The customer asked for a return here and the server has not heard yet:
+          // keep it as "Return Requested" and send it again - never go back to "Delivered".
+          if (r.status === 'Return Requested' || r.status === 'Return Approved' || r.status === 'Refunded' || r.status === 'Returned') {
+            o.returnPending = false;
+          } else {
+            if (window.ncReturnOrder) window.ncReturnOrder(o);
+            return;
+          }
+        }
         var srvOpen = !r.status || r.status === 'Placed' || r.status === 'Confirmed';
         if (o.status === 'Cancelled' && srvOpen) {
           // Covers orders cancelled by an older version of the app too:
@@ -8797,7 +8829,7 @@ function renderAdminSettings(shell){
   function pollOrders() {
     if (!getKey() || busy) return;
     busy = true;
-    api('/api/orders?since=' + lastOrderSeen, { admin: true }).then(function (d) {
+    api('/api/orders?since=' + lastOrderSeen + '&updatedSince=' + lastOrderSeen, { admin: true }).then(function (d) {
       var D = db(); if (!D) return;
       var existing = {}, existingKeys = {};
       (D.orders || []).forEach(function (o) {
@@ -8819,6 +8851,32 @@ function renderAdminSettings(shell){
         if (typeof persist === 'function') persist();
         toast(fresh.length === 1 ? 'New order received!' : fresh.length + ' new orders!', 'package');
       }
+      /* Changes made by customers on their own phones (cancel, return request...)
+         reach the owner's list here. A change the owner has not pushed yet is
+         never overwritten. */
+      try {
+        var changedN = 0;
+        (d.updates || []).forEach(function (s) {
+          var o = (D.orders || []).find(function (x) {
+            return x.id === s.id || (s.clientOrderId && x.id === s.clientOrderId) || (s.trackKey && x.trackKey === s.trackKey);
+          });
+          if (!o || o.adminPending || o.cancelPending || o.returnPending) return;
+          var su = s.updatedAt || 0;
+          if (su && o.__srvUpd && su <= o.__srvUpd) return;
+          o.__srvUpd = su;
+          var diff = (s.status && s.status !== o.status) || (s.returnReason || '') !== (o.returnReason || '') || (s.cancelReason || '') !== (o.cancelReason || '');
+          if (!diff) return;
+          if (s.status) o.status = s.status;
+          if (s.cancelReason) o.cancelReason = s.cancelReason;
+          if (s.returnType) o.returnType = s.returnType;
+          if (s.returnReason) o.returnReason = s.returnReason;
+          if (s.refundDetails) o.refundDetails = s.refundDetails;
+          if (Array.isArray(s.timeline) && s.timeline.length) o.timeline = s.timeline;
+          changedN++;
+          toast('Order #' + (s.clientOrderId || s.id) + ': ' + s.status, 'package');
+        });
+        if (changedN && typeof persist === 'function') persist();
+      } catch (e) {}
       if (d.serverTime) lastOrderSeen = d.serverTime;
       // Auto-push the catalogue whenever the local one differs from what the
       // server last received. lastCatalogHash is only advanced after a
