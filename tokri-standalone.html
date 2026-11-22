@@ -2197,7 +2197,7 @@ input[type="range"]#spSecs{ accent-color:var(--brand, #FF3F6C); height:26px; }
 <!-- ======= SPLASH SCREEN ======= -->
 <script>/* Which version of this file a phone is running. Shown in Admin > Settings,
      so an old cached copy is instantly recognisable. */
-const APP_BUILD = 'v106-returns';</script>
+const APP_BUILD = 'v107-return-fix';</script>
 <div id="splash" class="splash">
   <div class="splash-inner">
     <div class="splash-logo-wrap" id="splashLogoWrap">
@@ -4830,6 +4830,8 @@ function nxTrackSheet(order){
   overlay.addEventListener('click',function(e){if(e.target===overlay) overlay.remove();});
 }
 document.addEventListener('click',function(e){
+  var c=e.target&&e.target.closest?e.target.closest('.nx-od-card[data-pid]'):null;
+  if(c){ try{ openProductDetail(c.getAttribute('data-pid')); }catch(err){} return; }
   var t=e.target&&e.target.closest?e.target.closest('.nx-tip'):null;
   if(!t) return;
   var o=(DB.orders||[]).find(function(x){return x.id===t.getAttribute('data-oid');});
@@ -4840,7 +4842,7 @@ function nxTop(order){
   var esc=function(x){return String(x==null?'':x).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});};
   var p=null; try{ p=getProduct(order.items[0].productId); }catch(e){}
   var it=order.items[0]||{};
-  var card='<div class="nx-od-card">'+(p&&p.img?'<img src="'+p.img+'" alt="">':'')+'<div class="t"><b>Order #'+esc(order.id)+'</b>'+(p?esc(p.name):'')+(order.items.length>1?' +'+(order.items.length-1)+' more':'')+'<i>'+(it.size?esc(it.size)+' • ':'')+'Cash on Delivery</i><i>Easy returns for all issues</i></div><span class="nx-od-chev">›</span></div>';
+  var card='<div class="nx-od-card"'+(p?' data-pid="'+esc(p.id)+'" style="cursor:pointer"':'')+'>'+(p&&p.img?'<img src="'+p.img+'" alt="">':'')+'<div class="t"><b>Order #'+esc(order.id)+'</b>'+(p?esc(p.name):'')+(order.items.length>1?' +'+(order.items.length-1)+' more':'')+'<i>'+(it.size?esc(it.size)+' • ':'')+'Cash on Delivery</i><i>Easy returns for all issues</i></div><span class="nx-od-chev">›</span></div>';
   var cancelled=order.status==='Cancelled'||order.status==='Returned';
   if(cancelled){
     return card+'<div class="nx-ow"><div class="bx">'+icon(order.status==='Cancelled'?'xCircle':'refresh')+'</div><div><b>Order '+esc(order.status)+'</b><span>'+esc((order.address||'').split('\n')[0])+'</span></div></div>';
@@ -8659,8 +8661,10 @@ function renderAdminSettings(shell){
       try { if (typeof persist === 'function') persist(); } catch (e) {}
       return true;
     }).catch(function (e) {
-      // 409 (not delivered yet) / 404: stop retrying, the next status check shows the truth.
-      if (e && (e.status === 409 || e.status === 404)) {
+      // 409 (not delivered yet) or "Order not found": stop retrying.
+      // A plain "Not found" means the server is still the old version: keep the
+      // request on this phone and try again later - never fall back to "Delivered".
+      if (e && (e.status === 409 || (e.status === 404 && e.message === 'Order not found'))) {
         order.returnPending = false;
         try { if (typeof persist === 'function') persist(); } catch (e2) {}
       }

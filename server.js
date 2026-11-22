@@ -620,7 +620,7 @@ const server = http.createServer(async (req, res) => {
 
   if (p === '/api/health')
     return send(res, 200, { ok: true, products: db.products.length, orders: db.orders.length,
-                            users: db.users.length, storage: storage, rev: db.rev });
+                            users: db.users.length, storage: storage, rev: db.rev, v: 107 });
 
   /* ---- live sync ---- */
   if (p === '/api/version')
